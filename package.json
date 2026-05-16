@@ -1,0 +1,31 @@
+{
+  "name": "kabu-casino-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Discord casino bot with keiba game",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "deploy": "ts-node src/deploy-commands.ts",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:restart": "pm2 restart kabu-casino --update-env",
+    "pm2:logs": "pm2 logs kabu-casino",
+    "pm2:stop": "pm2 stop kabu-casino",
+    "backup": "bash scripts/backup.sh"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}

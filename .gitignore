@@ -1,0 +1,38 @@
+# ─── 機密情報（絶対コミットしない） ─────────
+.env
+.env.local
+.env.*.local
+
+# ─── ビルド成果物 ──────────────────────────
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ─── データベース & ユーザーデータ ──────────
+data/database.sqlite
+data/database.sqlite-shm
+data/database.sqlite-wal
+data/backup/
+
+# ─── ログ ──────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+pm2-*.log
+.pm2/
+
+# ─── OS / エディタ ──────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── 一時ファイル ───────────────────────────
+tmp/
+.tmp/
+
+# ─── Claude Code 関連（プロジェクトに不要） ─
+.claude/
