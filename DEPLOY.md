@@ -44,7 +44,8 @@ VPS 作成完了したら、IP アドレスと SSH キーを控えておく。
 
 ---
 
-## 1. VPS に初回接続
+## 1. VPS に初回接続ssh root@163.44.110.20
+
 
 ```bash
 ssh root@VPS_IP_ADDRESS

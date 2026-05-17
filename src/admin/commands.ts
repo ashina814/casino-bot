@@ -103,6 +103,9 @@ export const adminCommand = new SlashCommandBuilder()
       .addStringOption((opt) =>
         opt.setName("message").setDescription("通知内容").setRequired(true)
       )
+      .addRoleOption((opt) =>
+        opt.setName("role").setDescription("メンションするロール（任意）")
+      )
   );
 
 // ─── Owner Exclusion Helper ────────────────────────────
@@ -119,6 +122,11 @@ function ownerExclusion(): { clause: string; params: string[] } {
 // ─── Command Router ────────────────────────────────────
 
 export async function handleAdminCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (interaction.user.id !== "1436392582635847691") {
+    await interaction.reply({ embeds: [errorEmbed("このコマンドを実行する権限がありません。")], ephemeral: true });
+    return;
+  }
+
   const sub = interaction.options.getSubcommand();
   const guildId = interaction.guildId!;
 
@@ -501,6 +509,7 @@ async function handleInspect(interaction: ChatInputCommandInteraction, guildId: 
 
 async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const message = interaction.options.getString("message", true);
+  const role = interaction.options.getRole("role");
   const cfg = getServerConfig(guildId);
   const channelId = cfg.casino_channel_id ?? interaction.channelId;
 
@@ -514,10 +523,13 @@ async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId:
 
   const zashiki = getZashikiAttachment("idle");
   if (zashiki) {
-    embed.setImage(zashiki.thumbnailUrl);
+    embed.setThumbnail(zashiki.thumbnailUrl);
   }
 
+  const content = role ? role.toString() : undefined;
+
   await (channel as any).send({
+    content,
     embeds: [embed],
     files: zashiki ? [zashiki.attachment] : [],
   });
