@@ -10,7 +10,7 @@
 module.exports = {
   apps: [
     {
-      name: "kabu-casino",
+      name: "casino-bot",
       script: "dist/index.js",
       cwd: __dirname,
 

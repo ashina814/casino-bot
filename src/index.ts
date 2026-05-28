@@ -18,6 +18,7 @@ import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStoc
 import { handleAdminCommand } from "./admin/commands";
 import { handleShoutenCommand } from "./games/shouten";
 import { handleZashikiCommand } from "./games/zashiki";
+import { handleExchangeCommand } from "./games/exchange";
 
 // ─── Startup Cleanup ───────────────────────────────────
 
@@ -94,6 +95,8 @@ async function bootstrap(): Promise<void> {
             return await handleZashikiCommand(interaction);
           case "感謝":
             return await handleThanksCommand(interaction);
+          case "両替":
+            return await handleExchangeCommand(interaction);
         }
       }
 

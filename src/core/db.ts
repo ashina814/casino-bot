@@ -17,7 +17,26 @@ export type KeibaHorse = {
 
 export type UserProfile = {
   user_id: string;
+  /**
+   * v2: カジノコイン（第二通貨）残高。
+   * 既存の `balance` カラムをそのまま再解釈し、カジノコインとして扱う。
+   * すべてのゲーム・福分け・商店はこのカラムで動作する。
+   */
   balance: number;
+  /**
+   * v2 新規: 第一通貨残高。
+   * サーバー全体経済の通貨。従業員給与（Iter.4）で初めて入る予定。
+   * 両替（/両替）で出入りする。Iter.1 時点ではゼロのまま運用される想定。
+   */
+  currency1_balance: number;
+  /**
+   * v2 新規: 累計両替量（第一→第二）。換金マイル称号判定用。
+   */
+  exchange_in_total: number;
+  /**
+   * v2 新規: 累計両替量（第二→第一）。換金マイル称号判定用。
+   */
+  exchange_out_total: number;
   level: number;
   exp: number;
   tier: string;
@@ -31,6 +50,20 @@ export type UserProfile = {
   current_win_streak: number;
   current_lose_streak: number;
   best_win_streak: number;
+  created_at: string;
+};
+
+/** v2: 両替方向 */
+export type ExchangeDirection = "in" | "out"; // in = 第一→第二, out = 第二→第一
+
+export type CurrencyExchange = {
+  id: number;
+  user_id: string;
+  direction: ExchangeDirection;
+  source_amount: number;   // 投入した側の額
+  received_amount: number; // 受け取った側の額
+  fee_amount: number;      // 奉納された額（第二通貨基準）
+  rate: number;            // 適用された為替レート
   created_at: string;
 };
 
@@ -51,6 +84,12 @@ export type ServerConfig = {
   games_enabled: string;
   lucky_game: string | null;
   lucky_game_date: string | null;
+  /**
+   * v2 新規: 為替レート手動補正（管理者介入）。
+   * 自動レート = 基準10.0 × (1 + 動的補正) + exchange_rate_offset。
+   * 例: 暴落イベントで -2.0 を設定すると、コイン安に強制誘導される。
+   */
+  exchange_rate_offset: number;
 };
 
 export type Title = {
@@ -150,9 +189,14 @@ export function runTransaction<T>(fn: () => T): T {
 export function initializeDatabase(): void {
   db.exec(`
     -- ═══ Core: User Profiles ═══
+    -- v2: balance = カジノコイン（第二通貨）残高
+    --     currency1_balance = 第一通貨残高（Iter.4 で従業員給与から流入予定）
     CREATE TABLE IF NOT EXISTS users (
       user_id TEXT PRIMARY KEY,
       balance INTEGER NOT NULL DEFAULT 3000 CHECK(balance >= 0),
+      currency1_balance INTEGER NOT NULL DEFAULT 0 CHECK(currency1_balance >= 0),
+      exchange_in_total INTEGER NOT NULL DEFAULT 0,
+      exchange_out_total INTEGER NOT NULL DEFAULT 0,
       level INTEGER NOT NULL DEFAULT 1,
       exp INTEGER NOT NULL DEFAULT 0,
       tier TEXT NOT NULL DEFAULT 'human',
@@ -170,12 +214,14 @@ export function initializeDatabase(): void {
     );
 
     -- ═══ Core: Transaction Logs ═══
+    -- v2: currency カラムで通貨を区別（'currency2' = カジノコイン、'currency1' = 第一通貨）
     CREATE TABLE IF NOT EXISTS transaction_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
       amount INTEGER NOT NULL,
       reason TEXT NOT NULL,
       game TEXT,
+      currency TEXT NOT NULL DEFAULT 'currency2' CHECK(currency IN ('currency1', 'currency2')),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -196,7 +242,21 @@ export function initializeDatabase(): void {
       stock_channel_id TEXT,
       games_enabled TEXT NOT NULL DEFAULT '{"slots":true,"blackjack":true,"crash":true,"highlow":true,"roulette":true,"keiba":true,"stocks":true}',
       lucky_game TEXT,
-      lucky_game_date TEXT
+      lucky_game_date TEXT,
+      exchange_rate_offset REAL NOT NULL DEFAULT 0.0
+    );
+
+    -- ═══ v2: Currency Exchange Log ═══
+    -- プレイヤーの両替履歴。exchange_logs（管理者 mint/burn）とは別。
+    CREATE TABLE IF NOT EXISTS currency_exchanges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      direction TEXT NOT NULL CHECK(direction IN ('in', 'out')),
+      source_amount INTEGER NOT NULL CHECK(source_amount > 0),
+      received_amount INTEGER NOT NULL CHECK(received_amount >= 0),
+      fee_amount INTEGER NOT NULL DEFAULT 0,
+      rate REAL NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     -- ═══ Progression: Titles (二つ名) ═══
@@ -366,6 +426,19 @@ export function initializeDatabase(): void {
       // Column already exists — ignore
     }
   }
+
+  // ─── v2 Migration: users / transaction_logs / server_config ──
+  // 既存DBに対する追加カラム（空振り許容）。
+  const v2MigrationCols = [
+    "ALTER TABLE users ADD COLUMN currency1_balance INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN exchange_in_total INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN exchange_out_total INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE transaction_logs ADD COLUMN currency TEXT NOT NULL DEFAULT 'currency2'",
+    "ALTER TABLE server_config ADD COLUMN exchange_rate_offset REAL NOT NULL DEFAULT 0.0",
+  ];
+  for (const sql of v2MigrationCols) {
+    try { db.exec(sql); } catch { /* column exists */ }
+  }
 }
 
 // ─── Server Config Helpers ─────────────────────────────
@@ -386,6 +459,7 @@ export function updateServerConfig(guildId: string, updates: Partial<Omit<Server
     "balance_cap", "house_edge_offset", "min_bet", "jackpot_pool", "relief_pool",
     "casino_channel_id", "jackpot_channel_id", "stock_channel_id",
     "games_enabled", "lucky_game", "lucky_game_date",
+    "exchange_rate_offset",
   ] as const;
 
   for (const key of allowed) {

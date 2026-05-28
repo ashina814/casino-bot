@@ -160,6 +160,55 @@ export function recordLoss(userId: string): void {
   `).run(userId);
 }
 
+// ─── v2: 第一通貨 (currency1) 操作 ───────────────────────
+// カジノコイン (balance) と完全に独立した残高。
+// 主な用途: /両替, 従業員給与 (Iter.4), 管理者調整。
+// ゲームでは絶対に使わない（カジノは第二通貨で完結する設計）。
+
+export function getCurrency1Balance(userId: string, guildId?: string): number {
+  const user = ensureUser(userId, guildId);
+  return user.currency1_balance ?? 0;
+}
+
+export function adjustCurrency1Balance(
+  userId: string,
+  amount: number,
+  reason: string,
+  guildId?: string,
+): BankAdjustResult {
+  return runTransaction(() => {
+    const normalizedAmount = toInt(amount);
+    if (!Number.isFinite(normalizedAmount) || !Number.isSafeInteger(normalizedAmount)) {
+      return { ok: false as const, reason: "INVALID_AMOUNT" as const };
+    }
+
+    ensureUser(userId, guildId);
+    const current = (db.prepare("SELECT currency1_balance FROM users WHERE user_id = ?").get(userId) as { currency1_balance: number }).currency1_balance;
+    const newBalance = current + normalizedAmount;
+
+    if (normalizedAmount < 0 && newBalance < 0) {
+      return { ok: false as const, reason: "INSUFFICIENT_FUNDS" as const };
+    }
+    if (!Number.isSafeInteger(newBalance)) {
+      return { ok: false as const, reason: "INVALID_AMOUNT" as const };
+    }
+
+    db.prepare("UPDATE users SET currency1_balance = ? WHERE user_id = ?").run(newBalance, userId);
+    db.prepare("INSERT INTO transaction_logs (user_id, amount, reason, game, currency) VALUES (?, ?, ?, NULL, 'currency1')")
+      .run(userId, normalizedAmount, reason);
+
+    return { ok: true as const, balance: newBalance };
+  });
+}
+
+/** v2: 換金マイル累計を加算（称号判定用） */
+export function addExchangeMiles(userId: string, direction: "in" | "out", amount: number): void {
+  const v = toInt(amount);
+  if (!Number.isFinite(v) || !Number.isSafeInteger(v) || v <= 0) return;
+  const col = direction === "in" ? "exchange_in_total" : "exchange_out_total";
+  db.prepare(`UPDATE users SET ${col} = MIN(${col} + ?, ${Number.MAX_SAFE_INTEGER}) WHERE user_id = ?`).run(v, userId);
+}
+
 export function recordWager(userId: string, amount: number): void {
   const v = toInt(amount);
   if (!Number.isFinite(v) || !Number.isSafeInteger(v) || v < 0) {

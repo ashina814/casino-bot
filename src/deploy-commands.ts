@@ -11,6 +11,7 @@ import { rankingCommand } from "./ui/ranking";
 import { adminCommand } from "./admin/commands";
 import { shoutenCommand } from "./games/shouten";
 import { zashikiCommand } from "./games/zashiki";
+import { exchangeCommand } from "./games/exchange";
 
 async function deployCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discordToken);
@@ -26,6 +27,7 @@ async function deployCommands(): Promise<void> {
     shoutenCommand.toJSON(),
     zashikiCommand.toJSON(),
     thanksCommand.toJSON(),
+    exchangeCommand.toJSON(),
   ];
   if (config.guildId) {
     // 開発用: 特定 guild に即時デプロイ
