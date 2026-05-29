@@ -23,7 +23,7 @@ export const asobuCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("巻物")
-      .setDescription("🎰 百鬼夜行巻物（スロット）を回す")
+      .setDescription("🎰 星辰の巻（スロット）を回す")
       .addIntegerOption((opt) =>
         opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
@@ -39,7 +39,7 @@ export const asobuCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("札遊び")
-      .setDescription("🃏 妖怪札遊び（ブラックジャック）")
+      .setDescription("🃏 星札勝負（ブラックジャック）")
       .addIntegerOption((opt) =>
         opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )

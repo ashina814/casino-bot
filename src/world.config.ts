@@ -55,8 +55,8 @@ export const WORLD = {
   AREA_FACTION: "星々の座",
 
   // ─── ゲーム名（Iter.5 で各ゲームに反映） ───────────────
-  GAME_SLOTS: "[仮:スロット]",
-  GAME_BLACKJACK: "[仮:ブラックジャック]",
+  GAME_SLOTS: "星辰の巻",
+  GAME_BLACKJACK: "星札勝負",
   GAME_CHINCHIRO: "[仮:賽]",
   GAME_CRASH: "[仮:クラッシュ]",
   GAME_HIGHLOW: "[仮:丁半]",

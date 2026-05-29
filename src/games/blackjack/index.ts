@@ -1,7 +1,7 @@
 /**
- * 🃏 花札勝負（ブラックジャック）
+ * 🃏 星札勝負（ブラックジャック）
  *
- * 花札の図柄を使った21勝負。ディーラーはアステル。
+ * 七星と第八の星をかたどった札を使った21勝負。ディーラーはアステル。
  * Hit / Stand / Double / Surrender のフルルール。
  */
 import {
@@ -28,7 +28,7 @@ import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
 
 // ─── Card System ───────────────────────────────────────
 
-const SUITS = ["🌸松", "🎴桜", "🏵️梅", "🍂藤", "🌿萩", "🌙芒", "🎋柳", "🍁紅葉"] as const;
+const SUITS = ["☀陽", "☽月", "✦暁", "✧宵", "☄彗", "🪐環", "✶煌", "◑蝕"] as const;
 
 type Card = { display: string; value: number };
 
@@ -156,10 +156,10 @@ export async function playBlackjack(
     const pVal = handValue(playerHand);
     const dDisplay = showDealerHole
       ? handDisplay(dealerHand)
-      : `${dealerHand[0].display} 🎴❓`;
+      : `${dealerHand[0].display} ✦❓`;
     const dVal = showDealerHole ? handValue(dealerHand) : "？";
 
-    return baseEmbed("🃏 花札勝負", COLORS.GOLD).setDescription(
+    return baseEmbed("🃏 星札勝負", COLORS.GOLD).setDescription(
       [
         `*「さぁ、次の手はどうする？」*`,
         "",
@@ -178,7 +178,7 @@ export async function playBlackjack(
   const canDouble = getBalance(userId, guildId) >= bet && playerHand.length === 2;
 
   const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("bj_hit").setLabel("🎴 引く(Hit)").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("bj_hit").setLabel("✦ 引く(Hit)").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("bj_stand").setLabel("✋ 止める(Stand)").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("bj_double").setLabel("⚡ 倍賭け(Double)").setStyle(ButtonStyle.Danger).setDisabled(!canDouble),
     new ButtonBuilder().setCustomId("bj_surrender").setLabel("🏳️ 降りる").setStyle(ButtonStyle.Secondary),
@@ -217,7 +217,7 @@ export async function playBlackjack(
 
       // Update UI, disable double & surrender after first hit
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId("bj_hit").setLabel("🎴 引く(Hit)").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("bj_hit").setLabel("✦ 引く(Hit)").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId("bj_stand").setLabel("✋ 止める(Stand)").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId("bj_double").setLabel("⚡ 倍賭け").setStyle(ButtonStyle.Danger).setDisabled(true),
         new ButtonBuilder().setCustomId("bj_surrender").setLabel("🏳️ 降りる").setStyle(ButtonStyle.Secondary).setDisabled(true),
@@ -256,7 +256,7 @@ export async function playBlackjack(
       addExp(userId, 5);
 
       const embed = gameResultEmbed({
-        title: "🃏 花札勝負 — 降参",
+        title: "🃏 星札勝負 — 降参",
         description: `*「降りる？ 賢い判断かもね。」*\n\n半額の ◈${refund.toLocaleString()} を返すぞ。`,
         result: "lose",
         userId,
@@ -385,7 +385,7 @@ async function resolveGame(
     : dialogueLose(ctx, totalBet);
 
   const embed = gameResultEmbed({
-    title: `🃏 花札勝負${net >= 0 ? ` — ${resultMap[resultLabel] ?? ""}` : ""}`,
+    title: `🃏 星札勝負${net >= 0 ? ` — ${resultMap[resultLabel] ?? ""}` : ""}`,
     description: [
       `*${dialogue}*`,
       "",
@@ -508,7 +508,7 @@ function setupRetryCollector(reply: any, guildId: string, userId: string, bet: n
 // ─── Paytable ──────────────────────────────────────────
 
 function blackjackPaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 花札勝負 — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 星札勝負 — ルール", COLORS.GOLD).setDescription(
     [
       "*「21を目指して札を引け。ディーラー（アステル）に勝てば配当だよ。」*",
       "",
@@ -519,7 +519,7 @@ function blackjackPaytableEmbed(): import("discord.js").EmbedBuilder {
       "・敗北 → 賭金没収",
       "",
       "**操作**",
-      "・🎴 引く (Hit) — 札を1枚追加",
+      "・✦ 引く (Hit) — 札を1枚追加",
       "・✋ 止める (Stand) — 現在の点数で勝負",
       "・⚡ 倍賭け (Double) — 賭金倍にしてもう1枚だけ引く（最初の手のみ）",
       "・🏳️ 降りる (Surrender) — 賭金の半額を返してもらって降りる",
