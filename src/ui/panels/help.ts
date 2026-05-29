@@ -3,8 +3,8 @@
  *
  * 概要 + 5カテゴリのセレクトメニュー：
  * - 🎮 ゲーム — 各ゲームの一行紹介と起動方法（詳細は各ゲームの📖配当表ボタン）
- * - 💼 経済 — 段位・妖力・cap・福の重み等の仕組み
- * - 🏮 座敷童 — 覚醒・モード・五行
+ * - 💼 経済 — 段位・星の力・cap・福の重み等の仕組み
+ * - ✦ アステル — 覚醒・モード・五行
  * - ✨ 隠し・レア — 二つ名・レアイベント・隠しコマンド
  * - 🔤 用語集 — 主要な単語の辞書
  */
@@ -26,12 +26,12 @@ function overviewEmbed(): EmbedBuilder {
       [
         "*「初めての客人か。何が知りたい？」*",
         "",
-        "下のメニューから知りたいカテゴリを選ぶのじゃ。",
+        "下のメニューから知りたいカテゴリを選んでね。",
       ].join("\n"),
     )
     .addFields(
       {
-        name: "🏮 まずはここから（最低限）",
+        name: "✦ まずはここから（最低限）",
         value: [
           "`/案内` — ホーム。全機能の入口",
           "`/福分け` — 毎日のボーナス（連続で増える）",
@@ -42,7 +42,7 @@ function overviewEmbed(): EmbedBuilder {
         name: "📋 今日の任務",
         value: [
           "`/案内` → 「📋 任務」 で**毎日3つの任務**が出る。",
-          "達成して受領するとエテル+妖力ボーナス。**当日中限り**。",
+          "達成して受領するとエテル+星の力ボーナス。**当日中限り**。",
         ].join("\n"),
       },
       {
@@ -50,7 +50,7 @@ function overviewEmbed(): EmbedBuilder {
         value: [
           "🎮 **ゲーム** — 何で遊べるか",
           "💼 **経済** — 段位・上限・福の重み等の仕組み",
-          "🏮 **座敷童** — 覚醒段階・モード・五行",
+          "✦ **アステル** — 星約段階・モード・属性",
           "✨ **隠し・レア** — 二つ名・レアイベント",
           "🔤 **用語集** — 「cap」「JP」「奉納」って何？",
         ].join("\n"),
@@ -100,10 +100,10 @@ function economyEmbed(): EmbedBuilder {
         ].join("\n"),
       },
       {
-        name: "🥇 段位と賭け上限",
+        name: "🥇 星位と賭け上限",
         value: [
-          "プレイすると **妖力 (EXP)** が貯まり、レベルが上がる。レベルで段位（人間→半妖→妖→大妖→神）が昇格し、**1回の賭け上限**が解放される。",
-          "現在の段位・賭け上限は `/通行証` で確認。",
+          "プレイすると **星の力 (EXP)** が貯まり、レベルが上がる。レベルで星位（漂着者→星拾い→星約者→星詠み→北極星）が昇格し、**1回の賭け上限**が解放される。",
+          "現在の星位・賭け上限は `/通行証` で確認。",
         ].join("\n"),
       },
       {
@@ -131,7 +131,7 @@ function economyEmbed(): EmbedBuilder {
 }
 
 function zashikiEmbed(): EmbedBuilder {
-  return baseEmbed("🏮 ヘルプ — 座敷童システム", COLORS.GOLD)
+  return baseEmbed("✦ ヘルプ — アステルとの星約", COLORS.GOLD)
     .addFields(
       {
         name: "💖 好感度と覚醒段階（6段階）",
@@ -142,7 +142,7 @@ function zashikiEmbed(): EmbedBuilder {
           "・Lv4: ツンデレモード、福の奔流",
           "・Lv5: 福の重み軽減、JP+",
           "・Lv6: ヤミモード、神隠し",
-          "現状は `/座敷童 status` で確認。",
+          "現状は `/アステル status` で確認。",
         ].join("\n"),
       },
       {
@@ -156,7 +156,7 @@ function zashikiEmbed(): EmbedBuilder {
         name: "🪷 五行属性（Lv3〜）",
         value: [
           "Lv3「結び」以降、5つの属性（木・火・土・金・水）から1つ選べる。",
-          "`/座敷童 element` で選択（初回無料、変更は ◈50,000）。",
+          "`/アステル element` で選択（初回無料、変更は ◈50,000）。",
           "現状の効果: 主に **株（龍脈相場）** で相性ボーナス。Lv6で「神柱」名が判明。",
         ].join("\n"),
       },
@@ -208,18 +208,18 @@ function glossaryEmbed(): EmbedBuilder {
       {
         name: "💴 通貨・残高",
         value: [
-          "**ベル/エテル (◈)**: ゲーム内通貨",
+          "**エテル (◈)**: ゲーム内通貨",
           "**cap (所持金上限)**: 残高の天井。超過分は自動奉納",
           "**奉納**: cap超過や福の重みで自動的にプールへ流れる",
         ].join("\n"),
       },
       {
-        name: "🎯 進行・段位",
+        name: "🎯 進行・星位",
         value: [
-          "**妖力 (EXP)**: プレイで貯まる経験値",
-          "**段位 (tier)**: 人間→半妖→妖→大妖→神。賭け上限が変わる",
-          "**覚醒段階**: 座敷童側のレベル。好感度で上がる",
-          "**好感度**: 座敷童との絆。プレイ・福分け・心付けで貯まる、日次で少し減衰",
+          "**星の力 (EXP)**: プレイで貯まる経験値",
+          "**星位 (tier)**: 漂着者→星拾い→星約者→星詠み→北極星。賭け上限が変わる",
+          "**星約段階**: アステルとの絆の深さ。好感度で上がる",
+          "**好感度**: アステルとの星約。プレイ・福分け・心付けで貯まる、日次で少し減衰",
         ].join("\n"),
       },
       {
@@ -253,10 +253,10 @@ function buildSelectMenu(currentSection: string | null = null): ActionRowBuilder
     .setCustomId("help_section_select")
     .setPlaceholder("カテゴリを選んで詳細を読む")
     .addOptions(
-      { label: "概要に戻る", value: "overview", emoji: "🏮", default: currentSection === "overview" || currentSection === null },
+      { label: "概要に戻る", value: "overview", emoji: "✦", default: currentSection === "overview" || currentSection === null },
       { label: "ゲーム一覧", value: "games", emoji: "🎮", default: currentSection === "games" },
       { label: "経済の仕組み", value: "economy", emoji: "💼", default: currentSection === "economy" },
-      { label: "座敷童システム", value: "zashiki", emoji: "🏮", default: currentSection === "zashiki" },
+      { label: "アステルとの星約", value: "zashiki", emoji: "✦", default: currentSection === "zashiki" },
       { label: "隠し・レア", value: "hidden", emoji: "✨", default: currentSection === "hidden" },
       { label: "用語集", value: "glossary", emoji: "🔤", default: currentSection === "glossary" },
     );

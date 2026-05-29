@@ -18,9 +18,9 @@ const EGGS: EggDefinition[] = [
   { key: "ushimitsudoki", titleName: "丑三つ時の常連", requiredProgress: 1 },
   { key: "zorome", titleName: "粋人", requiredProgress: 1 },
   { key: "lose_100", titleName: "不屈の魂", requiredProgress: 100 },
-  { key: "thanks", titleName: "座敷童の心友", requiredProgress: 5 },
-  { key: "alone", titleName: "座敷童の秘密を知る者", requiredProgress: 1 },
-  { key: "shichifukujin", titleName: "七福神の寵愛", requiredProgress: 7 },
+  { key: "thanks", titleName: "アステルの心友", requiredProgress: 5 },
+  { key: "alone", titleName: "アステルの秘密を知る者", requiredProgress: 1 },
+  { key: "shichifukujin", titleName: "七星の寵愛", requiredProgress: 7 },
 ];
 
 // ─── Progress Tracking ─────────────────────────────────
@@ -84,7 +84,7 @@ export function checkUshimitsudoki(userId: string): EggResult {
   return {
     triggered: true,
     titleName: "丑三つ時の常連",
-    message: "…丑三つ時に賭場に来るとは、お主もなかなかの夜更かしじゃな。\n二つ名「丑三つ時の常連」を授けよう。",
+    message: "丑三つ時に賭場に来るなんて、きみもなかなかの夜更かしだね。\nこの時間のわたし、ちょっとだけ素が出ちゃうんだけど……ま、いっか。\n二つ名「丑三つ時の常連」をあげる。",
   };
 }
 
@@ -100,7 +100,7 @@ export function checkZorome(userId: string, betAmount: number): EggResult {
   const { completed } = getProgress(userId, "zorome");
   if (completed) {
     // Already got title, but still give 0% edge
-    return { triggered: true, message: "「ぞろ目じゃな。粋な賭け方じゃ。今回は特別に公平にしてやろう。」" };
+    return { triggered: true, message: "「ぞろ目だ。粋な賭け方するね。今回は特別に、まっさらで勝負させてあげる。」" };
   }
 
   setProgress(userId, "zorome", 1);
@@ -110,7 +110,7 @@ export function checkZorome(userId: string, betAmount: number): EggResult {
   return {
     triggered: true,
     titleName: "粋人",
-    message: "「おや…粋な賭け方をするのう。ぞろ目は縁起が良い。\n少しだけ…おまけしてやろう。」\n二つ名「粋人」を授けよう。",
+    message: "「ふふ、粋な賭け方するじゃない。ぞろ目は縁起がいいんだよ。\n……ちょっとだけ、おまけしとくね。」\n二つ名「粋人」をあげる。",
   };
 }
 
@@ -130,7 +130,7 @@ export function checkLoseStreak(userId: string, currentLoseStreak: number): EggR
   return {
     triggered: true,
     titleName: "不屈の魂",
-    message: "「う…うう…お主がここまで負け続けるのは、\nわしの福の力が足りぬせいかもしれぬ…\nすまぬ…すまぬのう…」\n\n（座敷童が泣きながら◈10,000をくれた）",
+    message: "「うう……きみがここまで負け続けるの、\nわたしの光が足りないせいかもしれない……\nごめんね。ほんと、ごめん……」\n\n（アステルが半泣きで ◈10,000 をそっと握らせてきた）",
     bonusAmount: 10_000,
   };
 }
@@ -147,11 +147,11 @@ export function checkThanks(userId: string): EggResult {
 
   if (newProgress >= 5) {
     markCompleted(userId, "thanks");
-    awardTitle(userId, "thanks", "座敷童の心友");
+    awardTitle(userId, "thanks", "アステルの心友");
     return {
       triggered: true,
-      titleName: "座敷童の心友",
-      message: "「…5回も礼を言ってくれたのか。\nお主は本当に変わった客人じゃな。\n…ふふ、悪い気はせぬ。\n二つ名「座敷童の心友」を授けよう。」",
+      titleName: "アステルの心友",
+      message: "「……5回も、ありがとうって言ってくれたんだ。\nきみ、ほんと変わってるね。\n……ふふ、でも、悪い気はしないな。\n二つ名「アステルの心友」をあげる。大事にしてよ？」",
     };
   }
 
@@ -170,12 +170,12 @@ export function checkAlone(userId: string, onlineCount: number): EggResult {
 
   setProgress(userId, "alone", 1);
   markCompleted(userId, "alone");
-  awardTitle(userId, "alone", "座敷童の秘密を知る者");
+  awardTitle(userId, "alone", "アステルの秘密を知る者");
 
   return {
     triggered: true,
-    titleName: "座敷童の秘密を知る者",
-    message: "「…おや、今夜はお主だけか。\n…なぁ、客人よ。たまにはゲームなしで話さぬか。\n…この賭場を始めた頃はの、誰も来てくれなくて寂しかったんじゃ。\nじゃからお主が来てくれると…嬉しい。」",
+    titleName: "アステルの秘密を知る者",
+    message: "「……あれ、今夜はきみだけか。\nねえ、たまにはさ、賭けなしで話さない？\n……この賭場を開いたばっかりの頃はね、誰も来てくれなくて、すごく寂しかったんだ。\nだから、きみが来てくれると……うん。嬉しいよ、ほんとに。」",
   };
 }
 
@@ -193,11 +193,11 @@ export function checkShichifukujin(userId: string, dayIndex: number): EggResult 
   // Check if all 7 bits are set
   if (newProgress === 0b1111111) {
     markCompleted(userId, "shichifukujin");
-    awardTitle(userId, "shichifukujin", "七福神の寵愛");
+    awardTitle(userId, "shichifukujin", "七星の寵愛");
     return {
       triggered: true,
-      titleName: "七福神の寵愛",
-      message: "「七日…七つの勝利…\nこれはまさに七福神の加護…！」",
+      titleName: "七星の寵愛",
+      message: "「七日、七つの勝ち……すごいね、きみ。\nまるで七つの星ぜんぶに気に入られたみたいだ。\nこれは……七星の寵愛、かな。」",
       bonusAmount: 5_000,
     };
   }
@@ -221,7 +221,7 @@ export function checkMillionaire(userId: string, balance: number): EggResult {
   return {
     triggered: true,
     titleName: "大富豪",
-    message: "「ひぇっ…百万ベルじゃと…！？\nお主、まさかこの賭場を買い取る気か…？\n恐ろしい客人じゃ…二つ名『大富豪』を授けよう。」",
+    message: "「ひぇっ……エテル百万だって！？\nきみ、まさかこの賭場ごと買い取る気じゃ……ないよね？\nおそろしい人だなあ。二つ名『大富豪』をあげる。」",
   };
 }
 
@@ -241,7 +241,7 @@ export function checkBankrupt(userId: string, balance: number): EggResult {
   return {
     triggered: true,
     titleName: "すってんてん",
-    message: "「あーあ、見事にすってんてんじゃな。\nまあ、どん底まで落ちればあとは上がるだけじゃ。\n元気づけに、少しだけエテルをくれてやろう。\n二つ名『すってんてん』を授けよう。」",
+    message: "「あーあ、見事にすってんてんだ。\nまあ、どん底まで落ちたら、あとは上がるだけだよ。\n元気出して。ほら、少しだけエテルあげる。\n二つ名『すってんてん』も、ね。」",
     bonusAmount: 3000,
   };
 }
@@ -262,7 +262,7 @@ export function checkLucky7(userId: string, betAmount: number): EggResult {
   return {
     triggered: true,
     titleName: "幸運児",
-    message: "「おっ、777…縁起がいい数字じゃのう！\nお主には特別に幸運を分けてやろう。\n二つ名『幸運児』を授けるぞ。」",
+    message: "「お、777。縁起のいい数字だね。\nきみには特別に、運をちょっと分けてあげる。\n二つ名『幸運児』をあげるよ。」",
   };
 }
 
@@ -273,14 +273,14 @@ export function thanksResponse(userId: string): string {
   const { progress, completed } = getProgress(userId, "thanks");
 
   if (completed) {
-    return "「…今日も来てくれたか。嬉しいのう。」";
+    return "「……今日も来てくれたね。うん、嬉しい。」";
   }
 
   const responses = [
-    "「…ありがとう、じゃと？ …お主は変わった客人じゃな。」",
-    "「また言うのか。…ふふ、悪い気はせぬな。」",
-    "「三度目じゃと…？ 本気で言っておるのか。…嬉しいのう。」",
-    "「四度…もうすぐ何かが起こるかもしれぬぞ…？」",
+    "「……ありがとう、って？ ふふ、きみ、変わってるね。」",
+    "「また言うんだ。……悪い気はしないけどさ。」",
+    "「三度目。……本気で言ってる？ ……ちょっと、嬉しいかも。」",
+    "「四度目……ふふ、もうすぐ何か起こるかもよ？」",
   ];
 
   return responses[Math.min(progress, responses.length - 1)];

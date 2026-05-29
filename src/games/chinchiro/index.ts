@@ -105,17 +105,17 @@ export type CompareResult = {
 };
 
 /**
- * プレイヤーと座敷童の手を比較して配当倍率を返す。
+ * プレイヤーとアステルの手を比較して配当倍率を返す。
  *
  * 特殊ルール:
  * - プレイヤー ヒフミ → 必ず -2倍
- * - 座敷童 ヒフミ かつ プレイヤー非ヒフミ → +2倍（座敷童の自爆）
+ * - アステル ヒフミ かつ プレイヤー非ヒフミ → +2倍（アステルの自爆）
  * - 両方ヒフミ → プッシュ
- * - 同点（同じ目スコア、両方メナシ） → **座敷童勝ち** （ハウスエッジ根幹）
+ * - 同点（同じ目スコア、両方メナシ） → **アステル勝ち** （ハウスエッジ根幹）
  *
  * 通常比較:
  * - プレイヤー強 → +勝者役 mul
- * - 座敷童強 → -座敷童役 mul
+ * - アステル強 → -アステル役 mul
  */
 export function compareHands(player: Hand, dealer: Hand): CompareResult {
   // ヒフミ ルール
@@ -137,7 +137,7 @@ export function compareHands(player: Hand, dealer: Hand): CompareResult {
     return { result: "player_win", mul: handBaseMul(player) };
   }
   if (pr < dr) {
-    // プレイヤー負け：座敷童の役 mul（マイナス）
+    // プレイヤー負け：アステルの役 mul（マイナス）
     return { result: "dealer_win", mul: -handBaseMul(dealer) };
   }
   // 同点：ハウスが取る（プレイヤーの負け、賭金分のみ）
@@ -175,7 +175,7 @@ export async function handleChinchiroCommand(interaction: ChatInputCommandIntera
   const userId = interaction.user.id;
 
   if (!acquireGameLock(userId, "chinchiro")) {
-    await interaction.reply({ content: "既にゲーム中じゃ。終わるまで待つのじゃぞ。", ephemeral: true });
+    await interaction.reply({ content: "もう遊んでる最中だよ。終わるまで待ってね。", ephemeral: true });
     return;
   }
 
@@ -199,14 +199,14 @@ export async function playChinchiro(
   const bet = overrideBet ?? (interaction as ChatInputCommandInteraction).options?.getInteger?.("bet") ?? cfg.min_bet;
 
   if (bet < cfg.min_bet) {
-    const msg = { content: `最低ベットは ◈${cfg.min_bet} じゃ。`, ephemeral: true };
+    const msg = { content: `最低ベットは ◈${cfg.min_bet} からだよ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) await interaction.followUp(msg);
     else await interaction.reply(msg);
     return;
   }
 
   if (bet > tier.betCap) {
-    const msg = { content: `お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} までしか賭けられぬ。`, ephemeral: true };
+    const msg = { content: `きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までしか賭けられないよ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) await interaction.followUp(msg);
     else await interaction.reply(msg);
     return;
@@ -215,7 +215,7 @@ export async function playChinchiro(
   // 賭金が払えれば OK（ヒフミ時の追加徴収は残高不足ならスキップする設計）
   const deductResult = adjustBalance(userId, -bet, "chinchiro_bet", "chinchiro");
   if (!deductResult.ok) {
-    const msg = { content: "エテルが足りぬぞ…。", ephemeral: true };
+    const msg = { content: "エテルが足りないみたい。", ephemeral: true };
     if (interaction.deferred || interaction.replied) await interaction.followUp(msg);
     else await interaction.reply(msg);
     return;
@@ -275,7 +275,7 @@ async function runRollLoop(
       ];
       const e = baseEmbed("🎲 チンチロ", COLORS.GOLD).setDescription(
         [
-          `*「振っておるぞ…」*`,
+          `*「振るよ……」*`,
           "",
           diceDisplay(shake),
           "",
@@ -311,7 +311,7 @@ async function runRollLoop(
       continue;
     }
 
-    // ── 終了役 → プレイヤー手確定（座敷童フェーズへ） ──
+    // ── 終了役 → プレイヤー手確定（アステルフェーズへ） ──
     if (isTerminalHand(hand)) {
       await settleVsDealer(reply, guildId, userId, bet, tierKey, hand, dice);
       return;
@@ -335,7 +335,7 @@ async function runRollLoop(
     }
   }
 
-  // ── 3投全部メナシ → プレイヤー手は「メナシ」確定（座敷童フェーズへ） ──
+  // ── 3投全部メナシ → プレイヤー手は「メナシ」確定（アステルフェーズへ） ──
   await settleVsDealer(reply, guildId, userId, bet, tierKey, finalHand, finalDice);
 }
 
@@ -402,7 +402,7 @@ async function askRerollChoice(
 }
 
 /**
- * 座敷童の振りフェーズ。プレイヤーが手を確定した後に呼ばれる。
+ * アステルの振りフェーズ。プレイヤーが手を確定した後に呼ばれる。
  * 戦略（決定論的）:
  * - メナシ → 自動再振り（最大3投）
  * - 終了役（ピンゾロ／ゾロ目／シゴロ／ヒフミ） → 即止め
@@ -417,14 +417,14 @@ async function dealerRollPhase(
   playerDice: Dice,
 ): Promise<{ dealerHand: Hand; dealerDice: Dice }> {
   // 導入演出
-  const introEmbed = baseEmbed("🎲 チンチロ — 座敷童の番", COLORS.GOLD).setDescription(
+  const introEmbed = baseEmbed("🎲 チンチロ — アステルの番", COLORS.GOLD).setDescription(
     [
-      "*「ふむ、わしの番じゃな…」*",
+      "*「さて、わたしの番だね。」*",
       "",
       `あなた: ${diceDisplay(playerDice)}`,
       `　└ ${describeHand(playerHand)}`,
       "",
-      "座敷童: ┃ ❓ ┃ ❓ ❓ ❓ ┃",
+      "アステル: ┃ ❓ ┃ ❓ ❓ ❓ ┃",
     ].join("\n")
   );
   try { await reply.edit({ embeds: [introEmbed], components: [] }); } catch { /* */ }
@@ -444,14 +444,14 @@ async function dealerRollPhase(
         1 + Math.floor(Math.random() * 6),
         1 + Math.floor(Math.random() * 6),
       ];
-      const e = baseEmbed("🎲 チンチロ — 座敷童の番", COLORS.GOLD).setDescription(
+      const e = baseEmbed("🎲 チンチロ — アステルの番", COLORS.GOLD).setDescription(
         [
-          `*「座敷童が振っておる…」*`,
+          `*「わたしが振ってる……」*`,
           "",
           `あなた: ${diceDisplay(playerDice)}`,
           `　└ ${describeHand(playerHand)}`,
           "",
-          `座敷童: ${diceDisplay(shake)}`,
+          `アステル: ${diceDisplay(shake)}`,
           `第${rollNo}投 (残り${MAX_ROLLS - rollNo + 1})`,
         ].join("\n")
       );
@@ -483,14 +483,14 @@ async function dealerRollPhase(
       comment = "*「これしかないか…」*";
     }
 
-    const e = baseEmbed("🎲 チンチロ — 座敷童の番", COLORS.GOLD).setDescription(
+    const e = baseEmbed("🎲 チンチロ — アステルの番", COLORS.GOLD).setDescription(
       [
         comment,
         "",
         `あなた: ${diceDisplay(playerDice)}`,
         `　└ ${describeHand(playerHand)}`,
         "",
-        `座敷童: ${diceDisplay(dealerDice)}`,
+        `アステル: ${diceDisplay(dealerDice)}`,
         `　└ ${handLabel}`,
       ].join("\n")
     );
@@ -504,7 +504,7 @@ async function dealerRollPhase(
 }
 
 /**
- * 座敷童とプレイヤーの手を比較して配当を適用、結果を表示。
+ * アステルとプレイヤーの手を比較して配当を適用、結果を表示。
  * 注意: 賭金は既に控除済み。配当の `mul` はプレイヤー視点の純利益倍率（compareHands より）。
  * - mul > 0: bet*(1+mul*(1-edge)) を加算（賭金返却+利益）
  * - mul = 0: bet をそのまま返す（プッシュ）
@@ -519,7 +519,7 @@ async function settleVsDealer(
   playerHand: Hand,
   playerDice: Dice,
 ): Promise<void> {
-  // ── 座敷童の振り ──
+  // ── アステルの振り ──
   const { dealerHand, dealerDice } = await dealerRollPhase(reply, bet, playerHand, playerDice);
 
   // ── 比較 ──
@@ -562,7 +562,7 @@ async function settleVsDealer(
   } else if (mul === 0) {
     // プッシュ：賭金を返金
     adjustBalance(userId, bet, "chinchiro_push", "chinchiro", guildId);
-    dialogue = "*「両方ヒフミか…引き分けじゃ。賭金は返してやろう。」*";
+    dialogue = "*「両方ヒフミか。引き分けだね、賭け金は返すよ。」*";
     payoutText = `🌀 プッシュ：◈${bet.toLocaleString()} を返金`;
     resultType = "win";
   } else if (mul === -1) {
@@ -595,7 +595,7 @@ async function settleVsDealer(
       recordLoss(userId);
       distributeHouseEarnings(guildId, bet);
       addExp(userId, 5);
-      dialogue = "*「大きく負けたが…残高が足りぬか。通常負けで勘弁じゃ。」*";
+      dialogue = "*「大きく負けたけど……残高が足りないか。通常負けで勘弁してあげる。」*";
       payoutText = `💸 -◈${bet.toLocaleString()}（残高不足のため追加徴収はスキップ）`;
       extraSkipped = true;
     }
@@ -609,14 +609,14 @@ async function settleVsDealer(
   const resultLabel = cmp.result === "player_win"
     ? "✨ **あなたの勝ち！**"
     : cmp.result === "dealer_win"
-      ? "🏮 **座敷童の勝ち…**"
+      ? "✦ **アステルの勝ち…**"
       : "🌀 **引き分け**";
   const comparison = [
     `┌─ あなた ─────────┐`,
     `│ ${diceDisplay(playerDice)}`,
     `│ ${describeHand(playerHand)}`,
     `└──────────────────┘`,
-    `┌─ 座敷童 ─────────┐`,
+    `┌─ アステル ─────────┐`,
     `│ ${diceDisplay(dealerDice)}`,
     `│ ${describeHand(dealerHand)}`,
     `└──────────────────┘`,
@@ -625,7 +625,7 @@ async function settleVsDealer(
   ].join("\n");
 
   const embed = gameResultEmbed({
-    title: `🎲 チンチロ — 対 座敷童`,
+    title: `🎲 チンチロ — 対 アステル`,
     description: [
       streakBadge + dialogue,
       "",
@@ -704,17 +704,17 @@ function buildResultButtons(guildId: string, userId: string, bet: number): Actio
 }
 
 function buildPaytableEmbed(): EmbedBuilder {
-  return baseEmbed("📖 チンチロ — 対 座敷童 タイマン", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 チンチロ — 対 アステル タイマン", COLORS.GOLD).setDescription(
     [
-      "**あなた vs 座敷童** のタイマン勝負。両者が3つのサイコロを最大3投し、役の強さを比べる。",
+      "**あなた vs アステル** のタイマン勝負。両者が3つのサイコロを最大3投し、役の強さを比べる。",
       "",
       "**🥇 役の強さ（強い順）**",
       "　🌟 ピンゾロ (1-1-1) > 🎯 ゾロ目 (6→2) > 🔥 シゴロ (4-5-6) > 🎲 目スコア6→1 > 🌀 メナシ > 💀 ヒフミ",
       "",
       "**💰 配当（プレイヤー視点）**",
       "　あなたが勝つ → **勝者の役 mul × 95%**（ハウスエッジ 5%）",
-      "　あなたが負ける → **負け役 mul（座敷童の役）の全額**",
-      "　同点（同じ目スコアなど）→ **座敷童勝ち**（ハウスが取る）",
+      "　あなたが負ける → **負け役 mul（アステルの役）の全額**",
+      "　同点（同じ目スコアなど）→ **アステル勝ち**（ハウスが取る）",
       "",
       "**役 mul**",
       "　🌟 ピンゾロ: 5倍",
@@ -723,8 +723,8 @@ function buildPaytableEmbed(): EmbedBuilder {
       "　🎲 目 / 🌀 メナシ: 1倍",
       "",
       "**💀 ヒフミ 特殊ルール**",
-      "　あなた ヒフミ → 必ず **-2倍**（座敷童の役に関係なく自爆）",
-      "　座敷童 ヒフミ かつ あなた非ヒフミ → **+2倍**（座敷童の自爆）",
+      "　あなた ヒフミ → 必ず **-2倍**（アステルの役に関係なく自爆）",
+      "　アステル ヒフミ かつ あなた非ヒフミ → **+2倍**（アステルの自爆）",
       "　両方ヒフミ → プッシュ（返金）",
       "",
       "**🎲 振りの戦略**",
@@ -732,7 +732,7 @@ function buildPaytableEmbed(): EmbedBuilder {
       "　振り直しでヒフミやメナシのリスクあり。",
       "　メナシは自動で再振り（最大3投）。",
       "",
-      "**🏮 座敷童の戦略**",
+      "**✦ アステルの戦略**",
       "　終了役 / 目スコア5,6 で止め、目1〜4 で再振り、メナシで自動再振り。",
     ].join("\n")
   );

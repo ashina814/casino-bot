@@ -64,7 +64,7 @@ async function bootstrap(): Promise<void> {
   });
 
   client.once(Events.ClientReady, (ready) => {
-    console.log(`🏮 星約の賭場 起動 — ${ready.user.tag}`);
+    console.log(`✦ 星約の賭場 起動 — ${ready.user.tag}`);
     registerSchedulers(client);
   });
 

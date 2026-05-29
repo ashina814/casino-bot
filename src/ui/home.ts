@@ -71,7 +71,7 @@ export function getTodayLuckyGame(guildId: string): string {
 
 export const casinoCommand = new SlashCommandBuilder()
   .setName("案内")
-  .setDescription("🏮 星約の賭場 — ホーム");
+  .setDescription("✦ 星約の賭場 — ホーム");
 
 export async function handleCasinoCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
@@ -86,19 +86,19 @@ export async function handleCasinoCommand(interaction: ChatInputCommandInteracti
 
   const ushimitsu = dialogueUshimitsudoki();
   const greeting = ushimitsu ?? (isNewbie
-    ? "「ようこそ…星約の賭場へ。お主、見ない顔じゃな。」"
+    ? "「いらっしゃい、星約の賭場へ。ん、見ない顔だね。」"
     : "「いらっしゃい。今日は何で遊ぶ？」");
 
   const newbieBanner = isNewbie
     ? [
         "",
         "🌱 **初めての方へ** — まずは下の **「📅 福分け」** を押してみよ。",
-        "　毎日のエテルと、わしとの最初の出会いがそこにある。",
+        "　毎日のエテルと、わたしとの出会いがそこにあるよ。",
         "",
       ]
     : [];
 
-  const embed = baseEmbed("🏮 星約の賭場", COLORS.GOLD)
+  const embed = baseEmbed("✦ 星約の賭場", COLORS.GOLD)
     .setDescription(
       [
         `*${greeting}*`,
@@ -178,7 +178,7 @@ export async function handleHomeButton(interaction: ButtonInteraction): Promise<
   if (game === "roulette") {
     const channelId = interaction.channelId;
     if (activeSessions.get(channelId)) {
-      await interaction.reply({ content: "この水鏡は既に揺れておる。結果を待つのじゃ。", ephemeral: true });
+      await interaction.reply({ content: "この水鏡、もう揺れてる。結果を待ってね。", ephemeral: true });
       return;
     }
   }
@@ -218,7 +218,7 @@ export async function handleHomeModal(interaction: ModalSubmitInteraction): Prom
       case "slots":
         const { acquireGameLock: l1, releaseGameLock: r1 } = require("../core/db");
         if (!l1(userId, "slots")) {
-          await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+          await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
           return;
         }
         try { await playSlots(interaction, guildId, userId, finalBet); } finally { r1(userId); }
@@ -227,7 +227,7 @@ export async function handleHomeModal(interaction: ModalSubmitInteraction): Prom
       case "chohan":
         const { acquireGameLock: l2, releaseGameLock: r2 } = require("../core/db");
         if (!l2(userId, "chohan")) {
-          await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+          await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
           return;
         }
         try { await startChohan(interaction, guildId, userId, finalBet); } finally { r2(userId); }
@@ -236,7 +236,7 @@ export async function handleHomeModal(interaction: ModalSubmitInteraction): Prom
       case "blackjack":
         const { acquireGameLock: l3, releaseGameLock: r3 } = require("../core/db");
         if (!l3(userId, "blackjack")) {
-          await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+          await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
           return;
         }
         try { await playBlackjack(interaction, guildId, userId, finalBet); } finally { r3(userId); }
@@ -245,7 +245,7 @@ export async function handleHomeModal(interaction: ModalSubmitInteraction): Prom
       case "crash":
         const { acquireGameLock: l4, releaseGameLock: r4 } = require("../core/db");
         if (!l4(userId, "crash")) {
-          await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+          await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
           return;
         }
         try { await playCrash(interaction, guildId, userId, finalBet); } finally { r4(userId); }
@@ -254,7 +254,7 @@ export async function handleHomeModal(interaction: ModalSubmitInteraction): Prom
       case "roulette":
         const channelId = interaction.channelId;
         if (activeSessions.get(channelId!)) {
-          await interaction.reply({ content: "この水鏡は既に揺れておる。結果を待つのじゃ。", ephemeral: true });
+          await interaction.reply({ content: "この水鏡、もう揺れてる。結果を待ってね。", ephemeral: true });
           return;
         }
         activeSessions.set(channelId!, true);
@@ -268,7 +268,7 @@ export async function handleHomeModal(interaction: ModalSubmitInteraction): Prom
       case "chinchiro":
         const { acquireGameLock: l5, releaseGameLock: r5 } = require("../core/db");
         if (!l5(userId, "chinchiro")) {
-          await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+          await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
           return;
         }
         try { await playChinchiro(interaction, guildId, userId, finalBet); } finally { r5(userId); }

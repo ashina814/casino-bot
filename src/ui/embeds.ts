@@ -8,11 +8,11 @@ import { getTierByKey, getTierForLevel, expForNextLevel, type TierInfo } from ".
 import type { UserProfile } from "../core/db";
 
 const TIER_THRESHOLDS: Array<{ level: number; key: string; name: string; emoji: string }> = [
-  { level: 0,   key: "human",    name: "人間",  emoji: "👤" },
-  { level: 10,  key: "half",     name: "半妖",  emoji: "🌗" },
-  { level: 25,  key: "yokai",    name: "妖",    emoji: "👹" },
-  { level: 50,  key: "daiyokai", name: "大妖",  emoji: "🐉" },
-  { level: 100, key: "kami",     name: "神",    emoji: "⛩️" },
+  { level: 0,   key: "human",    name: "漂着者", emoji: "✦" },
+  { level: 10,  key: "half",     name: "星拾い", emoji: "✧" },
+  { level: 25,  key: "yokai",    name: "星約者", emoji: "✶" },
+  { level: 50,  key: "daiyokai", name: "星詠み", emoji: "✷" },
+  { level: 100, key: "kami",     name: "北極星", emoji: "✹" },
 ];
 
 function nextTierInfo(currentLevel: number): { name: string; emoji: string; levelsTo: number } | null {
@@ -106,7 +106,7 @@ export function gameResultEmbed(opts: {
         "*「むぅ…、すっからかんになってしまったか。」*",
         "・明日の **`/福分け`** で復帰できる（連続ボーナス継続）",
         "・破産しても **段位・好感度・二つ名** は失わぬ",
-        "・たまには `/感謝` でわしに声を掛けてみよ",
+        "・たまには `/感謝` でわたしに声を掛けてみて",
       ].join("\n"),
       inline: false,
     });
@@ -144,25 +144,25 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedB
       }
     }
   } catch {
-    zashikiLine = "🫥 幽か";
+    zashikiLine = "◌ 暗";
   }
 
-  // レベル/段位 表示
+  // レベル/星位 表示
   const expNext = expForNextLevel(profile.level);
   const expBar = progressBar(profile.exp, expNext, 10);
   const nextTier = nextTierInfo(profile.level);
   const tierProgress = nextTier
     ? `\n${nextTier.emoji} あと Lv${nextTier.levelsTo} で **${nextTier.name}** に昇格（賭け上限解放）`
-    : "\n⛩️ 最上位「神」に到達";
+    : "\n✹ 最上位「北極星」に到達";
 
-  const embed = baseEmbed("🏮 星約の賭場 — 通行証", COLORS.GOLD)
+  const embed = baseEmbed("✦ 星約の賭場 — 通行証", COLORS.GOLD)
     .addFields(
       {
         name: "👤 プレイヤー",
         value: [
           activeTitle ? `🏷️ 「${activeTitle}」` : "",
           `${tier.emoji} **${tier.name}** （Lv.${profile.level}）`,
-          `妖力 \`${expBar}\` ${profile.exp.toLocaleString()} / ${expNext.toLocaleString()}`,
+          `星の力 \`${expBar}\` ${profile.exp.toLocaleString()} / ${expNext.toLocaleString()}`,
           `賭け上限: ◈${tier.betCap.toLocaleString()}${tierProgress}`,
         ].filter(Boolean).join("\n"),
         inline: false,
@@ -173,7 +173,7 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedB
         inline: true,
       },
       {
-        name: "🏮 座敷童",
+        name: "✦ アステル",
         value: zashikiLine,
         inline: true,
       },
@@ -214,7 +214,7 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedB
     });
   } catch { /* ignore */ }
 
-  embed.setFooter({ text: "妖力(EXP)はゲームをプレイすると貯まる。レベルが上がると段位も昇格し、賭け上限が解放される。" });
+  embed.setFooter({ text: "星の力(EXP)はゲームをプレイすると貯まる。レベルが上がると段位も昇格し、賭け上限が解放される。" });
 
   return embed;
 }

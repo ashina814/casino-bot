@@ -178,7 +178,7 @@ function renderPanel(session: ActiveRaceSession, disabled = false): {
     .setDescription(
       [
         "受付は **3分間** です。賭けが入るたびにオッズは変動します。",
-        "単勝・複勝はそれぞれ別で賭けられます (100〜10,000ベル)。",
+        "単勝・複勝はそれぞれ別で賭けられます (100〜10,000エテル)。",
       ].join("\n")
     )
     .addFields(
@@ -285,7 +285,7 @@ export async function handleKeibaSelect(interaction: StringSelectMenuInteraction
 
   const userId = interaction.user.id;
   if (!acquireGameLock(userId, "keiba")) {
-    await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+    await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
     return;
   }
 
@@ -353,7 +353,7 @@ export async function handleKeibaModalSubmit(interaction: ModalSubmitInteraction
   }
   const amount = Math.floor(Number(raw));
   if (amount < 100 || amount > 10000) {
-    await interaction.editReply("賭け金は 100〜10,000ベルの範囲で指定してください。");
+    await interaction.editReply("賭け金は 100〜10,000エテルの範囲で指定してください。");
     return;
   }
 
@@ -388,7 +388,7 @@ export async function handleKeibaModalSubmit(interaction: ModalSubmitInteraction
       ).run(userId, horseId, betType, Math.floor(amount));
     });
     await interaction.editReply(
-      `${betType === "win" ? "単勝" : "複勝"}で **${horse.name}** に **${amount.toLocaleString()}ベル** 賭けました。`
+      `${betType === "win" ? "単勝" : "複勝"}で **${horse.name}** に **${amount.toLocaleString()}エテル** 賭けました。`
     );
     // 受付パネルを最新オッズで再描画
     void refreshPanel(session);
@@ -464,7 +464,7 @@ export async function handleKeibaCancelOne(interaction: ButtonInteraction): Prom
       await interaction.editReply(`${betType === "win" ? "単勝" : "複勝"}は賭けていません。`);
       return;
     }
-    await interaction.editReply(`${betType === "win" ? "単勝" : "複勝"}の賭けを取り消し、${refunded.toLocaleString()}ベル返金しました。`);
+    await interaction.editReply(`${betType === "win" ? "単勝" : "複勝"}の賭けを取り消し、${refunded.toLocaleString()}エテル返金しました。`);
     void refreshPanel(session);
   } catch (error) {
     console.error("[keiba] cancel_one failed:", error);
@@ -510,7 +510,7 @@ export async function handleKeibaCancel(interaction: ButtonInteraction): Promise
       await interaction.editReply("取り消し対象の賭けはありませんでした。");
       return;
     }
-    await interaction.editReply(`賭けを取り消し、${refunded.toLocaleString()}ベル返金しました。`);
+    await interaction.editReply(`賭けを取り消し、${refunded.toLocaleString()}エテル返金しました。`);
     void refreshPanel(session);
   } catch (error) {
     console.error("[keiba] cancel failed:", error);
@@ -747,7 +747,7 @@ export async function handleKeibaRestart(interaction: ButtonInteraction): Promis
 
   // 既に走行中ならスキップ
   if (!tryAcquireRaceLock()) {
-    await interaction.reply({ content: "既に別のレースが開催中じゃ。終わるまで待つのじゃぞ。", ephemeral: true });
+    await interaction.reply({ content: "もう別のレースが開催中だよ。終わるまで待ってね。", ephemeral: true });
     return;
   }
   releaseRaceLock(); // 一旦解放、startRace で再取得させる

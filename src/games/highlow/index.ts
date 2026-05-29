@@ -50,7 +50,7 @@ export async function handleHighlowCommand(interaction: ChatInputCommandInteract
   const userId = interaction.user.id;
 
   if (!acquireGameLock(userId, "chohan")) {
-    await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+    await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
     return;
   }
 
@@ -80,18 +80,18 @@ export async function startChohan(
   };
 
   if (bet < cfg.min_bet) {
-    await replyText(`最低ベットは ◈${cfg.min_bet} じゃ。`);
+    await replyText(`最低ベットは ◈${cfg.min_bet} からだよ。`);
     return;
   }
   if (bet > tier.betCap) {
-    await replyText(`お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} まで。`);
+    await replyText(`きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までだね。`);
     return;
   }
 
   // Deduct bet
   const deductResult = adjustBalance(userId, -bet, "chohan_bet", "chohan");
   if (!deductResult.ok) {
-    await replyText("エテルが足りぬぞ…。");
+    await replyText("エテルが足りないみたい。");
     return;
   }
   recordWager(userId, bet);
@@ -284,7 +284,7 @@ export async function startChohan(
     if (reason === "time" && !chosen) {
       // Refund on timeout
       adjustBalance(userId, bet, "chohan_timeout_refund", "chohan", guildId);
-      try { await reply.edit({ content: "時間切れじゃ…賭け金は返すぞ。", components: [] }); } catch { /* */ }
+      try { await reply.edit({ content: "時間切れだね。賭け金は返すよ。", components: [] }); } catch { /* */ }
     }
   });
 }

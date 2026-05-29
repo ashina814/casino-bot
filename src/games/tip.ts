@@ -11,7 +11,7 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
   const senderId = interaction.user.id;
 
   if (targetUser.bot) {
-    await interaction.reply({ embeds: [errorEmbed("ボットにエテルは送れぬぞ。")], ephemeral: true });
+    await interaction.reply({ embeds: [errorEmbed("ボットにエテルは送れないよ。")], ephemeral: true });
     return;
   }
 
@@ -39,7 +39,7 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
     });
 
     if (!success) {
-      await interaction.reply({ embeds: [errorEmbed("残高が足りぬようじゃ。まずは稼いでくるのじゃな。")], ephemeral: true });
+      await interaction.reply({ embeds: [errorEmbed("残高が足りないみたい。まずは稼いでこ。")], ephemeral: true });
       return;
     }
 
@@ -55,13 +55,13 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
     } catch {}
 
     const embed = successEmbed(
-      `💸 **${interaction.user.displayName}** が **${targetUser.displayName}** に ◈${amount.toLocaleString()} ベルを贈りました！${msgDesc}${affectionNote}`
+      `💸 **${interaction.user.displayName}** が **${targetUser.displayName}** に ◈${amount.toLocaleString()} エテルを贈りました！${msgDesc}${affectionNote}`
     );
 
     await interaction.reply({ content: `<@${targetUser.id}>`, embeds: [embed] });
 
   } catch (error) {
     console.error("[tip] Transfer failed:", error);
-    await interaction.reply({ embeds: [errorEmbed("送金処理に失敗したぞ。")], ephemeral: true });
+    await interaction.reply({ embeds: [errorEmbed("送金処理に失敗しちゃった。")], ephemeral: true });
   }
 }

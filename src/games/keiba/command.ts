@@ -33,14 +33,14 @@ export async function handleRaceCommand(interaction: ChatInputCommandInteraction
         content: [
           "📒 資金監査サマリー",
           `- ユーザー数: ${users.count}`,
-          `- users残高合計: ${formatNum(users.total)} ベル`,
+          `- users残高合計: ${formatNum(users.total)} エテル`,
           `- transaction_logs件数: ${logs.count}`,
-          `- transaction_logs金額合計: ${formatNum(logs.total)} ベル`,
+          `- transaction_logs金額合計: ${formatNum(logs.total)} エテル`,
           `- 未精算賭け件数: ${bets.count}`,
-          `- 未精算賭け金合計: ${formatNum(bets.total)} ベル`,
+          `- 未精算賭け金合計: ${formatNum(bets.total)} エテル`,
           `- 進行中フラグ(is_racing): ${status.is_racing}`,
-          `- 単勝キャリー: ${formatNum(status.keiba_carryover_win)} ベル`,
-          `- 複勝キャリー: ${formatNum(status.keiba_carryover_place)} ベル`
+          `- 単勝キャリー: ${formatNum(status.keiba_carryover_win)} エテル`,
+          `- 複勝キャリー: ${formatNum(status.keiba_carryover_place)} エテル`
         ].join("\n")
       });
     } catch (error) {

@@ -153,7 +153,7 @@ async function handleIn(interaction: ChatInputCommandInteraction, guildId: strin
     const msg =
       result.reason === "INSUFFICIENT_FUNDS" ? `${C1} の残高が足りぬ。` :
       result.reason === "RECEIVED_TOO_SMALL" ? "受取額が小さすぎる。もっと多く入れよ。" :
-      "両替できぬ額じゃ。";
+      "両替できない額だよ。";
     await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
     return;
   }
@@ -200,7 +200,7 @@ async function handleOut(interaction: ChatInputCommandInteraction, guildId: stri
     const msg =
       result.reason === "INSUFFICIENT_FUNDS" ? `${C2} の残高が足りぬ。` :
       result.reason === "RECEIVED_TOO_SMALL" ? "受取額が小さすぎる。もっと多く入れよ。" :
-      "両替できぬ額じゃ。";
+      "両替できない額だよ。";
     await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
     return;
   }
@@ -214,7 +214,7 @@ async function handleOut(interaction: ChatInputCommandInteraction, guildId: stri
         `**${C2E}${result.sourceAmount.toLocaleString()} を ${formatCurrency1(result.receivedAmount)} に両替した。**`,
         `適用レート: 1 ${C1E} = ${C2E}${result.rate.toLocaleString()}`,
         ``,
-        `🏮 **${WORLD.EXCHANGE_TRIBUTE}**: ${C2E}${result.feeAmount.toLocaleString()}`,
+        `✦ **${WORLD.EXCHANGE_TRIBUTE}**: ${C2E}${result.feeAmount.toLocaleString()}`,
         `└ 半分は ${WORLD.POOL_JACKPOT} へ、もう半分は ${WORLD.POOL_RELIEF} へ。`,
       ].join("\n"),
     )
@@ -250,7 +250,7 @@ async function handleHistory(interaction: ChatInputCommandInteraction): Promise<
 
   if (rows.length === 0) {
     await interaction.reply({
-      embeds: [infoEmbed("📜 両替履歴", "まだ両替したことがないようじゃ。\n`/両替 入庫` または `/両替 出庫` で始めるがよい。")],
+      embeds: [infoEmbed("📜 両替履歴", "まだ両替したことがないみたい。\n`/両替 入庫` か `/両替 出庫` で始めてみて。")],
       ephemeral: true,
     });
     return;

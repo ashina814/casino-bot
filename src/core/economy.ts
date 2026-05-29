@@ -171,11 +171,11 @@ export type TierInfo = {
 };
 
 const TIERS: TierInfo[] = [
-  { key: "human",    name: "人間",  emoji: "👤", betCap: 500 },
-  { key: "half",     name: "半妖",  emoji: "🌗", betCap: 2_000 },
-  { key: "yokai",    name: "妖",    emoji: "👹", betCap: 10_000 },
-  { key: "daiyokai", name: "大妖",  emoji: "🐉", betCap: 50_000 },
-  { key: "kami",     name: "神",    emoji: "⛩️", betCap: 100_000 },
+  { key: "human",    name: "漂着者", emoji: "✦", betCap: 500 },
+  { key: "half",     name: "星拾い", emoji: "✧", betCap: 2_000 },
+  { key: "yokai",    name: "星約者", emoji: "✶", betCap: 10_000 },
+  { key: "daiyokai", name: "星詠み", emoji: "✷", betCap: 50_000 },
+  { key: "kami",     name: "北極星", emoji: "✹", betCap: 100_000 },
 ];
 
 export function getTierForLevel(level: number): TierInfo {
@@ -195,7 +195,7 @@ export function expForNextLevel(level: number): number {
 }
 
 /**
- * 妖力（経験値）を加算し、レベルアップがあればtierも更新する。
+ * 星の力（経験値）を加算し、レベルアップがあればtierも更新する。
  * 戻り値: レベルアップしたかどうか
  */
 export function addExp(userId: string, amount: number): boolean {

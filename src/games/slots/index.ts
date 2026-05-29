@@ -105,7 +105,7 @@ export async function handleSlotsCommand(interaction: ChatInputCommandInteractio
 
   // Lock check
   if (!acquireGameLock(userId, "slots")) {
-    await interaction.reply({ content: "既にゲーム中じゃ。終わるまで待つのじゃぞ。", ephemeral: true });
+    await interaction.reply({ content: "もう遊んでる最中だよ。終わるまで待ってね。", ephemeral: true });
     return;
   }
 
@@ -130,7 +130,7 @@ export async function playSlots(
   const bet = overrideBet ?? (interaction as ChatInputCommandInteraction).options?.getInteger?.("bet") ?? cfg.min_bet;
 
   if (bet < cfg.min_bet) {
-    const msg = { content: `最低ベットは ◈${cfg.min_bet} じゃ。`, ephemeral: true };
+    const msg = { content: `最低ベットは ◈${cfg.min_bet} からだよ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp(msg);
     } else {
@@ -140,7 +140,7 @@ export async function playSlots(
   }
 
   if (bet > tier.betCap) {
-    const msg = { content: `お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} までしか賭けられぬ。`, ephemeral: true };
+    const msg = { content: `きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までしか賭けられないよ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp(msg);
     } else {
@@ -153,7 +153,7 @@ export async function playSlots(
   if (!isFreeSpin) {
     const deductResult = adjustBalance(userId, -bet, "slots_bet", "slots");
     if (!deductResult.ok) {
-      const msg = { content: "エテルが足りぬぞ…。", ephemeral: true };
+      const msg = { content: "エテルが足りないみたい。", ephemeral: true };
       if (interaction.deferred || interaction.replied) {
         await interaction.followUp(msg);
       } else {
@@ -171,7 +171,7 @@ export async function playSlots(
 
   // ── Phase 1: Spinning animation ──
   const jpDisplay = getJackpotPool(guildId);
-  const labelPrefix = isFreeSpin ? "✨ フリースピン中" : "🏮 百鬼夜行巻物";
+  const labelPrefix = isFreeSpin ? "✨ フリースピン中" : "✦ 百鬼夜行巻物";
   const spinSlot = (s: string) => `┃ ${s} ┃`;
   // 高速サイクル用のダミー絵柄列
   const cycle = ["🦊","👹","🐉","⛩️","🌸","👘","🌙","✨"];
@@ -326,7 +326,7 @@ export async function playSlots(
   ].filter((s) => s !== "").join("\n");
 
   const resultEmbed = gameResultEmbed({
-    title: `${prefix}🏮 百鬼夜行巻物${suffix}`,
+    title: `${prefix}✦ 百鬼夜行巻物${suffix}`,
     description: descLines,
     result: resultType === "jackpot" ? "jackpot" : payout > 0 ? "win" : "lose",
     userId,

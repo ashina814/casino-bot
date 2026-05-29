@@ -62,7 +62,7 @@ export async function handleCrashCommand(interaction: ChatInputCommandInteractio
   const userId = interaction.user.id;
 
   if (!acquireGameLock(userId, "crash")) {
-    await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+    await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
     return;
   }
 
@@ -101,17 +101,17 @@ export async function playCrash(
   };
 
   if (bet < cfg.min_bet) {
-    await reply(`最低ベットは ◈${cfg.min_bet} じゃ。`);
+    await reply(`最低ベットは ◈${cfg.min_bet} からだよ。`);
     return;
   }
   if (bet > tier.betCap) {
-    await reply(`お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} まで。`);
+    await reply(`きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までだね。`);
     return;
   }
 
   const deduct = adjustBalance(userId, -bet, "crash_bet", "crash");
   if (!deduct.ok) {
-    await reply("エテルが足りぬぞ…。");
+    await reply("エテルが足りないみたい。");
     return;
   }
   recordWager(userId, bet);
@@ -190,7 +190,7 @@ export async function playCrash(
 
     // 1. 最低降車ライン到達前のクリックは弾く（UI で disabled だが念のためサーバー側検証）
     if (clickTime < MIN_CASHOUT_TIME) {
-      await btn.reply({ content: `🔒 まだ ${MIN_CASHOUT.toFixed(2)}x に届いておらぬ。`, ephemeral: true });
+      await btn.reply({ content: `🔒 まだ ${MIN_CASHOUT.toFixed(2)}x に届いてないよ。`, ephemeral: true });
       return;
     }
     // 2. 既にクラッシュ済みかチェック
@@ -351,7 +351,7 @@ export async function playCrash(
           releaseGameLock(userId);
         }
       } else {
-        await btn.followUp({ content: "既にゲーム中じゃ。", ephemeral: true });
+        await btn.followUp({ content: "もう遊んでる最中だよ。", ephemeral: true });
       }
     }
   });

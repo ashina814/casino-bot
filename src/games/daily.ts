@@ -43,7 +43,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   const today = new Date().toISOString().slice(0, 10);
   if (profile.last_daily === today) {
     await interaction.reply({
-      content: "今日の福分けはもう受け取っておるぞ。また明日来るのじゃ。",
+      content: "今日の福分けは、もう渡したよ。また明日来てね。",
       ephemeral: true,
     });
     return;
@@ -108,7 +108,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
       if (stocks.length > 0) {
         const target = stocks[0];
         const isUp = target.trend > 0;
-        dialogue += `\n\n*(こっそりと)*\n「…ここだけの話じゃが、次の刻は『${target.emoji}${target.name}』が${isUp ? "熱い" : "落ちる"}らしいぞ。誰にも言うでないぞ？」`;
+        dialogue += `\n\n*(こっそりと)*\n「ここだけの話。次の刻は『${target.emoji}${target.name}』が${isUp ? "熱い" : "落ちる"}らしいよ。誰にも言わないでね？」`;
       }
     } catch {
       // ignore
@@ -148,7 +148,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   ].filter(Boolean).join("\n");
 
   const embed = gameResultEmbed({
-    title: "📅 座敷童の福分け",
+    title: "📅 アステルの福分け",
     description: descLines,
     result: "win",
     userId,
@@ -182,7 +182,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
       const newModes = stageAfter.unlockedModes.filter((m) => !(stageBefore.unlockedModes ?? []).includes(m));
       if (newModes.length > 0) unlocks.push(`🎭 新モード解放: **${newModes.join(" / ")}**`);
     }
-    if (stageAfter.level === 3) unlocks.push("🪷 **五行属性** が選べるようになった！ `/座敷童 element`");
+    if (stageAfter.level === 3) unlocks.push("🪷 **五行属性** が選べるようになった！ `/アステル element`");
 
     const stageUpEmbed = new EmbedBuilder()
       .setColor(0xffd700)
@@ -195,7 +195,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
           unlocks.length > 0 ? "\n── 解放されたもの ──\n" + unlocks.join("\n") : "",
         ].filter(Boolean).join("\n"),
       )
-      .setFooter({ text: "詳細は /座敷童 status で確認できる" });
+      .setFooter({ text: "詳細は /アステル status で確認できる" });
     embeds.push(stageUpEmbed);
   } else if (stageAfter.level < stageBefore.level) {
     // Stage DOWN
@@ -203,7 +203,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
       .setColor(0x555555)
       .setTitle(`${stageAfter.emoji} 覚醒低下 — ${stageAfter.title}`)
       .setDescription(getStageDownDialogue(stageAfter.level as ZashikiStageLevel))
-      .setFooter({ text: `座敷童の覚醒段階が ${stageBefore.name} → ${stageAfter.name} に下がった…` });
+      .setFooter({ text: `アステルとの星約が ${stageBefore.name} → ${stageAfter.name} に下がった…` });
     embeds.push(stageDownEmbed);
   }
 

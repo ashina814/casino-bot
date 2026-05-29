@@ -278,7 +278,7 @@ export async function renderDashboard(
   });
 
   // Portfolio string
-  let pfLines = ["まだ何も持っておらぬ。"];
+  let pfLines = ["まだ何も持ってないよ。"];
   let totalValue = 0;
   let totalCost = 0;
 
@@ -306,7 +306,7 @@ export async function renderDashboard(
   const embed = baseEmbed("📈 龍脈相場（投資）", COLORS.GOLD)
     .setDescription(
       [
-        `*「龍脈の力は日々変わる。見極めるのじゃ。」*`,
+        `*「龍脈の流れは日々変わる。見極めてね。」*`,
         "",
         `**【 銘柄一覧 】**`,
         ...marketLines,
@@ -358,7 +358,7 @@ export async function handleStocksButton(interaction: ButtonInteraction): Promis
     const stocks = getAllStocks();
     const select = new StringSelectMenuBuilder()
       .setCustomId("stocks_buy_select")
-      .setPlaceholder("購入する銘柄を選ぶのじゃ")
+      .setPlaceholder("購入する銘柄を選んでね")
       .addOptions(stocks.map(s => ({
         label: `${s.name} (◈${s.price.toLocaleString()})`,
         value: s.id,
@@ -374,7 +374,7 @@ export async function handleStocksButton(interaction: ButtonInteraction): Promis
     const stocks = getAllStocks();
     const select = new StringSelectMenuBuilder()
       .setCustomId("stocks_sell_select")
-      .setPlaceholder("売却する銘柄を選ぶのじゃ")
+      .setPlaceholder("売却する銘柄を選んでね")
       .addOptions(holdings.map(h => {
         const s = stocks.find(x => x.id === h.stock_id);
         return {
@@ -453,8 +453,8 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
         reason === "TOO_LARGE"
           ? `1回の投資額は **◈${txMax.toLocaleString()}** までじゃ（${tier.emoji}${tier.name} の上限）。`
           : reason === "TOO_SMALL"
-            ? "投資額は **100以上** で指定するのじゃ。"
-            : "投資額は整数で指定するのじゃ。";
+            ? "投資額は **100以上** で指定してね。"
+            : "投資額は整数で指定してね。";
       await interaction.reply({ content: msg, ephemeral: true });
       return;
     }
@@ -472,7 +472,7 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     const totalCost = shares * stock.price;
     const result = adjustBalance(userId, -totalCost, "stock_buy", "stocks", guildId);
     if (!result.ok) {
-      await interaction.reply({ content: "エテルが足りぬぞ…。", ephemeral: true });
+      await interaction.reply({ content: "エテルが足りないみたい。", ephemeral: true });
       return;
     }
 
@@ -513,7 +513,7 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     const holding = getHolding(userId, stockId);
 
     if (!stock || !holding || holding.shares <= 0) {
-      await interaction.reply({ content: "保有しておらぬぞ。", ephemeral: true });
+      await interaction.reply({ content: "持ってないよ。", ephemeral: true });
       return;
     }
 
@@ -524,13 +524,13 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     } else {
       const v = validateBet(sharesStr, 1, holding.shares);
       if (!v.ok) {
-        await interaction.reply({ content: `1〜${holding.shares}株の範囲で整数指定するのじゃ。`, ephemeral: true });
+        await interaction.reply({ content: `1〜${holding.shares}株の範囲で整数を指定してね。`, ephemeral: true });
         return;
       }
       shares = v.value;
     }
     if (shares > holding.shares) {
-      await interaction.reply({ content: `${holding.shares}株しか持っておらぬ。`, ephemeral: true });
+      await interaction.reply({ content: `${holding.shares}株しか持ってないよ。`, ephemeral: true });
       return;
     }
 

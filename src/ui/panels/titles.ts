@@ -49,7 +49,7 @@ export async function showTitlesPanel(interaction: ButtonInteraction): Promise<v
   const embed = baseEmbed("📜 二つ名 一覧", COLORS.GOLD)
     .setDescription(
       [
-        `*「お主が積み上げてきたものを見せてやろう。」*`,
+        `*「きみが積み上げてきたもの、見せてあげる。」*`,
         "",
         `**取得状況: ${ownedCount} / ${totalCount}**`,
         `**装着中: ${active ? TITLES_CATALOG.find((t) => t.key === active)?.name ?? active : "（なし）"}**`,
@@ -68,7 +68,7 @@ export async function showTitlesPanel(interaction: ButtonInteraction): Promise<v
     embed.addFields({ name: CATEGORY_LABEL[cat] ?? cat, value: lines || "(無し)" });
   }
 
-  embed.setFooter({ text: "🔒 未取得は名前が伏せ字（タップで反転表示）。ヒントを頼りに探してみるのじゃ。" });
+  embed.setFooter({ text: "🔒 未取得は名前が伏せ字（タップで反転表示）。ヒントを頼りに探してみてね。" });
 
   await safeReply(interaction, { embeds: [embed], ephemeral: true });
 }

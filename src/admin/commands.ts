@@ -99,7 +99,7 @@ export const adminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("通知")
-      .setDescription("📢 座敷童の口調でアナウンスを送信")
+      .setDescription("📢 アステルの口調でアナウンスを送信")
       .addStringOption((opt) =>
         opt.setName("message").setDescription("通知内容").setRequired(true)
       )
@@ -249,7 +249,7 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
       },
       {
         name: `${eco.emoji} 経済状態`,
-        value: `**${eco.label}** （${eco.healthyLine.toLocaleString()} ベル基準）`,
+        value: `**${eco.label}** （${eco.healthyLine.toLocaleString()} エテル基準）`,
         inline: false,
       },
       {
@@ -519,7 +519,7 @@ async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId:
     return;
   }
 
-  const embed = infoEmbed("🏮 座敷童からのお知らせ", `*「${message}」*`, COLORS.GOLD);
+  const embed = infoEmbed("✦ アステルからのお知らせ", `*「${message}」*`, COLORS.GOLD);
 
   const zashiki = getZashikiAttachment("idle");
   if (zashiki) {

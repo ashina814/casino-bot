@@ -77,7 +77,7 @@ export async function handleRouletteCommand(interaction: ChatInputCommandInterac
 
   // Check if session already running in this channel
   if (activeSessions.get(channelId)) {
-    await interaction.reply({ content: "この水鏡は既に揺れておる。結果を待つのじゃ。", ephemeral: true });
+    await interaction.reply({ content: "この水鏡、もう揺れてる。結果を待ってね。", ephemeral: true });
     return;
   }
 
@@ -88,11 +88,11 @@ export async function handleRouletteCommand(interaction: ChatInputCommandInterac
   const tier = getTierByKey(profile.tier);
 
   if (bet < cfg.min_bet) {
-    await interaction.reply({ content: `最低ベットは ◈${cfg.min_bet} じゃ。`, ephemeral: true });
+    await interaction.reply({ content: `最低ベットは ◈${cfg.min_bet} からだよ。`, ephemeral: true });
     return;
   }
   if (bet > tier.betCap) {
-    await interaction.reply({ content: `お主の格では ◈${tier.betCap.toLocaleString()} まで。`, ephemeral: true });
+    await interaction.reply({ content: `きみの星位だと ◈${tier.betCap.toLocaleString()} までだよ。`, ephemeral: true });
     return;
   }
 
@@ -121,7 +121,7 @@ export async function runRouletteSession(
   const buildLobbyEmbed = (secondsLeft: number) => {
     const betSummary = bets.length > 0
       ? bets.map((b) => `<@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount.toLocaleString()}`).join("\n")
-      : "まだ誰も賭けておらぬ…";
+      : "まだ誰も賭けてないよ……";
     const totalBet = bets.reduce((s, b) => s + b.amount, 0);
 
     return baseEmbed(`🎡 運命の水鏡 — 受付中（残り${secondsLeft}秒）`, COLORS.GOLD)
@@ -181,7 +181,7 @@ export async function runRouletteSession(
     // Deduct
     const result = adjustBalance(userId, -betAmount, "roulette_bet", "roulette");
     if (!result.ok) {
-      await btn.reply({ content: "エテルが足りぬぞ…。", ephemeral: true });
+      await btn.reply({ content: "エテルが足りないみたい。", ephemeral: true });
       return;
     }
     recordWager(userId, betAmount);

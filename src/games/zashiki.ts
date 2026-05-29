@@ -157,7 +157,7 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
           .setColor(0xe74c3c)
           .setAuthor({ name: "🌸 二代目へ" })
           .setDescription(tribute.metaMessage)
-          .setFooter({ text: "（この言葉は、お主にしか届かぬ）" }),
+          .setFooter({ text: "（この言葉は、きみにしか届かない）" }),
       );
     }
   } catch { /* non-critical */ }
@@ -238,7 +238,7 @@ async function handleElement(interaction: ChatInputCommandInteraction): Promise<
   if (currentElement && !canChangeElement(userId)) {
     const info = GOGYO[currentElement];
     await interaction.reply({
-      content: `お主の属性は既に ${info.emoji} **${info.name}** じゃ。属性変更はもう使えぬぞ。`,
+      content: `きみの属性はもう ${info.emoji} **${info.name}** だよ。属性変更はもう使えない。`,
       ephemeral: true,
     });
     return;
@@ -262,7 +262,7 @@ async function handleElement(interaction: ChatInputCommandInteraction): Promise<
 
   const desc = isChange
     ? `⚠️ **属性変更**（◈${ELEMENT_CHANGE_COST.toLocaleString()} 消費・一度限り）\n現在: ${GOGYO[currentElement!].emoji} ${GOGYO[currentElement!].name}\n\n`
-    : "座敷童の瞳が光り、五つの力がお主の前に顕れた。\nお主の魂に最も近い属性を選ぶのじゃ。\n\n";
+    : "アステルの瞳が光って、五つの力がきみの前に顕れた。\nきみの魂にいちばん近い属性を選んで。\n\n";
 
   const elementList = elements.map((e) => {
     const info = GOGYO[e];
@@ -271,7 +271,7 @@ async function handleElement(interaction: ChatInputCommandInteraction): Promise<
 
   const embed = new EmbedBuilder()
     .setColor(0xffd700)
-    .setTitle("🏮 五行属性の選択")
+    .setTitle("✦ 五行属性の選択")
     .setDescription(desc + elementList)
     .setFooter({ text: isChange ? "⚠️ 変更は1回限りです" : "この選択は重要です。慎重に選んでください。" });
 

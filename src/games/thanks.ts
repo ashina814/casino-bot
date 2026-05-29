@@ -8,7 +8,7 @@ import { infoEmbed, COLORS } from "../ui/embeds";
 
 export const thanksCommand = new SlashCommandBuilder()
   .setName("感謝")
-  .setDescription("🏮 座敷童にお礼を言う");
+  .setDescription("✦ アステルにお礼を言う");
 
 export async function handleThanksCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
@@ -17,7 +17,7 @@ export async function handleThanksCommand(interaction: ChatInputCommandInteracti
   const text = result.triggered && result.message ? result.message : thanksResponse(userId);
 
   const color = result.triggered ? COLORS.GOLD : 0xE67E22; // warm color
-  const embed = infoEmbed("🏮 座敷童", `*${text}*`, color);
+  const embed = infoEmbed("✦ アステル", `*${text}*`, color);
 
   if (result.triggered && result.bonusAmount) {
     adjustBalance(userId, result.bonusAmount, "easter_egg_thanks", "easter_egg", interaction.guildId ?? undefined);

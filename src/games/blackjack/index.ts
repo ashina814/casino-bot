@@ -1,7 +1,7 @@
 /**
  * 🃏 花札勝負（ブラックジャック）
  *
- * 花札の図柄を使った21勝負。ディーラーは座敷童。
+ * 花札の図柄を使った21勝負。ディーラーはアステル。
  * Hit / Stand / Double / Surrender のフルルール。
  */
 import {
@@ -85,7 +85,7 @@ export async function handleBlackjackCommand(interaction: ChatInputCommandIntera
   const userId = interaction.user.id;
 
   if (!acquireGameLock(userId, "blackjack")) {
-    await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+    await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
     return;
   }
 
@@ -122,17 +122,17 @@ export async function playBlackjack(
   };
 
   if (bet < cfg.min_bet) {
-    await replyText(`最低ベットは ◈${cfg.min_bet} じゃ。`);
+    await replyText(`最低ベットは ◈${cfg.min_bet} からだよ。`);
     return;
   }
   if (bet > tier.betCap) {
-    await replyText(`お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} まで。`);
+    await replyText(`きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までだね。`);
     return;
   }
 
   const deduct = adjustBalance(userId, -bet, "bj_bet", "blackjack");
   if (!deduct.ok) {
-    await replyText("エテルが足りぬぞ…。");
+    await replyText("エテルが足りないみたい。");
     return;
   }
   recordWager(userId, bet);
@@ -166,7 +166,7 @@ export async function playBlackjack(
         `┌─ あなたの手 ─────────┐`,
         `│  ${handDisplay(playerHand)} = **${pVal}**`,
         `└──────────────────────┘`,
-        `┌─ 座敷童の手 ──────────┐`,
+        `┌─ アステルの手 ──────────┐`,
         `│  ${dDisplay} = **${dVal}**`,
         `└──────────────────────┘`,
         "",
@@ -257,7 +257,7 @@ export async function playBlackjack(
 
       const embed = gameResultEmbed({
         title: "🃏 花札勝負 — 降参",
-        description: `*「降りるか…賢い判断かもしれぬな。」*\n\n半額の ◈${refund.toLocaleString()} を返すぞ。`,
+        description: `*「降りる？ 賢い判断かもね。」*\n\n半額の ◈${refund.toLocaleString()} を返すぞ。`,
         result: "lose",
         userId,
         guildId,
@@ -274,7 +274,7 @@ export async function playBlackjack(
       // Timeout = auto-stand
       releaseGameLock(userId);
       adjustBalance(userId, bet, "bj_timeout_refund", "blackjack", guildId);
-      try { await reply.edit({ content: "時間切れじゃ…賭け金は返すぞ。", components: [], embeds: [] }); } catch { /* */ }
+      try { await reply.edit({ content: "時間切れだね。賭け金は返すよ。", components: [], embeds: [] }); } catch { /* */ }
     }
   });
 }
@@ -372,7 +372,7 @@ async function resolveGame(
   const resultMap: Record<string, string> = {
     blackjack: "ナチュラルBJ！",
     bust: "バースト💥",
-    dealer_bust: "座敷童バースト💥",
+    dealer_bust: "アステルバースト💥",
     win: "勝利！",
     lose: "",
     draw: "引き分け",
@@ -381,7 +381,7 @@ async function resolveGame(
   const dialogue = net > 0
     ? dialogueWin(ctx, net, totalBet)
     : net === 0
-    ? "「引き分けか。悪くないぞ。」"
+    ? "「引き分けか。悪くないね。」"
     : dialogueLose(ctx, totalBet);
 
   const embed = gameResultEmbed({
@@ -390,7 +390,7 @@ async function resolveGame(
       `*${dialogue}*`,
       "",
       `あなた: ${handDisplay(playerHand)} = **${pVal}**${pVal > 21 ? " 💥" : ""}`,
-      `座敷童: ${handDisplay(dealerHand)} = **${dVal}**${dVal > 21 ? " 💥" : ""}`,
+      `アステル: ${handDisplay(dealerHand)} = **${dVal}**${dVal > 21 ? " 💥" : ""}`,
       "",
       net > 0 ? `💰 +◈${(net - fukuTax).toLocaleString()}` : net === 0 ? "→ 賭け金返還" : `💸 -◈${totalBet.toLocaleString()}`,
     ].join("\n"),
@@ -493,7 +493,7 @@ function setupRetryCollector(reply: any, guildId: string, userId: string, bet: n
           releaseGameLock(userId);
         }
       } else {
-        await btn.followUp({ content: "既にゲーム中じゃ。", ephemeral: true });
+        await btn.followUp({ content: "もう遊んでる最中だよ。", ephemeral: true });
       }
     }
   });
@@ -510,7 +510,7 @@ function setupRetryCollector(reply: any, guildId: string, userId: string, bet: n
 function blackjackPaytableEmbed(): import("discord.js").EmbedBuilder {
   return baseEmbed("📖 花札勝負 — ルール", COLORS.GOLD).setDescription(
     [
-      "*「21を目指して札を引け。座敷童（ディーラー）に勝てば配当じゃ。」*",
+      "*「21を目指して札を引け。ディーラー（アステル）に勝てば配当だよ。」*",
       "",
       "**役と配当**",
       "・**ブラックジャック**（最初の2枚で21）→ 賭金 × **2.5倍**",
@@ -529,9 +529,9 @@ function blackjackPaytableEmbed(): import("discord.js").EmbedBuilder {
       "・J・Q・K: 10",
       "・A: 11（21を超える場合は1として扱う）",
       "",
-      "**座敷童のルール**",
+      "**アステルのルール**",
       "・17以上で必ず止める（標準ブラックジャック）",
-      "・座敷童がバストすると、プレイヤーの勝ち",
+      "・アステルがバストすると、プレイヤーの勝ち",
     ].join("\n")
   );
 }
