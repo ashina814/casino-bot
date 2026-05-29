@@ -3,7 +3,7 @@ import { db, getSystemStatus } from "../../core/db";
 
 export const raceCommand = new SlashCommandBuilder()
   .setName("競馬")
-  .setDescription("🏇 妖狐競馬 — レース関連コマンド")
+  .setDescription("🏇 天馬競走 — レース関連コマンド")
   .addSubcommand((sub) => sub.setName("start").setDescription("競馬レースを今すぐ開始"))
   .addSubcommand((sub) => sub.setName("audit").setDescription("資金監査サマリーを表示"));
 

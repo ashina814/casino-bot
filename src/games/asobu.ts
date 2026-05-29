@@ -47,7 +47,7 @@ export const asobuCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("暴落")
-      .setDescription("📈 龍脈昇り — どこまで耐えられるか")
+      .setDescription("📈 星昇り — どこまで耐えられるか")
       .addIntegerOption((opt) =>
         opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
@@ -55,7 +55,7 @@ export const asobuCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("輪盤")
-      .setDescription("🎡 百鬼輪盤（ルーレット）")
+      .setDescription("🎡 運命の星盤（ルーレット）")
   )
   .addSubcommand((sub) =>
     sub

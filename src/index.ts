@@ -77,7 +77,7 @@ async function bootstrap(): Promise<void> {
             return await handleAsobuCommand(interaction);
           case "競馬":
             return await handleRaceCommand(interaction);
-          case "龍脈":
+          case "星脈":
             return await handleStocksCommand(interaction);
           case "福分け":
             return await handleDailyCommand(interaction);

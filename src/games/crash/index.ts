@@ -1,5 +1,5 @@
 /**
- * 📈 龍脈昇り（クラッシュ）
+ * 📈 星昇り（クラッシュ）
  *
  * 倍率が上がり続け、いつ「崩壊」するか分からない。
  * 降りるタイミングを見極めるチキンレース。
@@ -138,9 +138,9 @@ export async function playCrash(
   const makeEmbed = (multi: number) => {
     const currentValue = Math.floor(bet * multi);
     const canCashOut = multi >= MIN_CASHOUT;
-    return baseEmbed("📈 龍脈昇り", COLORS.GOLD).setDescription(
+    return baseEmbed("📈 星昇り", COLORS.GOLD).setDescription(
       [
-        `*「龍脈が昇っておる…いつ降りる？」*`,
+        `*「星が昇っていく……いつ墜ちる？」*`,
         "",
         `📈 現在: **${multi.toFixed(2)}x**` + (canCashOut ? " 🟢" : ` 🔒 (最低降車 **${MIN_CASHOUT.toFixed(2)}x** まで待て)`),
         buildProgressBar(multi),
@@ -281,7 +281,7 @@ export async function playCrash(
 
     const dialogue = dialogueWin(ctx, net, bet);
     const embed = gameResultEmbed({
-      title: "📈 龍脈昇り — 離脱成功！",
+      title: "📈 星昇り — 離脱成功！",
       description: [
         `*${dialogue}*`,
         "",
@@ -302,7 +302,7 @@ export async function playCrash(
 
     const dialogue = dialogueLose(ctx, bet);
     const embed = gameResultEmbed({
-      title: "💥 龍脈昇り — 崩壊！",
+      title: "💥 星昇り — 燃え尽き！",
       description: [
         `*${dialogue}*`,
         "",
@@ -366,9 +366,9 @@ export async function playCrash(
 // ─── Paytable ──────────────────────────────────────────
 
 function crashPaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 龍脈昇り — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 星昇り — ルール", COLORS.GOLD).setDescription(
     [
-      "*「龍脈は天井知らずに昇るが、いつ崩れるかは分からぬ。降りたら倍率で買い取ろう。」*",
+      "*「星は天井知らずに昇るけど、いつ燃え尽きるかは分からない。墜ちる前に降りれば、倍率で買い取るよ。」*",
       "",
       "**遊び方**",
       "・賭けると倍率が **1.00x** から指数的に上昇",

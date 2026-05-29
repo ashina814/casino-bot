@@ -57,12 +57,12 @@ export const WORLD = {
   // ─── ゲーム名（Iter.5 で各ゲームに反映） ───────────────
   GAME_SLOTS: "星辰の巻",
   GAME_BLACKJACK: "星札勝負",
-  GAME_CHINCHIRO: "[仮:賽]",
-  GAME_CRASH: "[仮:クラッシュ]",
-  GAME_HIGHLOW: "[仮:丁半]",
-  GAME_ROULETTE: "[仮:ルーレット]",
-  GAME_KEIBA: "[仮:競走]",
-  GAME_STOCKS: "[仮:相場]",
+  GAME_CHINCHIRO: "賽",
+  GAME_CRASH: "星昇り",
+  GAME_HIGHLOW: "丁半",
+  GAME_ROULETTE: "運命の星盤",
+  GAME_KEIBA: "天馬競走",
+  GAME_STOCKS: "星脈相場",
   GAME_SASHI: "サシ星約",
   GAME_BOARD: "星約の板",
 

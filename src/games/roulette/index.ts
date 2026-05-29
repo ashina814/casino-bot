@@ -1,5 +1,5 @@
 /**
- * 🎡 運命の水鏡（ルーレット）
+ * 🎡 運命の星盤（ルーレット）
  *
  * みんなで参加する共有型ゲーム。
  * 60秒の受付 → 一斉結果発表。ソーシャル体験の核。
@@ -77,7 +77,7 @@ export async function handleRouletteCommand(interaction: ChatInputCommandInterac
 
   // Check if session already running in this channel
   if (activeSessions.get(channelId)) {
-    await interaction.reply({ content: "この水鏡、もう揺れてる。結果を待ってね。", ephemeral: true });
+    await interaction.reply({ content: "この星盤、もう揺れてる。結果を待ってね。", ephemeral: true });
     return;
   }
 
@@ -124,10 +124,10 @@ export async function runRouletteSession(
       : "まだ誰も賭けてないよ……";
     const totalBet = bets.reduce((s, b) => s + b.amount, 0);
 
-    return baseEmbed(`🎡 運命の水鏡 — 受付中（残り${secondsLeft}秒）`, COLORS.GOLD)
+    return baseEmbed(`🎡 運命の星盤 — 受付中（残り${secondsLeft}秒）`, COLORS.GOLD)
       .setDescription(
         [
-          `*「水鏡に数字が映る…さぁ、何処に賭ける？」*`,
+          `*「星盤に数字が浮かぶ……さあ、どこに賭ける？」*`,
           "",
           `参加者: ${bets.length}人 / 総ベット: ◈${totalBet.toLocaleString()}`,
           "",
@@ -169,7 +169,7 @@ export async function runRouletteSession(
 
     // Check if already bet
     if (bets.find((b) => b.userId === userId)) {
-      await btn.reply({ content: "もう賭けておるぞ。1回の水鏡につき1つじゃ。", ephemeral: true });
+      await btn.reply({ content: "もう賭けてるよ。1回の星盤につき1つだけね。", ephemeral: true });
       return;
     }
 
@@ -204,15 +204,15 @@ export async function runRouletteSession(
 
   if (bets.length === 0) {
     await reply.edit({
-      embeds: [baseEmbed("🎡 運命の水鏡 — 中止", COLORS.BASE).setDescription("誰も賭けなかったので水鏡は閉じたぞ。")],
+      embeds: [baseEmbed("🎡 運命の星盤 — 中止", COLORS.BASE).setDescription("誰も賭けなかったから、星盤は閉じたよ。")],
       components: [],
     });
     return;
   }
 
   // ── Spin ──
-  const spinEmbed = baseEmbed("🎡 運命の水鏡 — 回転中…", COLORS.EVENT)
-    .setDescription("*「水鏡が揺れる……」*\n\n✨ ？？？ ✨");
+  const spinEmbed = baseEmbed("🎡 運命の星盤 — 回転中…", COLORS.EVENT)
+    .setDescription("*「星盤が回る……」*\n\n✨ ？？？ ✨");
   await reply.edit({ embeds: [spinEmbed], components: [] });
 
   await sleep(2000);
@@ -254,16 +254,16 @@ export async function runRouletteSession(
     }
   }
 
-  const resultEmbed = baseEmbed("🎡 運命の水鏡 — 結果発表", winningNumber === 0 ? COLORS.WIN : isRed ? COLORS.MAIN : COLORS.BASE)
+  const resultEmbed = baseEmbed("🎡 運命の星盤 — 結果発表", winningNumber === 0 ? COLORS.WIN : isRed ? COLORS.MAIN : COLORS.BASE)
     .setDescription(
       [
-        `*「水鏡が揺れる……映ったのは…」*`,
+        `*「星盤が回る……映ったのは…」*`,
         "",
         `✨ **【 ${winningNumber} — ${colorEmoji} ${colorLabel} 】** ✨`,
         "",
         ...results,
         "",
-        `次の水鏡: \`/遊ぶ 輪盤\` または \`/案内\` から開始`,
+        `次の星盤: \`/遊ぶ 輪盤\` または \`/案内\` から開始`,
       ].join("\n"),
     );
 
@@ -287,9 +287,9 @@ function checkWin(betType: BetType, number: number): boolean {
 // ─── Paytable ──────────────────────────────────────────
 
 function roulettePaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 百鬼輪盤 — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 運命の星盤 — ルール", COLORS.GOLD).setDescription(
     [
-      "*「水鏡に映る数字に賭けよ。皆で参加できる遊びじゃ。」*",
+      "*「星盤に浮かぶ数字に賭けてね。みんなで参加できる遊びだよ。」*",
       "",
       "**遊び方**",
       "・**45秒間** の受付中、各自が1つだけ賭けられる",

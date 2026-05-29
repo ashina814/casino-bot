@@ -37,12 +37,12 @@ import { showQuestsPanel } from "./panels/quests";
 
 const ALL_GAMES = ["slots", "chohan", "blackjack", "crash", "roulette", "keiba", "chinchiro"] as const;
 const GAME_NAMES: Record<string, string> = {
-  slots: "百鬼夜行巻物",
+  slots: "星辰の巻",
   chohan: "丁半博打",
-  blackjack: "花札勝負",
-  crash: "龍脈昇り",
-  roulette: "運命の水鏡",
-  keiba: "神馬競走",
+  blackjack: "星札勝負",
+  crash: "星昇り",
+  roulette: "運命の星盤",
+  keiba: "天馬競走",
   chinchiro: "チンチロ",
 };
 
@@ -108,7 +108,7 @@ export async function handleCasinoCommand(interaction: ChatInputCommandInteracti
         `🔥 連続ログイン: ${profile.daily_streak}日目`,
         "",
         `🎯 本日のラッキーゲーム: **${GAME_NAMES[luckyGame] ?? luckyGame}**（配当1.2倍）`,
-        `${eco.emoji} 妖気: *${eco.label}*`,
+        `${eco.emoji} 星気: *${eco.label}*`,
       ].join("\n"),
     );
 
@@ -123,16 +123,16 @@ export async function handleCasinoCommand(interaction: ChatInputCommandInteracti
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("home_slots").setLabel("🎰 巻物").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("home_chohan").setLabel("🎴 丁半").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_blackjack").setLabel("🃏 花札").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_blackjack").setLabel("🃏 星札").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("home_chinchiro").setLabel("🎲 チンチロ").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_crash").setLabel("📈 龍脈昇り").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_crash").setLabel("📈 星昇り").setStyle(ButtonStyle.Primary),
   );
 
   // Row 3 — みんなで遊ぶ + 投資
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("home_roulette").setLabel("🎡 水鏡").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_keiba").setLabel("🏇 神馬競走").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_stocks").setLabel("📈 龍脈相場").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_roulette").setLabel("🎡 星盤").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_keiba").setLabel("🏇 天馬競走").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_stocks").setLabel("📈 星脈相場").setStyle(ButtonStyle.Primary),
   );
 
   // Row 4 — 情報・参考
@@ -178,7 +178,7 @@ export async function handleHomeButton(interaction: ButtonInteraction): Promise<
   if (game === "roulette") {
     const channelId = interaction.channelId;
     if (activeSessions.get(channelId)) {
-      await interaction.reply({ content: "この水鏡、もう揺れてる。結果を待ってね。", ephemeral: true });
+      await interaction.reply({ content: "この星盤、もう揺れてる。結果を待ってね。", ephemeral: true });
       return;
     }
   }
@@ -254,7 +254,7 @@ export async function handleHomeModal(interaction: ModalSubmitInteraction): Prom
       case "roulette":
         const channelId = interaction.channelId;
         if (activeSessions.get(channelId!)) {
-          await interaction.reply({ content: "この水鏡、もう揺れてる。結果を待ってね。", ephemeral: true });
+          await interaction.reply({ content: "この星盤、もう揺れてる。結果を待ってね。", ephemeral: true });
           return;
         }
         activeSessions.set(channelId!, true);

@@ -308,7 +308,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
       value: [
         `遊戯場: ${cfg.casino_channel_id ? `<#${cfg.casino_channel_id}>` : "*未設定*"}`,
         `大勝ち速報: ${cfg.jackpot_channel_id ? `<#${cfg.jackpot_channel_id}>` : "*未設定*"}`,
-        `龍脈相場: ${cfg.stock_channel_id ? `<#${cfg.stock_channel_id}>` : "*未設定*"}`,
+        `星脈相場: ${cfg.stock_channel_id ? `<#${cfg.stock_channel_id}>` : "*未設定*"}`,
       ].join("\n"),
       inline: true,
     },
@@ -373,7 +373,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
             new TextInputBuilder().setCustomId("jackpot_channel").setLabel("大勝ち速報チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.jackpot_channel_id ?? "").setRequired(false),
           ),
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("stock_channel").setLabel("龍脈相場チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.stock_channel_id ?? "").setRequired(false),
+            new TextInputBuilder().setCustomId("stock_channel").setLabel("星脈相場チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.stock_channel_id ?? "").setRequired(false),
           ),
         );
 

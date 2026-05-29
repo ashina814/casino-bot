@@ -1,7 +1,7 @@
 /**
- * 📈 龍脈相場（株式投資）
+ * 📈 星脈相場（株式投資）
  *
- * 龍脈の力を「銘柄」として売買する投資ゲーム。
+ * 星脈の力を「銘柄」として売買する投資ゲーム。
  * 1時間ごとに値動き。ランダムウォーク + イベント。
  * 余剰エテルのマネーシンク & 長期戦略コンテンツ。
  */
@@ -146,13 +146,13 @@ export function updateAllPrices(): { events: string[] } {
         const surge = 1.3 + Math.random() * 0.3;
         newPrice = Math.round(stock.price * surge);
         newTrend = 0.3;
-        events.push(`🐉 **龍脈噴出！** ${stock.emoji}${stock.name} が急騰！ (+${Math.round((surge - 1) * 100)}%)`);
+        events.push(`☄ **星脈噴出！** ${stock.emoji}${stock.name} が急騰！ (+${Math.round((surge - 1) * 100)}%)`);
       } else if (eventRoll < 0.04) {
         // Crash: -30-50%
         const crash = 0.5 + Math.random() * 0.2;
         newPrice = Math.round(stock.price * crash);
         newTrend = -0.3;
-        events.push(`💀 **龍脈枯渇！** ${stock.emoji}${stock.name} が急落！ (-${Math.round((1 - crash) * 100)}%)`);
+        events.push(`◑ **星脈枯渇！** ${stock.emoji}${stock.name} が急落！ (-${Math.round((1 - crash) * 100)}%)`);
       }
 
       // Floor
@@ -242,8 +242,8 @@ function changeEmoji(current: number, prev: number): string {
 // ─── Command ───────────────────────────────────────────
 
 export const stocksCommand = new SlashCommandBuilder()
-  .setName("龍脈")
-  .setDescription("📈 龍脈相場 — 龍脈の力に投資する");
+  .setName("星脈")
+  .setDescription("📈 星脈相場 — 星脈の力に投資する");
 
 export async function handleStocksCommand(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
   const guildId = interaction.guildId!;
@@ -303,10 +303,10 @@ export async function renderDashboard(
   const totalProfit = totalValue - totalCost;
   const totalPct = totalCost > 0 ? ((totalProfit / totalCost) * 100).toFixed(1) : "0.0";
 
-  const embed = baseEmbed("📈 龍脈相場（投資）", COLORS.GOLD)
+  const embed = baseEmbed("📈 星脈相場（投資）", COLORS.GOLD)
     .setDescription(
       [
-        `*「龍脈の流れは日々変わる。見極めてね。」*`,
+        `*「星脈の流れは日々変わる。見極めてね。」*`,
         "",
         `**【 銘柄一覧 】**`,
         ...marketLines,

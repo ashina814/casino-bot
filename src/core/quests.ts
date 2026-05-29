@@ -73,7 +73,7 @@ const DAILY_QUESTS: QuestDef[] = [
   { key: "big_win_3k",   kind: "daily", difficulty: "hard", title: "一発の華",              description: "1勝で ◈3,000 以上獲得する",            metric: { kind: "win_amount_max" },              target: 3000, reward: { coins: 1500, exp: 20 } },
   { key: "wager_20k",    kind: "daily", difficulty: "hard", title: "賭場の常客",            description: "累計 ◈20,000 を賭ける",                metric: { kind: "wager_sum" },                   target: 20000,reward: { coins: 1800, exp: 22 } },
   { key: "win_5",        kind: "daily", difficulty: "hard", title: "五勝のリズム",          description: "本日 5 勝する",                         metric: { kind: "win_count" },                   target: 5,    reward: { coins: 2000, exp: 25 } },
-  { key: "distinct_5",   kind: "daily", difficulty: "hard", title: "百鬼夜行",              description: "5 種類のゲームで遊ぶ",                  metric: { kind: "distinct_games" },              target: 5,    reward: { coins: 2000, exp: 25 } },
+  { key: "distinct_5",   kind: "daily", difficulty: "hard", title: "星巡り",              description: "5 種類のゲームで遊ぶ",                  metric: { kind: "distinct_games" },              target: 5,    reward: { coins: 2000, exp: 25 } },
 ];
 
 export const QUEST_CATALOG: Record<string, QuestDef> = Object.fromEntries(

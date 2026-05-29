@@ -22,7 +22,7 @@ export function registerSchedulers(client: Client): void {
     }
   });
 
-  // 龍脈相場: 3時間ごと（0/3/6/9/12/15/18/21時）に価格更新
+  // 星脈相場: 3時間ごと（0/3/6/9/12/15/18/21時）に価格更新
   initStockTables();
   cron.schedule("0 */3 * * *", async () => {
     try {
@@ -39,7 +39,7 @@ export function registerSchedulers(client: Client): void {
           try {
             const channel = await client.channels.fetch(r.stock_channel_id);
             if (channel && channel.isTextBased()) {
-              const embed = baseEmbed("📈 龍脈速報", COLORS.EVENT)
+              const embed = baseEmbed("📈 星脈速報", COLORS.EVENT)
                 .setDescription(events.join("\n\n"));
               await (channel as any).send({ embeds: [embed] });
             }

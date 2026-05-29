@@ -9,7 +9,7 @@ const SHOP_ITEMS = [
   { id: "title_gold", type: "title", name: "【称号】黄金の成金", cost: 500_000, desc: "黄金のオーラを纏う金持ちの証。" },
   { id: "title_zashiki", type: "title", name: "【称号】アステルの寵児", cost: 1_000_000, desc: "アステルすら手なずける大富豪。" },
   // 実用品
-  { id: "hint_stock", type: "consumable", name: "【秘匿】龍脈相場の裏情報", cost: 5_000, desc: "現在の相場のトレンドをこっそり教えてもらう。" },
+  { id: "hint_stock", type: "consumable", name: "【秘匿】星脈相場の裏情報", cost: 5_000, desc: "現在の相場のトレンドをこっそり教えてもらう。" },
   // プレゼント（好感度）
   { id: "present_dango", type: "present", name: "🍡 星屑の菓子（アステルへ）", cost: 1_000, desc: "アステルにプレゼントする。少しだけ喜ぶ。（好感度+1）", affection: 1 },
   { id: "present_sake", type: "present", name: "🍶 月光の雫（アステルへ）", cost: 10_000, desc: "アステルにプレゼントする。かなり喜ぶ。（好感度+15）", affection: 15 },

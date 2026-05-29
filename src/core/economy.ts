@@ -21,7 +21,7 @@ export function getFukuWeightLabel(balance: number): string | null {
   return `${Math.round(rate * 100)}%`;
 }
 
-// ─── 動的ハウスエッジ（妖気の潮流） ────────────────────
+// ─── 動的ハウスエッジ（星気の潮流） ────────────────────
 
 export type EconomyState = "inflation" | "normal" | "deflation";
 
@@ -46,19 +46,19 @@ export function getEconomyState(guildId: string): {
 
   if (healthyLine === 0) {
     state = "normal";
-    label = "妖気は穏やか";
+    label = "星気は穏やか";
     emoji = "🟡";
   } else if (total > healthyLine * 1.5) {
     state = "inflation";
-    label = "妖気が満ちておる";
+    label = "星気が満ちておる";
     emoji = "🟢";
   } else if (total < healthyLine * 0.5) {
     state = "deflation";
-    label = "妖気が薄い";
+    label = "星気が薄い";
     emoji = "🔴";
   } else {
     state = "normal";
-    label = "妖気は穏やか";
+    label = "星気は穏やか";
     emoji = "🟡";
   }
 
