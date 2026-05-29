@@ -203,7 +203,7 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
   `).all(...owner.params) as Array<{ game: string; plays: number; wagered: number }>;
   const activityLine = activityRows.length === 0
     ? "*（直近24hの賭けなし）*"
-    : activityRows.map((r) => `\`${r.game.padEnd(10)}\` ${r.plays}回 / 賭け ◉${r.wagered.toLocaleString()}`).join("\n");
+    : activityRows.map((r) => `\`${r.game.padEnd(10)}\` ${r.plays}回 / 賭け ◈${r.wagered.toLocaleString()}`).join("\n");
 
   // 残高 TOP 5
   const topRows = db.prepare(`
@@ -212,7 +212,7 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
   `).all(...owner.params) as Array<{ user_id: string; balance: number }>;
   const topLine = topRows.length === 0
     ? "*（プレイヤーなし）*"
-    : topRows.map((r, i) => `${i + 1}. <@${r.user_id}> — ◉${r.balance.toLocaleString()}`).join("\n");
+    : topRows.map((r, i) => `${i + 1}. <@${r.user_id}> — ◈${r.balance.toLocaleString()}`).join("\n");
 
   // 大型取引（直近48h、絶対値5万以上）
   const bigTxRows = db.prepare(`
@@ -228,7 +228,7 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
     : bigTxRows.map((r) => {
         const ts = r.created_at.slice(5, 16).replace("T", " ");
         const sign = r.amount >= 0 ? "+" : "";
-        return `\`${ts}\` <@${r.user_id}> ${sign}◉${r.amount.toLocaleString()} (${r.reason})`;
+        return `\`${ts}\` <@${r.user_id}> ${sign}◈${r.amount.toLocaleString()} (${r.reason})`;
       }).join("\n");
 
   const ownerNote = config.ownerId
@@ -241,9 +241,9 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
       {
         name: "🏛 流通量",
         value: [
-          `総発行: **◉${agg.total.toLocaleString()}** (${agg.c}人)`,
-          `平均: ◉${Math.round(agg.avg).toLocaleString()} / 中央: ◉${median.toLocaleString()}`,
-          `最大: ◉${agg.max.toLocaleString()} / 最小: ◉${agg.min.toLocaleString()}`,
+          `総発行: **◈${agg.total.toLocaleString()}** (${agg.c}人)`,
+          `平均: ◈${Math.round(agg.avg).toLocaleString()} / 中央: ◈${median.toLocaleString()}`,
+          `最大: ◈${agg.max.toLocaleString()} / 最小: ◈${agg.min.toLocaleString()}`,
         ].join("\n"),
         inline: false,
       },
@@ -255,8 +255,8 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
       {
         name: "🏆 プール",
         value: [
-          `JP: ◉${cfg.jackpot_pool.toLocaleString()}`,
-          `救済: ◉${cfg.relief_pool.toLocaleString()}`,
+          `JP: ◈${cfg.jackpot_pool.toLocaleString()}`,
+          `救済: ◈${cfg.relief_pool.toLocaleString()}`,
         ].join("　"),
         inline: false,
       },
@@ -294,12 +294,12 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     {
       name: "💰 経済",
       value: [
-        `初期支給: ◉${cfg.initial_balance.toLocaleString()}`,
-        `デイリー基本: ◉${cfg.daily_base}`,
-        `破産保護: ◉${cfg.bankruptcy_aid}`,
-        `所持金上限: ◉${cfg.balance_cap.toLocaleString()}`,
+        `初期支給: ◈${cfg.initial_balance.toLocaleString()}`,
+        `デイリー基本: ◈${cfg.daily_base}`,
+        `破産保護: ◈${cfg.bankruptcy_aid}`,
+        `所持金上限: ◈${cfg.balance_cap.toLocaleString()}`,
         `ハウスエッジ補正: ${cfg.house_edge_offset >= 0 ? "+" : ""}${cfg.house_edge_offset}%`,
-        `最低ベット: ◉${cfg.min_bet}`,
+        `最低ベット: ◈${cfg.min_bet}`,
       ].join("\n"),
       inline: true,
     },
@@ -357,7 +357,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
         const balance_cap = parseInt(m.fields.getTextInputValue("balance_cap")) || cfg.balance_cap;
         updateServerConfig(guildId, { daily_base, min_bet, house_edge_offset, balance_cap });
         await m.reply({
-          embeds: [successEmbed(`設定を更新しました。\nデイリー: ◉${daily_base} / 最低ベット: ◉${min_bet} / エッジ補正: ${house_edge_offset}% / 上限: ◉${balance_cap.toLocaleString()}`)],
+          embeds: [successEmbed(`設定を更新しました。\nデイリー: ◈${daily_base} / 最低ベット: ◈${min_bet} / エッジ補正: ${house_edge_offset}% / 上限: ◈${balance_cap.toLocaleString()}`)],
           ephemeral: true,
         });
       } catch { /* timeout */ }
@@ -410,7 +410,7 @@ async function handleMint(interaction: ChatInputCommandInteraction, guildId: str
     .run(interaction.user.id, target.id, amount, memo);
 
   await interaction.reply({
-    embeds: [successEmbed(`**${target.displayName}** に ◉${amount.toLocaleString()} を発行しました。${memo ? `\nメモ: ${memo}` : ""}`)],
+    embeds: [successEmbed(`**${target.displayName}** に ◈${amount.toLocaleString()} を発行しました。${memo ? `\nメモ: ${memo}` : ""}`)],
     ephemeral: true,
   });
 }
@@ -434,7 +434,7 @@ async function handleBurn(interaction: ChatInputCommandInteraction, guildId: str
     .run(interaction.user.id, target.id, amount, memo);
 
   await interaction.reply({
-    embeds: [successEmbed(`**${target.displayName}** から ◉${amount.toLocaleString()} を焼却しました。${memo ? `\nメモ: ${memo}` : ""}`)],
+    embeds: [successEmbed(`**${target.displayName}** から ◈${amount.toLocaleString()} を焼却しました。${memo ? `\nメモ: ${memo}` : ""}`)],
     ephemeral: true,
   });
 }
@@ -457,7 +457,7 @@ async function handleRefund(interaction: ChatInputCommandInteraction, guildId: s
     .run(interaction.user.id, target.id, amount, reason);
 
   await interaction.reply({
-    embeds: [successEmbed(`**${target.displayName}** に ◉${amount.toLocaleString()} を返金しました。\n理由: ${reason}`)],
+    embeds: [successEmbed(`**${target.displayName}** に ◈${amount.toLocaleString()} を返金しました。\n理由: ${reason}`)],
     ephemeral: true,
   });
 }
@@ -484,7 +484,7 @@ async function handleInspect(interaction: ChatInputCommandInteraction, guildId: 
         const sign = r.amount >= 0 ? "+" : "";
         const ts = r.created_at.slice(5, 16).replace("T", " ");
         const game = r.game ? ` [${r.game}]` : "";
-        return `\`${ts}\` ${sign}◉${r.amount.toLocaleString()}　${r.reason}${game}`;
+        return `\`${ts}\` ${sign}◈${r.amount.toLocaleString()}　${r.reason}${game}`;
       }).join("\n");
 
   await interaction.reply({
@@ -492,8 +492,8 @@ async function handleInspect(interaction: ChatInputCommandInteraction, guildId: 
       infoEmbed(
         `🔍 ${target.displayName} の調査`,
         [
-          `💰 残高: ◉${profile.balance.toLocaleString()}`,
-          `📈 ${profile.total_wins.toLocaleString()}勝 / ${profile.total_losses.toLocaleString()}敗 ・ 累計賭け ◉${profile.total_wagered.toLocaleString()}`,
+          `💰 残高: ◈${profile.balance.toLocaleString()}`,
+          `📈 ${profile.total_wins.toLocaleString()}勝 / ${profile.total_losses.toLocaleString()}敗 ・ 累計賭け ◈${profile.total_wagered.toLocaleString()}`,
           "",
           `**直近 ${rows.length} 件**`,
           lines,

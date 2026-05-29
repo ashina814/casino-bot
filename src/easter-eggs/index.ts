@@ -130,7 +130,7 @@ export function checkLoseStreak(userId: string, currentLoseStreak: number): EggR
   return {
     triggered: true,
     titleName: "不屈の魂",
-    message: "「う…うう…お主がここまで負け続けるのは、\nわしの福の力が足りぬせいかもしれぬ…\nすまぬ…すまぬのう…」\n\n（座敷童が泣きながら◉10,000をくれた）",
+    message: "「う…うう…お主がここまで負け続けるのは、\nわしの福の力が足りぬせいかもしれぬ…\nすまぬ…すまぬのう…」\n\n（座敷童が泣きながら◈10,000をくれた）",
     bonusAmount: 10_000,
   };
 }

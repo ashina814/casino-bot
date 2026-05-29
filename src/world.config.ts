@@ -1,88 +1,149 @@
 /**
- * 世界観プレースホルダ層 (v2)
+ * 世界観定義層 — 星約の賭場 (ASTERIA)
  * ─────────────────────────────────────────────────────────
- * 賭場名・通貨名・マスコット名・派閥名・絵文字など、
- * 世界観に依存する固定値を全部ここに集約する。
+ * 世界観に依存する固定値の集約点。正典は WORLD.md。
  *
- * Iter.5 で世界観を確定したら、このファイルの値だけ
- * 差し替えれば Bot 全体の見た目が変わる構造。
+ * ビジュアル指針（WORLD.md §7）:
+ *   - 基調はモノクロの星型グリフ（◌ ✦ ✧ ✶ ✷ ✸ ✹ ◈ ☾ ☀）
+ *   - カラー絵文字は特大イベント限定（安っぽさを避ける）
+ *   - 色は embed パレットで出す
  *
- * `[仮:○○]` という表記は **未確定** という意味で目立たせている。
- * grep 検索で残漏れを発見できるよう、必ずこの形式で書く。
+ * 未確定値は `[仮:○○]` で目立たせる（grep 検索で残漏れを発見できる）。
  */
 
 export const WORLD = {
   // ─── 名称 ─────────────────────────────────────────────
   /** 賭場（カジノ）の正式名称 */
-  CASINO_NAME: "[仮:賭場名]",
+  CASINO_NAME: "星約の賭場",
   /** Bot 表示名 */
-  BOT_NAME: "[仮:Bot名]",
-  /** マスコットキャラクター名 */
-  MASCOT_NAME: "[仮:マスコット]",
-  /** マスコットの自称 */
-  MASCOT_FIRST_PERSON: "[仮:わし]",
+  BOT_NAME: "星約の賭場",
+  /** マスコットキャラクター名。始原星アステラの小さな分け身＝座敷童の生まれ変わり */
+  MASCOT_NAME: "アステル",
+  /** マスコットの自称（TODO: キャラ設計で確定） */
+  MASCOT_FIRST_PERSON: "[仮:わたし]",
 
   // ─── 通貨 ─────────────────────────────────────────────
-  /** 第一通貨（サーバー全体経済通貨）の名称 */
+  /** 第一通貨（向こうの Bot 管理）の名称。TODO: 決まり次第反映 */
   CURRENCY_1_NAME: "[仮:第一通貨]",
-  CURRENCY_1_EMOJI: "💴",
-  CURRENCY_1_SYMBOL: "¥",
-  /** 第二通貨（カジノコイン）の名称 — このBot内で使う通貨 */
-  CURRENCY_2_NAME: "[仮:カジノコイン]",
-  CURRENCY_2_EMOJI: "🎰",
-  /** カジノコインの表示記号（既存の◉を一旦継承） */
-  CURRENCY_2_SYMBOL: "◉",
+  CURRENCY_1_EMOJI: "✧",
+  CURRENCY_1_SYMBOL: "[仮:¤]",
+  /** 第二通貨。アステルの光のかけら。賭場でのみ意味を持つ */
+  CURRENCY_2_NAME: "エテル",
+  CURRENCY_2_EMOJI: "◈",
+  /** エテルの表示記号 */
+  CURRENCY_2_SYMBOL: "◈",
 
-  // ─── 派閥 ─────────────────────────────────────────────
-  /** 3派閥の名称（Iter.3 で導入） */
-  FACTION_NAMES: ["[仮:派閥A]", "[仮:派閥B]", "[仮:派閥C]"] as const,
-  FACTION_EMOJIS: ["🔴", "🔵", "🟢"] as const,
+  // ─── 賭ける行為 ───────────────────────────────────────
+  /** 賭けの世界観名。運命と交わす契約 */
+  ACT_OF_BETTING: "星約",
 
-  // ─── 場 ───────────────────────────────────────────────
-  /** 表口カテゴリ名 */
-  AREA_FRONT: "[仮:表口]",
-  /** 奥座敷カテゴリ名（VIP＋運営） */
-  AREA_BACK: "[仮:奥座敷]",
-  /** 派閥カテゴリ名 */
-  AREA_FACTION: "[仮:派閥]",
+  // ─── 派閥＝三星（星約段階3で盟約） ────────────────────
+  /** 三星の名称（知恵/言葉/火） */
+  FACTION_NAMES: ["知恵の星", "言葉の星", "火の星"] as const,
+  /** 三星のグリフ（モノクロ基調） */
+  FACTION_GLYPHS: ["☾", "✶", "☀"] as const,
+  /** 三星のカラー（embed 用） */
+  FACTION_COLORS: [0x3a6ea5, 0x2e8b6f, 0xc0392b] as const,
+  /** 三すくみ: index i は (i+1)%3 に有利。知恵→火→言葉→知恵 */
+  // 0:知恵 御す 2:火 / 2:火 焼く 1:言葉 / 1:言葉 動かす 0:知恵
 
-  // ─── ゲーム名 ─────────────────────────────────────────
-  /** 各ゲームの世界観フレーバー名 */
-  GAME_SLOTS: "[仮:百鬼夜行巻物]",
-  GAME_BLACKJACK: "[仮:花札勝負]",
+  // ─── 場（カテゴリ） ───────────────────────────────────
+  AREA_FRONT: "表口",
+  AREA_BACK: "奥座敷",
+  AREA_FACTION: "星々の座",
+
+  // ─── ゲーム名（Iter.5 で各ゲームに反映） ───────────────
+  GAME_SLOTS: "[仮:スロット]",
+  GAME_BLACKJACK: "[仮:ブラックジャック]",
   GAME_CHINCHIRO: "[仮:賽]",
-  GAME_CRASH: "[仮:龍脈昇り]",
-  GAME_HIGHLOW: "[仮:丁半博打]",
-  GAME_ROULETTE: "[仮:運命の水鏡]",
-  GAME_KEIBA: "[仮:神馬競走]",
-  GAME_STOCKS: "[仮:龍脈相場]",
-  GAME_SASHI: "[仮:サシ勝負]",
-  GAME_BOARD: "[仮:賭場の板]",
+  GAME_CRASH: "[仮:クラッシュ]",
+  GAME_HIGHLOW: "[仮:丁半]",
+  GAME_ROULETTE: "[仮:ルーレット]",
+  GAME_KEIBA: "[仮:競走]",
+  GAME_STOCKS: "[仮:相場]",
+  GAME_SASHI: "サシ星約",
+  GAME_BOARD: "星約の板",
 
   // ─── プール ────────────────────────────────────────────
-  /** ジャックポットプールの世界観名 */
-  POOL_JACKPOT: "[仮:JPプール]",
-  /** 底辺保護プール（救済プール）の世界観名 */
-  POOL_RELIEF: "[仮:救済プール]",
-  /** 換金時の奉納の世界観名 */
-  EXCHANGE_TRIBUTE: "[仮:奉納]",
+  /** ジャックポットプール */
+  POOL_JACKPOT: "星溜まり",
+  /** 底辺保護プール */
+  POOL_RELIEF: "巡りの光",
+  /** 換金時の奉納（20%手数料） */
+  EXCHANGE_TRIBUTE: "還光",
 
-  // ─── 称号関連 ─────────────────────────────────────────
-  /** 換金マイル称号の世界観名 */
-  TITLE_EXCHANGE_PATRON: "[仮:篤志家]",
+  // ─── 星約（覚醒）7段階 ───────────────────────────────
+  /** index = 段階 Lv。name とグリフ。しきい値・恩恵は zashikiStage.ts 側 */
+  STAGES: [
+    { name: "暗", glyph: "◌" },
+    { name: "微光", glyph: "✦" },
+    { name: "瞬き", glyph: "✧" },
+    { name: "星約", glyph: "✶" },
+    { name: "煌めき", glyph: "✷" },
+    { name: "常燈", glyph: "✸" },
+    { name: "満天", glyph: "✹" },
+  ] as const,
+
+  // ─── 星位（格 / tier） ───────────────────────────────
+  /** tier key（既存コードのキーに対応）→ 表示名 */
+  TIERS: {
+    human: "漂着者",
+    half: "星拾い",
+    yokai: "星約者",
+    daiyokai: "星詠み",
+    kami: "北極星",
+  } as Record<string, string>,
+
+  // ─── セリフモード（旧 default/tsundere/yami） ──────────
+  MODES: {
+    default: "常",
+    tsundere: "拗ね",
+    yami: "蝕",
+  } as Record<string, string>,
+
+  // ─── レアイベント名 ───────────────────────────────────
+  EVENT_DREAM: "流星",        // 旧: 座敷童の夢
+  EVENT_SURGE: "星祝",        // 旧: 福の奔流
+  EVENT_GUARD: "庇護の光",     // 旧: 花散らしの守り
+  EVENT_RESONANCE: "星約の共鳴", // 旧: 魂の共鳴
+  EVENT_HIDDEN: "星隠れ",      // 旧: 神隠し
+
+  // ─── 称号 ─────────────────────────────────────────────
+  TITLE_EXCHANGE_PATRON: "[仮:還光の使徒]",
+} as const;
+
+// ─── カラーパレット（WORLD.md §7） ────────────────────
+export const PALETTE = {
+  /** 夜空 — ベース・通常 */
+  NIGHT: 0x0b1026,
+  /** 星金 — エテル・ジャックポット・勝利 */
+  STARGOLD: 0xe8c56a,
+  /** 蒼 — 知恵の星 */
+  AZURE: 0x3a6ea5,
+  /** 翠 — 言葉の星・利益 */
+  JADE: 0x2e8b6f,
+  /** 朱 — 火の星・メイン */
+  VERMILION: 0xc0392b,
+  /** 紅 — 損失・敗北 */
+  CRIMSON: 0xb33a3a,
+  /** 蝕紫 — 蝕モード・第八の星 */
+  ECLIPSE: 0x2c003e,
 } as const;
 
 // ─── ヘルパ ────────────────────────────────────────────
 
-/** 第二通貨の表示文字列 (例: ◉1,000) */
-export function formatCurrency2(amount: number): string {
+/** エテル（第二通貨）の表示文字列 (例: ◈1,000) */
+export function formatEther(amount: number): string {
   return `${WORLD.CURRENCY_2_SYMBOL}${amount.toLocaleString()}`;
 }
+
+/** 第二通貨の表示（汎用エイリアス） */
+export const formatCurrency2 = formatEther;
 
 /** 第一通貨の表示文字列 */
 export function formatCurrency1(amount: number): string {
   return `${WORLD.CURRENCY_1_SYMBOL}${amount.toLocaleString()}`;
 }
 
-/** プレースホルダ含有チェック用 (grep 検索の代替) */
+/** プレースホルダ含有チェック用（grep 代替） */
 export const PLACEHOLDER_MARKER = "[仮:";

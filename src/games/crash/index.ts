@@ -101,11 +101,11 @@ export async function playCrash(
   };
 
   if (bet < cfg.min_bet) {
-    await reply(`最低ベットは ◉${cfg.min_bet} じゃ。`);
+    await reply(`最低ベットは ◈${cfg.min_bet} じゃ。`);
     return;
   }
   if (bet > tier.betCap) {
-    await reply(`お主の格(${tier.emoji}${tier.name})では ◉${tier.betCap.toLocaleString()} まで。`);
+    await reply(`お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} まで。`);
     return;
   }
 
@@ -145,7 +145,7 @@ export async function playCrash(
         `📈 現在: **${multi.toFixed(2)}x**` + (canCashOut ? " 🟢" : ` 🔒 (最低降車 **${MIN_CASHOUT.toFixed(2)}x** まで待て)`),
         buildProgressBar(multi),
         "",
-        `ベット: ◉${bet.toLocaleString()} → 現在価値: ◉${currentValue.toLocaleString()}`,
+        `ベット: ◈${bet.toLocaleString()} → 現在価値: ◈${currentValue.toLocaleString()}`,
         `*(※内部はリアルタイムで上昇中。押した瞬間の倍率が適用されるぞ)*`
       ].join("\n"),
     );
@@ -157,7 +157,7 @@ export async function playCrash(
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId("crash_cashout")
-        .setLabel(ready ? `💰 降りる (◉${val.toLocaleString()})` : `🔒 ${MIN_CASHOUT.toFixed(2)}x まで降りれぬ`)
+        .setLabel(ready ? `💰 降りる (◈${val.toLocaleString()})` : `🔒 ${MIN_CASHOUT.toFixed(2)}x まで降りれぬ`)
         .setStyle(ready ? ButtonStyle.Success : ButtonStyle.Secondary)
         .setDisabled(!ready),
     );
@@ -257,9 +257,9 @@ export async function playCrash(
     const balance = getBalance(userId, guildId);
     const maxB = Math.min(tier.betCap, balance);
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`crash_retry_${minB}_min`).setLabel(`最低 ◉${minB.toLocaleString()}`).setStyle(ButtonStyle.Secondary).setDisabled(balance < minB),
-      new ButtonBuilder().setCustomId(`crash_retry_${bet}_same`).setLabel(`🎰 もう一回 ◉${bet.toLocaleString()}`).setStyle(ButtonStyle.Primary).setDisabled(balance < bet),
-      new ButtonBuilder().setCustomId(`crash_retry_${maxB}_max`).setLabel(`最大 ◉${maxB.toLocaleString()}`).setStyle(ButtonStyle.Secondary).setDisabled(maxB < minB),
+      new ButtonBuilder().setCustomId(`crash_retry_${minB}_min`).setLabel(`最低 ◈${minB.toLocaleString()}`).setStyle(ButtonStyle.Secondary).setDisabled(balance < minB),
+      new ButtonBuilder().setCustomId(`crash_retry_${bet}_same`).setLabel(`🎰 もう一回 ◈${bet.toLocaleString()}`).setStyle(ButtonStyle.Primary).setDisabled(balance < bet),
+      new ButtonBuilder().setCustomId(`crash_retry_${maxB}_max`).setLabel(`最大 ◈${maxB.toLocaleString()}`).setStyle(ButtonStyle.Secondary).setDisabled(maxB < minB),
       new ButtonBuilder().setCustomId("crash_paytable").setLabel("📖 配当表").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("crash_quit").setLabel("🚪 退席").setStyle(ButtonStyle.Secondary),
     );
@@ -286,7 +286,7 @@ export async function playCrash(
         `*${dialogue}*`,
         "",
         `📈 離脱: **${cashOutMultiplier.toFixed(2)}x** / 崩壊: ${crashPoint.toFixed(2)}x`,
-        `💰 +◉${(net - fukuTax).toLocaleString()}`,
+        `💰 +◈${(net - fukuTax).toLocaleString()}`,
       ].join("\n"),
       result: "win",
       userId,
@@ -307,7 +307,7 @@ export async function playCrash(
         `*${dialogue}*`,
         "",
         `📉 崩壊: **${crashPoint.toFixed(2)}x**`,
-        `💸 -◉${bet.toLocaleString()}`,
+        `💸 -◈${bet.toLocaleString()}`,
       ].join("\n"),
       result: "lose",
       userId,

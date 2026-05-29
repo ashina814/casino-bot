@@ -61,13 +61,13 @@ function buildEmbed(userId: string, guildId: string, period: string): { embed: E
         `${SLOT_LABELS[i]} **${q.title}**　${DIFFICULTY_LABEL[q.difficulty]}　${status}`,
         `*${desc}*`,
         formatProgress(prog.progress, prog.target),
-        `🎁 報酬: ◉${q.reward.coins.toLocaleString()} + 妖力 ${q.reward.exp}`,
+        `🎁 報酬: ◈${q.reward.coins.toLocaleString()} + 妖力 ${q.reward.exp}`,
       ].join("\n"),
     );
   }
 
   const footerNote = totalAvailable > 0
-    ? `💎 受領可能合計: ◉${totalAvailable.toLocaleString()} — 下のボタンで受け取れる`
+    ? `💎 受領可能合計: ◈${totalAvailable.toLocaleString()} — 下のボタンで受け取れる`
     : totalClaimed === quests.reduce((s, q) => s + q.reward.coins, 0)
       ? "🎉 今日の任務はすべて受領済み！"
       : "進めて受領しよう。**当日中に受領しないと逸する**ぞ。";
@@ -158,7 +158,7 @@ export async function handleQuestButton(interaction: ButtonInteraction): Promise
     await interaction.update({ embeds: [fresh.embed], components: [buttons] });
     // 受領通知（follow-up）
     await interaction.followUp({
-      content: `✨ 受領完了：**${claimedTitles.join(" / ")}**\n💰 +◉${totalCoins.toLocaleString()}　🌀 +妖力 ${totalExp}`,
+      content: `✨ 受領完了：**${claimedTitles.join(" / ")}**\n💰 +◈${totalCoins.toLocaleString()}　🌀 +妖力 ${totalExp}`,
       ephemeral: true,
     });
     return;
@@ -185,7 +185,7 @@ export async function handleQuestButton(interaction: ButtonInteraction): Promise
   const buttons = buildButtons(userId, guildId, period, fresh.quests);
   await interaction.update({ embeds: [fresh.embed], components: [buttons] });
   await interaction.followUp({
-    content: `✨ **${q.title}** を受領！\n💰 +◉${r.reward.coins.toLocaleString()}　🌀 +妖力 ${r.reward.exp}`,
+    content: `✨ **${q.title}** を受領！\n💰 +◈${r.reward.coins.toLocaleString()}　🌀 +妖力 ${r.reward.exp}`,
     ephemeral: true,
   });
 }

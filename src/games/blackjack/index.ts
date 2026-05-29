@@ -122,11 +122,11 @@ export async function playBlackjack(
   };
 
   if (bet < cfg.min_bet) {
-    await replyText(`最低ベットは ◉${cfg.min_bet} じゃ。`);
+    await replyText(`最低ベットは ◈${cfg.min_bet} じゃ。`);
     return;
   }
   if (bet > tier.betCap) {
-    await replyText(`お主の格(${tier.emoji}${tier.name})では ◉${tier.betCap.toLocaleString()} まで。`);
+    await replyText(`お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} まで。`);
     return;
   }
 
@@ -170,7 +170,7 @@ export async function playBlackjack(
         `│  ${dDisplay} = **${dVal}**`,
         `└──────────────────────┘`,
         "",
-        `ベット: ◉${(doubled ? bet * 2 : bet).toLocaleString()}`,
+        `ベット: ◈${(doubled ? bet * 2 : bet).toLocaleString()}`,
       ].join("\n"),
     );
   };
@@ -257,7 +257,7 @@ export async function playBlackjack(
 
       const embed = gameResultEmbed({
         title: "🃏 花札勝負 — 降参",
-        description: `*「降りるか…賢い判断かもしれぬな。」*\n\n半額の ◉${refund.toLocaleString()} を返すぞ。`,
+        description: `*「降りるか…賢い判断かもしれぬな。」*\n\n半額の ◈${refund.toLocaleString()} を返すぞ。`,
         result: "lose",
         userId,
         guildId,
@@ -392,7 +392,7 @@ async function resolveGame(
       `あなた: ${handDisplay(playerHand)} = **${pVal}**${pVal > 21 ? " 💥" : ""}`,
       `座敷童: ${handDisplay(dealerHand)} = **${dVal}**${dVal > 21 ? " 💥" : ""}`,
       "",
-      net > 0 ? `💰 +◉${(net - fukuTax).toLocaleString()}` : net === 0 ? "→ 賭け金返還" : `💸 -◉${totalBet.toLocaleString()}`,
+      net > 0 ? `💰 +◈${(net - fukuTax).toLocaleString()}` : net === 0 ? "→ 賭け金返還" : `💸 -◈${totalBet.toLocaleString()}`,
     ].join("\n"),
     result: net > 0 ? "win" : net === 0 ? "draw" : "lose",
     userId,
@@ -437,17 +437,17 @@ function makeRetryRow(bet: number, guildId?: string, userId?: string): ActionRow
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`bj_retry_${minB}_min`)
-      .setLabel(`最低 ◉${minB.toLocaleString()}`)
+      .setLabel(`最低 ◈${minB.toLocaleString()}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(balance < minB),
     new ButtonBuilder()
       .setCustomId(`bj_retry_${bet}_same`)
-      .setLabel(`🎰 もう一回 ◉${bet.toLocaleString()}`)
+      .setLabel(`🎰 もう一回 ◈${bet.toLocaleString()}`)
       .setStyle(ButtonStyle.Primary)
       .setDisabled(balance < bet),
     new ButtonBuilder()
       .setCustomId(`bj_retry_${maxB}_max`)
-      .setLabel(`最大 ◉${maxB.toLocaleString()}`)
+      .setLabel(`最大 ◈${maxB.toLocaleString()}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(maxB < minB),
     new ButtonBuilder()

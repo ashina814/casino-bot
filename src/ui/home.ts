@@ -103,7 +103,7 @@ export async function handleCasinoCommand(interaction: ChatInputCommandInteracti
       [
         `*${greeting}*`,
         ...newbieBanner,
-        `💰 所持金: **◉${profile.balance.toLocaleString()}**`,
+        `💰 所持金: **◈${profile.balance.toLocaleString()}**`,
         `${tier.emoji} 格: **${tier.name}** (Lv.${profile.level})`,
         `🔥 連続ログイン: ${profile.daily_streak}日目`,
         "",

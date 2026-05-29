@@ -82,12 +82,12 @@ export async function handleRankingCommand(interaction: ChatInputCommandInteract
       const tierInfo = getTierByKey(r.tier);
       let stat = "";
       switch (type) {
-        case "balance":      stat = `◉${r.balance.toLocaleString()}`; break;
+        case "balance":      stat = `◈${r.balance.toLocaleString()}`; break;
         case "winrate":      stat = `${r.winrate.toFixed(1)}% (${r.total_games}戦)`; break;
         case "streak":       stat = `${r.best_win_streak}連勝`; break;
-        case "biggest_win":  stat = `◉${r.biggest_win.toLocaleString()}`; break;
-        case "total_earned": stat = `◉${r.total_earned.toLocaleString()}`; break;
-        case "total_wagered":stat = `◉${r.total_wagered.toLocaleString()}`; break;
+        case "biggest_win":  stat = `◈${r.biggest_win.toLocaleString()}`; break;
+        case "total_earned": stat = `◈${r.total_earned.toLocaleString()}`; break;
+        case "total_wagered":stat = `◈${r.total_wagered.toLocaleString()}`; break;
       }
       return `${medal} <@${r.user_id}>  ${stat}  ${tierInfo.emoji}${tierInfo.name}`;
     });

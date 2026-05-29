@@ -199,14 +199,14 @@ export async function playChinchiro(
   const bet = overrideBet ?? (interaction as ChatInputCommandInteraction).options?.getInteger?.("bet") ?? cfg.min_bet;
 
   if (bet < cfg.min_bet) {
-    const msg = { content: `最低ベットは ◉${cfg.min_bet} じゃ。`, ephemeral: true };
+    const msg = { content: `最低ベットは ◈${cfg.min_bet} じゃ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) await interaction.followUp(msg);
     else await interaction.reply(msg);
     return;
   }
 
   if (bet > tier.betCap) {
-    const msg = { content: `お主の格(${tier.emoji}${tier.name})では ◉${tier.betCap.toLocaleString()} までしか賭けられぬ。`, ephemeral: true };
+    const msg = { content: `お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} までしか賭けられぬ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) await interaction.followUp(msg);
     else await interaction.reply(msg);
     return;
@@ -230,7 +230,7 @@ export async function playChinchiro(
       "",
       "┃ ❓ ┃ ❓ ❓ ❓ ┃",
       "",
-      `ベット: ◉${bet.toLocaleString()} / 残投数: ${MAX_ROLLS}`,
+      `ベット: ◈${bet.toLocaleString()} / 残投数: ${MAX_ROLLS}`,
     ].join("\n")
   );
 
@@ -279,7 +279,7 @@ async function runRollLoop(
           "",
           diceDisplay(shake),
           "",
-          `ベット: ◉${bet.toLocaleString()} / 第${rollNo}投 (残り${MAX_ROLLS - rollNo + 1})`,
+          `ベット: ◈${bet.toLocaleString()} / 第${rollNo}投 (残り${MAX_ROLLS - rollNo + 1})`,
         ].join("\n")
       );
       await reply.edit({ embeds: [e], components: [] });
@@ -558,12 +558,12 @@ async function settleVsDealer(
 
     resultType = (playerHand.type === "pinzoro" || playerHand.type === "zorome") ? "jackpot" : "win";
     dialogue = dialogueWin(ctx, profit - fukuTax, bet);
-    payoutText = `💰 配当: ◉${actualTotal.toLocaleString()}（賭金返却+利益 ◉${(profit - fukuTax).toLocaleString()}）`;
+    payoutText = `💰 配当: ◈${actualTotal.toLocaleString()}（賭金返却+利益 ◈${(profit - fukuTax).toLocaleString()}）`;
   } else if (mul === 0) {
     // プッシュ：賭金を返金
     adjustBalance(userId, bet, "chinchiro_push", "chinchiro", guildId);
     dialogue = "*「両方ヒフミか…引き分けじゃ。賭金は返してやろう。」*";
-    payoutText = `🌀 プッシュ：◉${bet.toLocaleString()} を返金`;
+    payoutText = `🌀 プッシュ：◈${bet.toLocaleString()} を返金`;
     resultType = "win";
   } else if (mul === -1) {
     // 通常負け：既に賭金控除済み、追加徴収なし
@@ -577,7 +577,7 @@ async function settleVsDealer(
       distributeHouseEarnings(guildId, bet);
       addExp(userId, 5);
       dialogue = dialogueLose(ctx, bet);
-      payoutText = `💸 -◉${bet.toLocaleString()}`;
+      payoutText = `💸 -◈${bet.toLocaleString()}`;
     }
   } else {
     // mul ≤ -2: 大きい負け。賭金 bet は既に控除済み、追加で (|mul|-1) * bet を徴収
@@ -589,21 +589,21 @@ async function settleVsDealer(
       addExp(userId, 5);
       const totalLoss = bet + extraNeeded;
       dialogue = `*「${describeHand(dealerHand).replace(/\*\*/g, "")} 相手では分が悪かったの。」*`;
-      payoutText = `💀 -◉${totalLoss.toLocaleString()}（${Math.abs(mul)}倍負け）`;
+      payoutText = `💀 -◈${totalLoss.toLocaleString()}（${Math.abs(mul)}倍負け）`;
     } else {
       // 残高不足：通常負けにフォールバック
       recordLoss(userId);
       distributeHouseEarnings(guildId, bet);
       addExp(userId, 5);
       dialogue = "*「大きく負けたが…残高が足りぬか。通常負けで勘弁じゃ。」*";
-      payoutText = `💸 -◉${bet.toLocaleString()}（残高不足のため追加徴収はスキップ）`;
+      payoutText = `💸 -◈${bet.toLocaleString()}（残高不足のため追加徴収はスキップ）`;
       extraSkipped = true;
     }
   }
 
   const newWinStreak = mul > 0 ? profile.current_win_streak + 1 : 0;
   const streakBadge = newWinStreak >= 2 ? `🔥 ${newWinStreak}連勝中！\n` : "";
-  const fukuLine = fukuTax > 0 ? `\n*（奉納: ◉${fukuTax.toLocaleString()}）*` : "";
+  const fukuLine = fukuTax > 0 ? `\n*（奉納: ◈${fukuTax.toLocaleString()}）*` : "";
 
   // 比較ライン
   const resultLabel = cmp.result === "player_win"
@@ -683,17 +683,17 @@ function buildResultButtons(guildId: string, userId: string, bet: number): Actio
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`chinchiro_retry_${minB}_min`)
-      .setLabel(`最低 ◉${minB.toLocaleString()}`)
+      .setLabel(`最低 ◈${minB.toLocaleString()}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(balance < minB),
     new ButtonBuilder()
       .setCustomId(`chinchiro_retry_${bet}_same`)
-      .setLabel(`🎲 もう一回 ◉${bet.toLocaleString()}`)
+      .setLabel(`🎲 もう一回 ◈${bet.toLocaleString()}`)
       .setStyle(ButtonStyle.Primary)
       .setDisabled(balance < bet),
     new ButtonBuilder()
       .setCustomId(`chinchiro_retry_${maxB}_max`)
-      .setLabel(`最大 ◉${maxB.toLocaleString()}`)
+      .setLabel(`最大 ◈${maxB.toLocaleString()}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(maxB < minB),
     new ButtonBuilder()

@@ -55,7 +55,7 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
     } catch {}
 
     const embed = successEmbed(
-      `💸 **${interaction.user.displayName}** が **${targetUser.displayName}** に ◉${amount.toLocaleString()} ベルを贈りました！${msgDesc}${affectionNote}`
+      `💸 **${interaction.user.displayName}** が **${targetUser.displayName}** に ◈${amount.toLocaleString()} ベルを贈りました！${msgDesc}${affectionNote}`
     );
 
     await interaction.reply({ content: `<@${targetUser.id}>`, embeds: [embed] });

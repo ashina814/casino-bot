@@ -123,7 +123,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
     if (rareEvent.effect === "bonus_coins") {
       adjustBalance(userId, rareEvent.value, "rare_event_bonus", "daily", guildId);
       totalAmount += rareEvent.value;
-      rareEventText += `\n💰 +◉${rareEvent.value.toLocaleString()} ボーナス！`;
+      rareEventText += `\n💰 +◈${rareEvent.value.toLocaleString()} ボーナス！`;
     } else if (rareEvent.effect === "affection_surge") {
       addAffection(userId, rareEvent.value);
       rareEventText += `\n💖 好感度 +${rareEvent.value}！`;
@@ -137,9 +137,9 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   const descLines = [
     `*${dialogue}*`,
     "",
-    `💰 +◉${totalAmount.toLocaleString()}`,
-    `  ├ 基本: ◉${baseAmount}${stageAfter.dailyMultiplier > 1.0 ? ` (覚醒ボーナス x${stageAfter.dailyMultiplier})` : ""}`,
-    streakBonus > 0 ? `  └ 連続ボーナス: +◉${streakBonus}` : "",
+    `💰 +◈${totalAmount.toLocaleString()}`,
+    `  ├ 基本: ◈${baseAmount}${stageAfter.dailyMultiplier > 1.0 ? ` (覚醒ボーナス x${stageAfter.dailyMultiplier})` : ""}`,
+    streakBonus > 0 ? `  └ 連続ボーナス: +◈${streakBonus}` : "",
     "",
     `🔥 連続ログイン: **${newStreak}日**`,
     `${stageAfter.emoji} 覚醒: **${stageAfter.title}**`,

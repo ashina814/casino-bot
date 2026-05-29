@@ -241,7 +241,7 @@ async function handleElement(interaction: ChatInputCommandInteraction): Promise<
     const balance = getBalance(userId);
     if (balance < ELEMENT_CHANGE_COST) {
       await interaction.reply({
-        content: `属性変更には ◉${ELEMENT_CHANGE_COST.toLocaleString()} が必要じゃ。（現在: ◉${balance.toLocaleString()}）\nこれは一度きりの機会じゃぞ。`,
+        content: `属性変更には ◈${ELEMENT_CHANGE_COST.toLocaleString()} が必要じゃ。（現在: ◈${balance.toLocaleString()}）\nこれは一度きりの機会じゃぞ。`,
         ephemeral: true,
       });
       return;
@@ -252,7 +252,7 @@ async function handleElement(interaction: ChatInputCommandInteraction): Promise<
   const elements: GogyoElement[] = ["wood", "fire", "earth", "metal", "water"];
 
   const desc = isChange
-    ? `⚠️ **属性変更**（◉${ELEMENT_CHANGE_COST.toLocaleString()} 消費・一度限り）\n現在: ${GOGYO[currentElement!].emoji} ${GOGYO[currentElement!].name}\n\n`
+    ? `⚠️ **属性変更**（◈${ELEMENT_CHANGE_COST.toLocaleString()} 消費・一度限り）\n現在: ${GOGYO[currentElement!].emoji} ${GOGYO[currentElement!].name}\n\n`
     : "座敷童の瞳が光り、五つの力がお主の前に顕れた。\nお主の魂に最も近い属性を選ぶのじゃ。\n\n";
 
   const elementList = elements.map((e) => {

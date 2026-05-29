@@ -168,8 +168,8 @@ function renderPanel(session: ActiveRaceSession, disabled = false): {
   }).join("\n");
 
   const poolLine = [
-    `🎯 単勝プール: ◉${stats.totalWin.toLocaleString()}${stats.carryWin > 0 ? ` (+繰越◉${stats.carryWin.toLocaleString()})` : ""}`,
-    `🎯 複勝プール: ◉${stats.totalPlace.toLocaleString()}${stats.carryPlace > 0 ? ` (+繰越◉${stats.carryPlace.toLocaleString()})` : ""}`,
+    `🎯 単勝プール: ◈${stats.totalWin.toLocaleString()}${stats.carryWin > 0 ? ` (+繰越◈${stats.carryWin.toLocaleString()})` : ""}`,
+    `🎯 複勝プール: ◈${stats.totalPlace.toLocaleString()}${stats.carryPlace > 0 ? ` (+繰越◈${stats.carryPlace.toLocaleString()})` : ""}`,
   ].join("\n");
 
   const embed = new EmbedBuilder()
@@ -428,7 +428,7 @@ export async function handleKeibaStatus(interaction: ButtonInteraction): Promise
     const horse = session.horses.find((h) => h.id === r.horse_id);
     const horseName = horse?.name ?? `#${r.horse_id}`;
     const label = r.bet_type === "win" ? "単勝" : "複勝";
-    return `**${label}** ${horseName} に ◉${r.amount.toLocaleString()}`;
+    return `**${label}** ${horseName} に ◈${r.amount.toLocaleString()}`;
   });
 
   await interaction.reply(ephemeral(`📋 あなたの賭け状況\n${lines.join("\n")}`));
@@ -704,20 +704,20 @@ async function settleRace(session: ActiveRaceSession, ranking: KeibaHorse[], pos
 
   // 払戻内訳
   const breakdown: string[] = [];
-  breakdown.push(`💰 **単勝プール**: ◉${totalWin.toLocaleString()} (+繰越◉${carryBefore.win.toLocaleString()})`);
+  breakdown.push(`💰 **単勝プール**: ◈${totalWin.toLocaleString()} (+繰越◈${carryBefore.win.toLocaleString()})`);
   if (winStakeOnTop > 0) {
-    breakdown.push(`　└ 配当率: **${winPayoutRate.toFixed(2)}倍** (1着 ${top[0].name} に ◉${winStakeOnTop.toLocaleString()})`);
+    breakdown.push(`　└ 配当率: **${winPayoutRate.toFixed(2)}倍** (1着 ${top[0].name} に ◈${winStakeOnTop.toLocaleString()})`);
   } else {
-    breakdown.push(`　└ 的中ゼロ: 50%返還 / 50%繰越 (◉${nextCarry.win.toLocaleString()})`);
+    breakdown.push(`　└ 的中ゼロ: 50%返還 / 50%繰越 (◈${nextCarry.win.toLocaleString()})`);
   }
-  breakdown.push(`💰 **複勝プール**: ◉${totalPlace.toLocaleString()} (+繰越◉${carryBefore.place.toLocaleString()})`);
+  breakdown.push(`💰 **複勝プール**: ◈${totalPlace.toLocaleString()} (+繰越◈${carryBefore.place.toLocaleString()})`);
   if (placeStakeOnTop > 0) {
-    breakdown.push(`　└ 配当率: **${placePayoutRate.toFixed(2)}倍** (複勝対象に ◉${placeStakeOnTop.toLocaleString()})`);
+    breakdown.push(`　└ 配当率: **${placePayoutRate.toFixed(2)}倍** (複勝対象に ◈${placeStakeOnTop.toLocaleString()})`);
   } else {
-    breakdown.push(`　└ 的中ゼロ: 50%返還 / 50%繰越 (◉${nextCarry.place.toLocaleString()})`);
+    breakdown.push(`　└ 的中ゼロ: 50%返還 / 50%繰越 (◈${nextCarry.place.toLocaleString()})`);
   }
   const houseCut = Math.floor((totalWin + totalPlace) * 0.2);
-  breakdown.push(`🏛️ ハウス取り分 (20%): ◉${houseCut.toLocaleString()}`);
+  breakdown.push(`🏛️ ハウス取り分 (20%): ◈${houseCut.toLocaleString()}`);
 
   // レース後の「もう一度開催」ボタン
   const retryRow = new ActionRowBuilder<ButtonBuilder>().addComponents(

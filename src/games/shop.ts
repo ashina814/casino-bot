@@ -28,12 +28,12 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
     "「ようこそ、客人。余った小判で特別な品と交換してやろう。\nただし、一度買ったものは返品できぬぞ？」",
     COLORS.GOLD
   ).addFields({
-    name: `あなたの所持金: ◉${balance.toLocaleString()}`,
+    name: `あなたの所持金: ◈${balance.toLocaleString()}`,
     value: "購入したい品を下のメニューから選ぶのじゃ。",
   });
 
   const options = SHOP_ITEMS.map((item) => ({
-    label: `${item.name} (◉${item.cost.toLocaleString()})`,
+    label: `${item.name} (◈${item.cost.toLocaleString()})`,
     value: item.id,
     description: item.desc,
   }));

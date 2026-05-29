@@ -38,7 +38,7 @@ function fetchPage(userId: string, page: number): { rows: LogRow[]; total: numbe
 
 function formatRow(r: LogRow): string {
   const sign = r.amount >= 0 ? "+" : "";
-  const amountStr = `${sign}◉${r.amount.toLocaleString()}`;
+  const amountStr = `${sign}◈${r.amount.toLocaleString()}`;
   const timestamp = r.created_at.slice(5, 16).replace("T", " "); // MM-DD HH:MM
   const game = r.game ? ` [${r.game}]` : "";
   return `\`${timestamp}\` ${amountStr}　${r.reason}${game}`;

@@ -130,7 +130,7 @@ export async function playSlots(
   const bet = overrideBet ?? (interaction as ChatInputCommandInteraction).options?.getInteger?.("bet") ?? cfg.min_bet;
 
   if (bet < cfg.min_bet) {
-    const msg = { content: `最低ベットは ◉${cfg.min_bet} じゃ。`, ephemeral: true };
+    const msg = { content: `最低ベットは ◈${cfg.min_bet} じゃ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp(msg);
     } else {
@@ -140,7 +140,7 @@ export async function playSlots(
   }
 
   if (bet > tier.betCap) {
-    const msg = { content: `お主の格(${tier.emoji}${tier.name})では ◉${tier.betCap.toLocaleString()} までしか賭けられぬ。`, ephemeral: true };
+    const msg = { content: `お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} までしか賭けられぬ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp(msg);
     } else {
@@ -184,8 +184,8 @@ export async function playSlots(
         "",
         `┃ ${slots[0]} ┃ ${slots[1]} ┃ ${slots[2]} ┃`,
         "",
-        isFreeSpin ? "ベット: **無料** (フリースピン)" : `ベット: ◉${bet.toLocaleString()}`,
-        `🏆 JP プール: **◉${jpDisplay.toLocaleString()}**`,
+        isFreeSpin ? "ベット: **無料** (フリースピン)" : `ベット: ◈${bet.toLocaleString()}`,
+        `🏆 JP プール: **◈${jpDisplay.toLocaleString()}**`,
       ].join("\n")
     );
 
@@ -286,7 +286,7 @@ export async function playSlots(
 
   // Fuku weight message
   const fukuMsg = payout > 0 ? dialogueFukuWeight(newBalance) : null;
-  const extraInfo = fukuMsg ? `\n*${fukuMsg}（奉納: ◉${fukuTax.toLocaleString()}）*` : "";
+  const extraInfo = fukuMsg ? `\n*${fukuMsg}（奉納: ◈${fukuTax.toLocaleString()}）*` : "";
 
   // ── Phase 2: Result ──
   const reelDisplay = `┃ ${reels[0].emoji} ┃ ${reels[1].emoji} ┃ ${reels[2].emoji} ┃`;
@@ -310,7 +310,7 @@ export async function playSlots(
   const streakBadge = newWinStreak >= 2 ? `🔥 ${newWinStreak}連勝中！\n` : "";
 
   // JP獲得詳細
-  const jpLine = jpWin > 0 ? `\n💎 JPプール獲得: **◉${jpWin.toLocaleString()}** (残りプール: ◉${getJackpotPool(guildId).toLocaleString()})` : "";
+  const jpLine = jpWin > 0 ? `\n💎 JPプール獲得: **◈${jpWin.toLocaleString()}** (残りプール: ◈${getJackpotPool(guildId).toLocaleString()})` : "";
   // フリースピン獲得通知
   const freeSpinNotice = freeSpinTriggered ? `\n\n✨✨ **3つの光！フリースピン1回獲得！** ✨✨` : "";
 
@@ -319,10 +319,10 @@ export async function playSlots(
     "",
     reelDisplay,
     "",
-    payout > 0 ? `💰 配当: ◉${actualPayout.toLocaleString()} (${payoutLabel})${jpLine}` : "💨 ハズレ",
+    payout > 0 ? `💰 配当: ◈${actualPayout.toLocaleString()} (${payoutLabel})${jpLine}` : "💨 ハズレ",
     extraInfo,
     freeSpinNotice,
-    isFreeSpin ? "" : `\n🏆 JP プール: ◉${getJackpotPool(guildId).toLocaleString()}`,
+    isFreeSpin ? "" : `\n🏆 JP プール: ◈${getJackpotPool(guildId).toLocaleString()}`,
   ].filter((s) => s !== "").join("\n");
 
   const resultEmbed = gameResultEmbed({
@@ -339,17 +339,17 @@ export async function playSlots(
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`slots_retry_${minB}_min`)
-      .setLabel(`最低 ◉${minB.toLocaleString()}`)
+      .setLabel(`最低 ◈${minB.toLocaleString()}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(getBalance(userId, guildId) < minB),
     new ButtonBuilder()
       .setCustomId(`slots_retry_${bet}_same`)
-      .setLabel(`🎰 もう一回 ◉${bet.toLocaleString()}`)
+      .setLabel(`🎰 もう一回 ◈${bet.toLocaleString()}`)
       .setStyle(ButtonStyle.Primary)
       .setDisabled(getBalance(userId, guildId) < bet),
     new ButtonBuilder()
       .setCustomId(`slots_retry_${maxB}_max`)
-      .setLabel(`最大 ◉${maxB.toLocaleString()}`)
+      .setLabel(`最大 ◈${maxB.toLocaleString()}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(maxB < minB),
     new ButtonBuilder()

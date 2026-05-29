@@ -272,7 +272,7 @@ export async function renderDashboard(
     const spark = sparkline(getPriceHistory(s.id, 24));
     const meter = trendMeter(s.trend);
     return (
-      `${s.emoji} **${s.name}** — ◉${s.price.toLocaleString()} ${changeEmoji(s.price, s.prev_price)} ${sign}${pct}%\n` +
+      `${s.emoji} **${s.name}** — ◈${s.price.toLocaleString()} ${changeEmoji(s.price, s.prev_price)} ${sign}${pct}%\n` +
       `　\`${spark}\`  気運: ${meter}`
     );
   });
@@ -296,7 +296,7 @@ export async function renderDashboard(
 
       const emoji = profit >= 0 ? "📈" : "📉";
       return `${stock.emoji} **${stock.name}** × ${h.shares}株\n` +
-             `　　評価: ◉${value.toLocaleString()} (${emoji} ${profit >= 0 ? "+" : ""}${pct}%)`;
+             `　　評価: ◈${value.toLocaleString()} (${emoji} ${profit >= 0 ? "+" : ""}${pct}%)`;
     }).filter(l => l.length > 0);
   }
 
@@ -315,8 +315,8 @@ export async function renderDashboard(
         ...pfLines,
         ...(holdings.length > 0 ? [
           `━━━━━━━━━━━━━━`,
-          `💰 総評価額: ◉${totalValue.toLocaleString()}`,
-          `${totalProfit >= 0 ? "📈" : "📉"} 総損益: ${totalProfit >= 0 ? "+" : ""}◉${totalProfit.toLocaleString()} (${totalProfit >= 0 ? "+" : ""}${totalPct}%)`,
+          `💰 総評価額: ◈${totalValue.toLocaleString()}`,
+          `${totalProfit >= 0 ? "📈" : "📉"} 総損益: ${totalProfit >= 0 ? "+" : ""}◈${totalProfit.toLocaleString()} (${totalProfit >= 0 ? "+" : ""}${totalPct}%)`,
         ] : []),
       ].join("\n"),
     );
@@ -360,7 +360,7 @@ export async function handleStocksButton(interaction: ButtonInteraction): Promis
       .setCustomId("stocks_buy_select")
       .setPlaceholder("購入する銘柄を選ぶのじゃ")
       .addOptions(stocks.map(s => ({
-        label: `${s.name} (◉${s.price.toLocaleString()})`,
+        label: `${s.name} (◈${s.price.toLocaleString()})`,
         value: s.id,
         emoji: s.emoji,
       })));
@@ -408,7 +408,7 @@ export async function handleStocksSelect(interaction: StringSelectMenuInteractio
         new ActionRowBuilder<TextInputBuilder>().addComponents(
           new TextInputBuilder()
             .setCustomId("amount")
-            .setLabel(`投資額 (1株◉${stock.price} / 上限◉${tier.betCap.toLocaleString()})`)
+            .setLabel(`投資額 (1株◈${stock.price} / 上限◈${tier.betCap.toLocaleString()})`)
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         )
@@ -451,7 +451,7 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
       const reason = validated.reason;
       const msg =
         reason === "TOO_LARGE"
-          ? `1回の投資額は **◉${txMax.toLocaleString()}** までじゃ（${tier.emoji}${tier.name} の上限）。`
+          ? `1回の投資額は **◈${txMax.toLocaleString()}** までじゃ（${tier.emoji}${tier.name} の上限）。`
           : reason === "TOO_SMALL"
             ? "投資額は **100以上** で指定するのじゃ。"
             : "投資額は整数で指定するのじゃ。";
@@ -465,7 +465,7 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
 
     const shares = Math.floor(amount / stock.price);
     if (shares < 1) {
-      await interaction.reply({ content: `◉${amount} では1株も買えぬ（1株 = ◉${stock.price.toLocaleString()}）`, ephemeral: true });
+      await interaction.reply({ content: `◈${amount} では1株も買えぬ（1株 = ◈${stock.price.toLocaleString()}）`, ephemeral: true });
       return;
     }
 
@@ -495,12 +495,12 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     } catch { /* ignore */ }
 
     const unused = amount - totalCost;
-    const unusedLine = unused > 0 ? `\n（入力 ◉${amount.toLocaleString()} のうち ◉${unused.toLocaleString()} は端数のため未使用 — 残高に保持）` : "";
+    const unusedLine = unused > 0 ? `\n（入力 ◈${amount.toLocaleString()} のうち ◈${unused.toLocaleString()} は端数のため未使用 — 残高に保持）` : "";
 
     await interaction.reply({
       embeds: [successEmbed(
         `${stock.emoji} **${stock.name}** を **${shares}株** 購入！\n` +
-        `投資額: ◉${totalCost.toLocaleString()} (1株 ◉${stock.price.toLocaleString()})${unusedLine}`
+        `投資額: ◈${totalCost.toLocaleString()} (1株 ◈${stock.price.toLocaleString()})${unusedLine}`
       )],
       ephemeral: true
     });
@@ -555,13 +555,13 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
       ).run(userId, stockId, shares, stock.price, revenue, profit);
     } catch { /* ignore */ }
 
-    const profitStr = profit >= 0 ? `+◉${profit.toLocaleString()}` : `-◉${Math.abs(profit).toLocaleString()}`;
+    const profitStr = profit >= 0 ? `+◈${profit.toLocaleString()}` : `-◈${Math.abs(profit).toLocaleString()}`;
     const emoji = profit >= 0 ? "📈" : "📉";
 
     await interaction.reply({
       embeds: [successEmbed(
         `${stock.emoji} **${stock.name}** を **${shares}株** 売却！\n` +
-        `売却額: ◉${revenue.toLocaleString()} / 損益: ${emoji} ${profitStr}`
+        `売却額: ◈${revenue.toLocaleString()} / 損益: ${emoji} ${profitStr}`
       )],
       ephemeral: true
     });

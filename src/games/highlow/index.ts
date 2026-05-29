@@ -80,11 +80,11 @@ export async function startChohan(
   };
 
   if (bet < cfg.min_bet) {
-    await replyText(`最低ベットは ◉${cfg.min_bet} じゃ。`);
+    await replyText(`最低ベットは ◈${cfg.min_bet} じゃ。`);
     return;
   }
   if (bet > tier.betCap) {
-    await replyText(`お主の格(${tier.emoji}${tier.name})では ◉${tier.betCap.toLocaleString()} まで。`);
+    await replyText(`お主の格(${tier.emoji}${tier.name})では ◈${tier.betCap.toLocaleString()} まで。`);
     return;
   }
 
@@ -102,7 +102,7 @@ export async function startChohan(
     .setDescription(
       `*「丁か、半か。さぁ張りな。」*\n\n` +
       `🎲🎲 サイコロの出目は…？\n\n` +
-      `ベット: ◉${bet.toLocaleString()}`
+      `ベット: ◈${bet.toLocaleString()}`
     );
 
   const choiceRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -208,7 +208,7 @@ export async function startChohan(
         `🎲${DICE_EMOJI[d1]} + 🎲${DICE_EMOJI[d2]} = ${total} → **${choLabel}**`,
         "",
         `あなたの賭け: ${playerLabel} → ${won ? "✅ 的中！" : "❌ 外れ"}`,
-        won ? `💰 +◉${payout.toLocaleString()}` : (isBlessed ? `✨ ◉${bet.toLocaleString()} が返還された` : `💸 -◉${bet.toLocaleString()}`),
+        won ? `💰 +◈${payout.toLocaleString()}` : (isBlessed ? `✨ ◈${bet.toLocaleString()} が返還された` : `💸 -◈${bet.toLocaleString()}`),
         streakText,
       ].join("\n"),
       result: won || isBlessed ? "win" : "lose",
@@ -222,11 +222,11 @@ export async function startChohan(
     const nextRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`chohan_retry_${nextBet}`)
-        .setLabel(`🎰 もう一回 ◉${nextBet.toLocaleString()}`)
+        .setLabel(`🎰 もう一回 ◈${nextBet.toLocaleString()}`)
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(`chohan_retry_${doubleBet}`)
-        .setLabel(`⚡ 倍プッシュ ◉${doubleBet.toLocaleString()}`)
+        .setLabel(`⚡ 倍プッシュ ◈${doubleBet.toLocaleString()}`)
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
         .setCustomId("chohan_paytable")

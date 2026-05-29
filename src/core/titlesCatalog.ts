@@ -30,9 +30,9 @@ export const TITLES_CATALOG: TitleDef[] = [
   { key: "lucky7", name: "幸運児", hint: "縁起のいい数字で賭ける", rarity: "rare", category: "easter_egg" },
 
   // ─── Shop (奉納) ──────────────────────────────────
-  { key: "title_patron", name: "賭場のパトロン", hint: "商店で奉納（◉100,000）", rarity: "rare", category: "shop" },
-  { key: "title_gold", name: "黄金の成金", hint: "商店で奉納（◉500,000）", rarity: "legend", category: "shop" },
-  { key: "title_zashiki", name: "座敷童の飼い主", hint: "商店で奉納（◉1,000,000）", rarity: "myth", category: "shop" },
+  { key: "title_patron", name: "賭場のパトロン", hint: "商店で奉納（◈100,000）", rarity: "rare", category: "shop" },
+  { key: "title_gold", name: "黄金の成金", hint: "商店で奉納（◈500,000）", rarity: "legend", category: "shop" },
+  { key: "title_zashiki", name: "座敷童の飼い主", hint: "商店で奉納（◈1,000,000）", rarity: "myth", category: "shop" },
 
   // ─── Tribute（特別な人へ） ─────────────────────────
   { key: "second_zashiki", name: "二代目", hint: "わしが留守の間…代わりにこの場を守りし者へ", rarity: "myth", category: "tribute" },

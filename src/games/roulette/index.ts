@@ -88,11 +88,11 @@ export async function handleRouletteCommand(interaction: ChatInputCommandInterac
   const tier = getTierByKey(profile.tier);
 
   if (bet < cfg.min_bet) {
-    await interaction.reply({ content: `最低ベットは ◉${cfg.min_bet} じゃ。`, ephemeral: true });
+    await interaction.reply({ content: `最低ベットは ◈${cfg.min_bet} じゃ。`, ephemeral: true });
     return;
   }
   if (bet > tier.betCap) {
-    await interaction.reply({ content: `お主の格では ◉${tier.betCap.toLocaleString()} まで。`, ephemeral: true });
+    await interaction.reply({ content: `お主の格では ◈${tier.betCap.toLocaleString()} まで。`, ephemeral: true });
     return;
   }
 
@@ -120,7 +120,7 @@ export async function runRouletteSession(
 
   const buildLobbyEmbed = (secondsLeft: number) => {
     const betSummary = bets.length > 0
-      ? bets.map((b) => `<@${b.userId}>: ${BET_LABELS[b.betType]} ◉${b.amount.toLocaleString()}`).join("\n")
+      ? bets.map((b) => `<@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount.toLocaleString()}`).join("\n")
       : "まだ誰も賭けておらぬ…";
     const totalBet = bets.reduce((s, b) => s + b.amount, 0);
 
@@ -129,7 +129,7 @@ export async function runRouletteSession(
         [
           `*「水鏡に数字が映る…さぁ、何処に賭ける？」*`,
           "",
-          `参加者: ${bets.length}人 / 総ベット: ◉${totalBet.toLocaleString()}`,
+          `参加者: ${bets.length}人 / 総ベット: ◈${totalBet.toLocaleString()}`,
           "",
           betSummary,
         ].join("\n"),
@@ -188,7 +188,7 @@ export async function runRouletteSession(
     try { require("../../core/db").addGamePlayAffection(userId); } catch {}
 
     bets.push({ userId, betType: betTypeKey, amount: betAmount });
-    await btn.reply({ content: `${BET_LABELS[betTypeKey]} に ◉${betAmount.toLocaleString()} を賭けたぞ！`, ephemeral: true });
+    await btn.reply({ content: `${BET_LABELS[betTypeKey]} に ◈${betAmount.toLocaleString()} を賭けたぞ！`, ephemeral: true });
 
     // Update lobby
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -245,12 +245,12 @@ export async function runRouletteSession(
       addExp(b.userId, 15);
 
       const emoji = b.betType === "green" ? "🎯" : "👑";
-      results.push(`${emoji} <@${b.userId}>: ${BET_LABELS[b.betType]} ◉${b.amount} → **+◉${(net - fukuTax).toLocaleString()}**`);
+      results.push(`${emoji} <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → **+◈${(net - fukuTax).toLocaleString()}**`);
     } else {
       recordLoss(b.userId);
       distributeHouseEarnings(guildId, b.amount);
       addExp(b.userId, 5);
-      results.push(`😭 <@${b.userId}>: ${BET_LABELS[b.betType]} ◉${b.amount} → -◉${b.amount.toLocaleString()}`);
+      results.push(`😭 <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → -◈${b.amount.toLocaleString()}`);
     }
   }
 

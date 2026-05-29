@@ -112,7 +112,7 @@ export function gameResultEmbed(opts: {
     });
   }
 
-  embed.setFooter({ text: `${opts.footer ? opts.footer + " | " : ""}所持金: ◉${balance.toLocaleString()}${questBadge}` });
+  embed.setFooter({ text: `${opts.footer ? opts.footer + " | " : ""}所持金: ◈${balance.toLocaleString()}${questBadge}` });
 
   return embed;
 }
@@ -163,13 +163,13 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedB
           activeTitle ? `🏷️ 「${activeTitle}」` : "",
           `${tier.emoji} **${tier.name}** （Lv.${profile.level}）`,
           `妖力 \`${expBar}\` ${profile.exp.toLocaleString()} / ${expNext.toLocaleString()}`,
-          `賭け上限: ◉${tier.betCap.toLocaleString()}${tierProgress}`,
+          `賭け上限: ◈${tier.betCap.toLocaleString()}${tierProgress}`,
         ].filter(Boolean).join("\n"),
         inline: false,
       },
       {
         name: "💰 資産",
-        value: `◉${profile.balance.toLocaleString()}`,
+        value: `◈${profile.balance.toLocaleString()}`,
         inline: true,
       },
       {
@@ -181,7 +181,7 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedB
         name: "📈 戦績",
         value: [
           `勝率: **${winRate}%** （${profile.total_wins.toLocaleString()}勝 / ${profile.total_losses.toLocaleString()}敗、${totalGames.toLocaleString()}戦）`,
-          `最大勝ち: ◉${profile.biggest_win.toLocaleString()}`,
+          `最大勝ち: ◈${profile.biggest_win.toLocaleString()}`,
           `最長連勝: ${profile.best_win_streak}回`,
           `現在: ${profile.current_win_streak > 0 ? `🔥 ${profile.current_win_streak}連勝中` : profile.current_lose_streak > 0 ? `💧 ${profile.current_lose_streak}連敗中` : "（無印）"}`,
         ].join("\n"),
@@ -190,8 +190,8 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedB
       {
         name: "💴 累計",
         value: [
-          `賭け額: ◉${profile.total_wagered.toLocaleString()}`,
-          `稼ぎ: ◉${profile.total_earned.toLocaleString()}`,
+          `賭け額: ◈${profile.total_wagered.toLocaleString()}`,
+          `稼ぎ: ◈${profile.total_earned.toLocaleString()}`,
         ].join("\n"),
         inline: true,
       },
@@ -238,18 +238,18 @@ export function economyEmbed(opts: {
         name: "📊 経済状況",
         value: [
           `${opts.emoji} ${opts.label}`,
-          `総流通量: ◉${opts.totalSupply.toLocaleString()}`,
+          `総流通量: ◈${opts.totalSupply.toLocaleString()}`,
           `プレイヤー数: ${opts.playerCount}人`,
-          `1人あたり平均: ◉${avg.toLocaleString()}`,
-          `健全ライン: ◉${opts.healthyLine.toLocaleString()}`,
+          `1人あたり平均: ◈${avg.toLocaleString()}`,
+          `健全ライン: ◈${opts.healthyLine.toLocaleString()}`,
         ].join("\n"),
         inline: true,
       },
       {
         name: "🏦 プール",
         value: [
-          `JPプール: ◉${opts.jackpotPool.toLocaleString()}`,
-          `底辺保護: ◉${opts.reliefPool.toLocaleString()}`,
+          `JPプール: ◈${opts.jackpotPool.toLocaleString()}`,
+          `底辺保護: ◈${opts.reliefPool.toLocaleString()}`,
         ].join("\n"),
         inline: true,
       },
