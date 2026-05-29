@@ -90,6 +90,8 @@ export type ServerConfig = {
    * 例: 暴落イベントで -2.0 を設定すると、コイン安に強制誘導される。
    */
   exchange_rate_offset: number;
+  /** v2 Iter.2: 賭場の板の議題立て手数料 */
+  board_fee: number;
 };
 
 export type Title = {
@@ -359,6 +361,56 @@ export function initializeDatabase(): void {
       claimed_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (user_id, quest_key, period)
     );
+
+    -- ═══ v2 Iter.2: 賭場の板（公開市場） ═══
+    CREATE TABLE IF NOT EXISTS betting_markets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      creator_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      options TEXT NOT NULL,                 -- JSON string[]
+      payout_mode TEXT NOT NULL CHECK(payout_mode IN ('parimutuel','winner_take_all')),
+      status TEXT NOT NULL DEFAULT 'open'
+        CHECK(status IN ('open','closed','reported','settled','disputed','void')),
+      deadline TEXT,
+      result_option INTEGER,
+      channel_id TEXT,
+      message_id TEXT,
+      thread_id TEXT,
+      fee INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS market_bets (
+      market_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      option_index INTEGER NOT NULL,
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (market_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS market_approvals (
+      market_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      vote TEXT NOT NULL CHECK(vote IN ('approve','dispute')),
+      PRIMARY KEY (market_id, user_id)
+    );
+
+    -- ═══ v2 Iter.2: サシ星約（1v1 PvP） ═══
+    CREATE TABLE IF NOT EXISTS pvp_matches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      challenger_id TEXT NOT NULL,
+      opponent_id TEXT NOT NULL,
+      title TEXT,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','active','reported','settled','disputed','declined','void')),
+      reported_winner_id TEXT,
+      reported_by TEXT,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // ─── Migration: exchange_logs CHECK 制約に 'refund' を許可 ──────
@@ -435,6 +487,7 @@ export function initializeDatabase(): void {
     "ALTER TABLE users ADD COLUMN exchange_out_total INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE transaction_logs ADD COLUMN currency TEXT NOT NULL DEFAULT 'currency2'",
     "ALTER TABLE server_config ADD COLUMN exchange_rate_offset REAL NOT NULL DEFAULT 0.0",
+    "ALTER TABLE server_config ADD COLUMN board_fee INTEGER NOT NULL DEFAULT 500",
   ];
   for (const sql of v2MigrationCols) {
     try { db.exec(sql); } catch { /* column exists */ }
@@ -459,7 +512,7 @@ export function updateServerConfig(guildId: string, updates: Partial<Omit<Server
     "balance_cap", "house_edge_offset", "min_bet", "jackpot_pool", "relief_pool",
     "casino_channel_id", "jackpot_channel_id", "stock_channel_id",
     "games_enabled", "lucky_game", "lucky_game_date",
-    "exchange_rate_offset",
+    "exchange_rate_offset", "board_fee",
   ] as const;
 
   for (const key of allowed) {

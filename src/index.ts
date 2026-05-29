@@ -19,6 +19,9 @@ import { handleAdminCommand } from "./admin/commands";
 import { handleShoutenCommand } from "./games/shouten";
 import { handleZashikiCommand } from "./games/zashiki";
 import { handleExchangeCommand } from "./games/exchange";
+import { handleBoardCommand, handleBoardButton, handleBoardSelect, handleBoardModal, refundStaleMarketsOnStartup } from "./games/board";
+import { handleSashiCommand, handleSashiButton, refundStaleSashiOnStartup } from "./games/sashi";
+import { handleCheerCommand } from "./games/cheer";
 
 // ─── Startup Cleanup ───────────────────────────────────
 
@@ -51,6 +54,16 @@ async function bootstrap(): Promise<void> {
     refundStaleBetsOnStartup();
   } catch (err) {
     console.error("[bootstrap] refundStaleBetsOnStartup failed:", err);
+  }
+  try {
+    refundStaleMarketsOnStartup();
+  } catch (err) {
+    console.error("[bootstrap] refundStaleMarketsOnStartup failed:", err);
+  }
+  try {
+    refundStaleSashiOnStartup();
+  } catch (err) {
+    console.error("[bootstrap] refundStaleSashiOnStartup failed:", err);
   }
   // 起動時は全ゲームロックを開放する（プロセス再起動でメモリ上のセッションは消えている）
   const cleared = db.prepare("DELETE FROM game_sessions").run();
@@ -97,7 +110,33 @@ async function bootstrap(): Promise<void> {
             return await handleThanksCommand(interaction);
           case "両替":
             return await handleExchangeCommand(interaction);
+          case "板":
+            return await handleBoardCommand(interaction);
+          case "サシ":
+            return await handleSashiCommand(interaction);
+          case "囃子":
+            return await handleCheerCommand(interaction);
         }
+      }
+
+      // ── 賭場の板 (plate:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("plate:")) {
+        await handleBoardButton(interaction);
+        return;
+      }
+      if (interaction.isStringSelectMenu() && interaction.customId.startsWith("plate:")) {
+        await handleBoardSelect(interaction);
+        return;
+      }
+      if (interaction.isModalSubmit() && interaction.customId.startsWith("plate:")) {
+        await handleBoardModal(interaction);
+        return;
+      }
+
+      // ── サシ星約 (sashi:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("sashi:")) {
+        await handleSashiButton(interaction);
+        return;
       }
 
       // ── Home UI Interactions ──
