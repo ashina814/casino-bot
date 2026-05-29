@@ -25,7 +25,7 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
 
   const embed = infoEmbed(
     "🛍️ 奉納ショップ",
-    "「ようこそ、客人。余った小判で特別な品と交換してやろう。\nただし、一度買ったものは返品できぬぞ？」",
+    "「ようこそ、客人。余ったエテルで特別な品と交換してやろう。\nただし、一度買ったものは返品できぬぞ？」",
     COLORS.GOLD
   ).addFields({
     name: `あなたの所持金: ◈${balance.toLocaleString()}`,
@@ -95,7 +95,7 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
 
       if (!result.ok) {
         if (result.reason === "INSUFFICIENT_FUNDS") {
-          await i.followUp({ embeds: [errorEmbed("小判が足りぬぞ。冷やかしなら帰るのじゃ。")], ephemeral: true });
+          await i.followUp({ embeds: [errorEmbed("エテルが足りぬぞ。冷やかしなら帰るのじゃ。")], ephemeral: true });
         } else if (result.reason === "ALREADY_OWNED") {
           await i.followUp({ embeds: [errorEmbed("それはすでに持っておるじゃろ。")], ephemeral: true });
         }

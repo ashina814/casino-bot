@@ -19,13 +19,13 @@ import { handleChinchiroCommand } from "./chinchiro/index";
 
 export const asobuCommand = new SlashCommandBuilder()
   .setName("遊ぶ")
-  .setDescription("🎰 座敷童の賭場で遊ぶ")
+  .setDescription("🎰 星約の賭場で遊ぶ")
   .addSubcommand((sub) =>
     sub
       .setName("巻物")
       .setDescription("🎰 百鬼夜行巻物（スロット）を回す")
       .addIntegerOption((opt) =>
-        opt.setName("bet").setDescription("賭ける小判の額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
+        opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
   )
   .addSubcommand((sub) =>
@@ -33,7 +33,7 @@ export const asobuCommand = new SlashCommandBuilder()
       .setName("丁半")
       .setDescription("🎴 丁半博打 — 丁か半か")
       .addIntegerOption((opt) =>
-        opt.setName("bet").setDescription("賭ける小判の額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
+        opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
   )
   .addSubcommand((sub) =>
@@ -41,7 +41,7 @@ export const asobuCommand = new SlashCommandBuilder()
       .setName("札遊び")
       .setDescription("🃏 妖怪札遊び（ブラックジャック）")
       .addIntegerOption((opt) =>
-        opt.setName("bet").setDescription("賭ける小判の額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
+        opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
   )
   .addSubcommand((sub) =>
@@ -49,7 +49,7 @@ export const asobuCommand = new SlashCommandBuilder()
       .setName("暴落")
       .setDescription("📈 龍脈昇り — どこまで耐えられるか")
       .addIntegerOption((opt) =>
-        opt.setName("bet").setDescription("賭ける小判の額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
+        opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
   )
   .addSubcommand((sub) =>
@@ -62,7 +62,7 @@ export const asobuCommand = new SlashCommandBuilder()
       .setName("賽")
       .setDescription("🎲 チンチロ — 3つのサイコロを振る")
       .addIntegerOption((opt) =>
-        opt.setName("bet").setDescription("賭ける小判の額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
+        opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
   );
 

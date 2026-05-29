@@ -91,7 +91,7 @@ export async function startChohan(
   // Deduct bet
   const deductResult = adjustBalance(userId, -bet, "chohan_bet", "chohan");
   if (!deductResult.ok) {
-    await replyText("小判が足りぬぞ…。");
+    await replyText("エテルが足りぬぞ…。");
     return;
   }
   recordWager(userId, bet);

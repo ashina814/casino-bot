@@ -33,7 +33,7 @@ function progressBar(current: number, max: number, width = 10): string {
 export const COLORS = {
   /** 朱色 — メイン / 勝利 / アクション */
   MAIN: 0xC0392B,
-  /** 金色 — アクセント / 小判 / ジャックポット */
+  /** 金色 — アクセント / エテル / ジャックポット */
   GOLD: 0xF1C40F,
   /** 墨色 — ベース / 通常状態 */
   BASE: 0x2C2C2C,
@@ -155,7 +155,7 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedB
     ? `\n${nextTier.emoji} あと Lv${nextTier.levelsTo} で **${nextTier.name}** に昇格（賭け上限解放）`
     : "\n⛩️ 最上位「神」に到達";
 
-  const embed = baseEmbed("🏮 座敷童の賭場 — 通行証", COLORS.GOLD)
+  const embed = baseEmbed("🏮 星約の賭場 — 通行証", COLORS.GOLD)
     .addFields(
       {
         name: "👤 プレイヤー",
@@ -232,7 +232,7 @@ export function economyEmbed(opts: {
 }): EmbedBuilder {
   const avg = opts.playerCount > 0 ? Math.floor(opts.totalSupply / opts.playerCount) : 0;
 
-  return baseEmbed("🔧 座敷童の賭場 — 管理パネル", COLORS.MAIN)
+  return baseEmbed("🔧 星約の賭場 — 管理パネル", COLORS.MAIN)
     .addFields(
       {
         name: "📊 経済状況",

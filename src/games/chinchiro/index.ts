@@ -215,7 +215,7 @@ export async function playChinchiro(
   // 賭金が払えれば OK（ヒフミ時の追加徴収は残高不足ならスキップする設計）
   const deductResult = adjustBalance(userId, -bet, "chinchiro_bet", "chinchiro");
   if (!deductResult.ok) {
-    const msg = { content: "小判が足りぬぞ…。", ephemeral: true };
+    const msg = { content: "エテルが足りぬぞ…。", ephemeral: true };
     if (interaction.deferred || interaction.replied) await interaction.followUp(msg);
     else await interaction.reply(msg);
     return;

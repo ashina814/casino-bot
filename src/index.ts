@@ -64,7 +64,7 @@ async function bootstrap(): Promise<void> {
   });
 
   client.once(Events.ClientReady, (ready) => {
-    console.log(`🏮 座敷童の賭場 起動 — ${ready.user.tag}`);
+    console.log(`🏮 星約の賭場 起動 — ${ready.user.tag}`);
     registerSchedulers(client);
   });
 
@@ -91,7 +91,7 @@ async function bootstrap(): Promise<void> {
             return await handleAdminCommand(interaction);
           case "商店":
             return await handleShoutenCommand(interaction);
-          case "座敷童":
+          case "アステル":
             return await handleZashikiCommand(interaction);
           case "感謝":
             return await handleThanksCommand(interaction);

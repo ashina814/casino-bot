@@ -17,7 +17,7 @@ export const shoutenCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("心付け")
-      .setDescription("💸 他のプレイヤーに小判を送る（心づけ）")
+      .setDescription("💸 他のプレイヤーにエテルを送る（心づけ）")
       .addUserOption((opt) =>
         opt.setName("user").setDescription("送金先").setRequired(true)
       )

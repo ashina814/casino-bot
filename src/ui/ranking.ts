@@ -108,7 +108,7 @@ export async function handleRankingCommand(interaction: ChatInputCommandInteract
       if (rank) userRank = `${rank.rank}位 / ${total.c}人中`;
     }
 
-    return baseEmbed(`🏮 座敷童の賭場 — ${title}`, COLORS.GOLD)
+    return baseEmbed(`🏮 星約の賭場 — ${title}`, COLORS.GOLD)
       .setDescription(
         [
           lines.length === 0 ? "*対象者なし*" : lines.join("\n"),

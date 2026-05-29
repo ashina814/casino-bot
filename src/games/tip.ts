@@ -11,7 +11,7 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
   const senderId = interaction.user.id;
 
   if (targetUser.bot) {
-    await interaction.reply({ embeds: [errorEmbed("ボットに小判は送れぬぞ。")], ephemeral: true });
+    await interaction.reply({ embeds: [errorEmbed("ボットにエテルは送れぬぞ。")], ephemeral: true });
     return;
   }
 

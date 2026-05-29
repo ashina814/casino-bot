@@ -4,8 +4,8 @@
  * サブコマンド構成：
  *   📊 監視  — 経済監視ダッシュボード（オーナー除外）
  *   ⚙️ 設定  — 設定パネル（経済・チャンネル）
- *   💰 発行  — 小判発行 (mint)
- *   🔥 焼却  — 小判焼却 (burn)
+ *   💰 発行  — エテル発行 (mint)
+ *   🔥 焼却  — エテル焼却 (burn)
  *   ♻️ 返金  — ユーザー返金（理由必須）
  *   🔍 調査  — ユーザー取引履歴
  *   📢 通知  — 座敷童アナウンス
@@ -46,7 +46,7 @@ export const adminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("発行")
-      .setDescription("💰 小判を発行する")
+      .setDescription("💰 エテルを発行する")
       .addUserOption((opt) =>
         opt.setName("user").setDescription("対象ユーザー").setRequired(true)
       )
@@ -60,7 +60,7 @@ export const adminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("焼却")
-      .setDescription("🔥 小判を焼却する")
+      .setDescription("🔥 エテルを焼却する")
       .addUserOption((opt) =>
         opt.setName("user").setDescription("対象ユーザー").setRequired(true)
       )

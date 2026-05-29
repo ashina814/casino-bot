@@ -181,7 +181,7 @@ export async function runRouletteSession(
     // Deduct
     const result = adjustBalance(userId, -betAmount, "roulette_bet", "roulette");
     if (!result.ok) {
-      await btn.reply({ content: "小判が足りぬぞ…。", ephemeral: true });
+      await btn.reply({ content: "エテルが足りぬぞ…。", ephemeral: true });
       return;
     }
     recordWager(userId, betAmount);

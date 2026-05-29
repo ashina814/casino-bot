@@ -71,7 +71,7 @@ export function getTodayLuckyGame(guildId: string): string {
 
 export const casinoCommand = new SlashCommandBuilder()
   .setName("案内")
-  .setDescription("🏮 座敷童の賭場 — ホーム");
+  .setDescription("🏮 星約の賭場 — ホーム");
 
 export async function handleCasinoCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
@@ -86,19 +86,19 @@ export async function handleCasinoCommand(interaction: ChatInputCommandInteracti
 
   const ushimitsu = dialogueUshimitsudoki();
   const greeting = ushimitsu ?? (isNewbie
-    ? "「ようこそ…座敷童の賭場へ。お主、見ない顔じゃな。」"
+    ? "「ようこそ…星約の賭場へ。お主、見ない顔じゃな。」"
     : "「いらっしゃい。今日は何で遊ぶ？」");
 
   const newbieBanner = isNewbie
     ? [
         "",
         "🌱 **初めての方へ** — まずは下の **「📅 福分け」** を押してみよ。",
-        "　毎日の小判と、わしとの最初の出会いがそこにある。",
+        "　毎日のエテルと、わしとの最初の出会いがそこにある。",
         "",
       ]
     : [];
 
-  const embed = baseEmbed("🏮 座敷童の賭場", COLORS.GOLD)
+  const embed = baseEmbed("🏮 星約の賭場", COLORS.GOLD)
     .setDescription(
       [
         `*${greeting}*`,
@@ -191,7 +191,7 @@ export async function handleHomeButton(interaction: ButtonInteraction): Promise<
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId("bet_amount")
-          .setLabel("賭ける小判の額 (空欄なら最低額)")
+          .setLabel("賭けるエテルの額 (空欄なら最低額)")
           .setStyle(TextInputStyle.Short)
           .setRequired(false)
           .setPlaceholder("例: 100")

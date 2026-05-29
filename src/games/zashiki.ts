@@ -30,29 +30,30 @@ import type { GogyoElement } from "../core/zashikiStage";
 // ─── Command ───────────────────────────────────────────
 
 export const zashikiCommand = new SlashCommandBuilder()
-  .setName("座敷童")
-  .setDescription("🏮 座敷童の覚醒状況を確認する")
+  .setName("アステル")
+  .setDescription("アステルとの星約（覚醒）を確認する")
   .addSubcommand((sub) =>
-    sub.setName("status").setDescription("覚醒段階・好感度・属性を表示")
+    sub.setName("status").setDescription("星約段階・好感度・星の属性を表示")
   )
   .addSubcommand((sub) =>
     sub
       .setName("mode")
-      .setDescription("セリフモードを切り替える")
+      .setDescription("アステルのモードを切り替える")
       .addStringOption((opt) =>
         opt
           .setName("type")
           .setDescription("モードを選択")
           .setRequired(true)
           .addChoices(
-            { name: "🌙 通常", value: "default" },
-            { name: "💢 ツンデレ", value: "tsundere" },
-            { name: "🖤 ヤミ", value: "yami" },
+            { name: "☾ 常", value: "default" },
+            { name: "✦ 拗ね", value: "tsundere" },
+            { name: "☄ 蝕", value: "yami" },
+            { name: "◌ 前世（座敷童）", value: "zense" },
           )
       )
   )
   .addSubcommand((sub) =>
-    sub.setName("element").setDescription("五行属性を選択・変更する")
+    sub.setName("element").setDescription("星の属性を選択・変更する")
   );
 
 // ─── Handlers ──────────────────────────────────────────
@@ -80,9 +81,10 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
   const bar = "█".repeat(filled) + "░".repeat(10 - filled);
 
   const modeLabels: Record<string, string> = {
-    default: "🌙 通常",
-    tsundere: "💢 ツンデレ",
-    yami: "🖤 ヤミ",
+    default: "☾ 常",
+    tsundere: "✦ 拗ね",
+    yami: "☄ 蝕",
+    zense: "◌ 前世（座敷童）",
   };
 
   // 五行属性表示
@@ -95,8 +97,8 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
     }
   } else {
     elementValue = stage.level >= 3
-      ? "*`/座敷童 element` で選択可能*"
-      : "*Lv3「結び」で解放*";
+      ? "*`/アステル element` で選択可能*"
+      : "*Lv3「星約」で解放*";
   }
 
   // 覚醒の恩恵
@@ -167,17 +169,18 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
 
 async function handleMode(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
-  const targetMode = interaction.options.getString("type", true) as "default" | "tsundere" | "yami";
+  const targetMode = interaction.options.getString("type", true) as "default" | "tsundere" | "yami" | "zense";
   const affection = getAffection(userId);
   const stage = getStage(affection);
 
   if (!stage.unlockedModes.includes(targetMode)) {
     const requirement: Record<string, string> = {
-      tsundere: "覚醒Lv4「花憑き」（好感度300+）",
-      yami: "覚醒Lv6「顕現」（好感度1000+）",
+      tsundere: "星約Lv4「煌めき」（好感度300+）",
+      yami: "星約Lv6「満天」（好感度1000+）",
+      zense: "星約Lv6「満天」（好感度1000+）",
     };
     await interaction.reply({
-      content: `そのモードはまだ解放されておらんぞ。\n必要条件: **${requirement[targetMode] ?? "不明"}**`,
+      content: `そのモードはまだ解放されてないよ。\n必要条件: **${requirement[targetMode] ?? "不明"}**`,
       ephemeral: true,
     });
     return;
@@ -185,24 +188,30 @@ async function handleMode(interaction: ChatInputCommandInteraction): Promise<voi
 
   const currentMode = getAffectionMode(userId);
   if (currentMode === targetMode) {
-    await interaction.reply({ content: "既にそのモードじゃぞ。", ephemeral: true });
+    await interaction.reply({ content: "もうそのモードだよ。", ephemeral: true });
     return;
   }
 
   setAffectionMode(userId, targetMode);
 
   const dialogues: Record<string, string> = {
-    default: "「…ふぅ。やっと普段の調子に戻れるわい。」",
-    tsundere: "「…べ、別にお主のために変えたわけじゃないからな！\n　た、頼まれたから仕方なくじゃ！」",
-    yami: "「…ふふ。この姿がお好みか。\n　…いいぞ。わしの全てを見せてやろう。\n　…どこにも、逃がさんからの。」",
+    default: "「ふう。やっと、いつもの調子に戻れる。」",
+    tsundere: "「べ、べつにきみのために変えたわけじゃないからね。\n　頼まれたから、しょうがなく。」",
+    yami: "「……ふふ。この貌がお好み？\n　いいよ。わたしのぜんぶ、見せてあげる。\n　……どこにも、逃がさないけどね。」",
+    zense: "「……あれ。なんだか、懐かしい喋り方が出てくるのう。\n　ふふ、これが前世のわたし……『座敷童』じゃ。\n　久方ぶりじゃな、客人。」",
   };
 
-  const modeEmojis: Record<string, string> = { default: "🌙", tsundere: "💢", yami: "🖤" };
+  const modeLabels: Record<string, string> = {
+    default: "☾ 常", tsundere: "✦ 拗ね", yami: "☄ 蝕", zense: "◌ 前世（座敷童）",
+  };
+  const modeColor: Record<string, number> = {
+    default: 0x0b1026, tsundere: 0x3a6ea5, yami: 0x2c003e, zense: 0xc0392b,
+  };
 
   const embed = new EmbedBuilder()
-    .setColor(targetMode === "yami" ? 0x2c2c2c : targetMode === "tsundere" ? 0xff6b6b : 0x7f8fa6)
-    .setTitle(`${modeEmojis[targetMode]} モード切替`)
-    .setDescription(`*${dialogues[targetMode]}*\n\nセリフモードを **${targetMode}** に変更しました。`);
+    .setColor(modeColor[targetMode] ?? 0x0b1026)
+    .setTitle(`${modeLabels[targetMode]} — モード切替`)
+    .setDescription(`*${dialogues[targetMode]}*\n\nモードを **${modeLabels[targetMode]}** に変更した。`);
 
   await interaction.reply({ embeds: [embed] });
 }
@@ -294,7 +303,7 @@ async function handleElement(interaction: ChatInputCommandInteraction): Promise<
       // 属性変更: コスト引いてから変更
       const deduct = adjustBalance(userId, -ELEMENT_CHANGE_COST, "element_change");
       if (!deduct.ok) {
-        await btn.update({ content: "小判が足りぬ…。", embeds: [], components: [] });
+        await btn.update({ content: "エテルが足りぬ…。", embeds: [], components: [] });
         return;
       }
       changeElement(userId, chosen);

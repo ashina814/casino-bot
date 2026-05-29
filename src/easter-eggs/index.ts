@@ -241,7 +241,7 @@ export function checkBankrupt(userId: string, balance: number): EggResult {
   return {
     triggered: true,
     titleName: "すってんてん",
-    message: "「あーあ、見事にすってんてんじゃな。\nまあ、どん底まで落ちればあとは上がるだけじゃ。\n元気づけに、少しだけ小判をくれてやろう。\n二つ名『すってんてん』を授けよう。」",
+    message: "「あーあ、見事にすってんてんじゃな。\nまあ、どん底まで落ちればあとは上がるだけじゃ。\n元気づけに、少しだけエテルをくれてやろう。\n二つ名『すってんてん』を授けよう。」",
     bonusAmount: 3000,
   };
 }

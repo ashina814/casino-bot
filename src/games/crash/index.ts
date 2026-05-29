@@ -111,7 +111,7 @@ export async function playCrash(
 
   const deduct = adjustBalance(userId, -bet, "crash_bet", "crash");
   if (!deduct.ok) {
-    await reply("小判が足りぬぞ…。");
+    await reply("エテルが足りぬぞ…。");
     return;
   }
   recordWager(userId, bet);

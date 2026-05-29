@@ -1,8 +1,8 @@
 /**
- * 座敷童セリフエンジン
+ * アステル セリフエンジン
  *
- * セリフ = f(結果, 所持金, 格, 連勝/連敗数, 好感度, モード, ランダム)
- * 覚醒段階の掛け算で座敷童の反応が動的に変わる。
+ * セリフ = f(結果, 所持金, 星位, 連勝/連敗数, 星約(好感度), モード, ランダム)
+ * 星約段階の掛け算でアステルの反応が動的に変わる。
  */
 
 // ─── Imports ───────────────────────────────────────────
@@ -22,6 +22,7 @@ import {
   FUKU_WEIGHT,
   TSUNDERE,
   YAMI,
+  ZENSE,
   AFFECTION_WIN,
   AFFECTION_LOSE,
   AFFECTION_DAILY,
@@ -29,14 +30,25 @@ import {
 
 // ─── Types ─────────────────────────────────────────────
 
+/** セリフモード: default=常 / tsundere=拗ね / yami=蝕 / zense=前世(座敷童) */
+export type DialogueMode = "default" | "tsundere" | "yami" | "zense";
+
 export type DialogueContext = {
   tier: TierKey;
   balance: number;
   winStreak: number;
   loseStreak: number;
-  mode?: "default" | "tsundere" | "yami";
+  mode?: DialogueMode;
   affection?: number;
 };
+
+/** モードに対応するセリフプール（default は null = 通常ロジックへ） */
+function modePool(mode?: DialogueMode): typeof TSUNDERE | null {
+  if (mode === "tsundere") return TSUNDERE;
+  if (mode === "yami") return YAMI;
+  if (mode === "zense") return ZENSE;
+  return null;
+}
 
 // ─── Utility ───────────────────────────────────────────
 
@@ -79,22 +91,6 @@ function resolveAffection(ctx: DialogueContext & { userId?: string }): number {
   return 0;
 }
 
-// ─── Speech Style by Tier ──────────────────────────────
-
-function honorific(tier: TierKey): string {
-  switch (tier) {
-    case "human":
-    case "half":
-      return "客人";
-    case "yokai":
-      return "お主";
-    case "daiyokai":
-      return "貴殿";
-    case "kami":
-      return "友よ";
-  }
-}
-
 // ─── Public API ────────────────────────────────────────
 
 export function dialogueWelcome(): string {
@@ -110,15 +106,11 @@ export function dialogueWin(
   const affection = resolveAffection(ctx);
 
   // ─── Mode Override ───
-  if (ctx.mode === "tsundere") {
-    if (ratio >= 50) return pick(TSUNDERE.winJackpot);
-    if (ratio >= 5 || winAmount >= 10_000) return pick(TSUNDERE.winBig);
-    return pick(TSUNDERE.winSmall);
-  }
-  if (ctx.mode === "yami") {
-    if (ratio >= 50) return pick(YAMI.winJackpot);
-    if (ratio >= 5 || winAmount >= 10_000) return pick(YAMI.winBig);
-    return pick(YAMI.winSmall);
+  const mp = modePool(ctx.mode);
+  if (mp) {
+    if (ratio >= 50) return pick(mp.winJackpot);
+    if (ratio >= 5 || winAmount >= 10_000) return pick(mp.winBig);
+    return pick(mp.winSmall);
   }
 
   // ─── 特大勝ち ───
@@ -136,38 +128,33 @@ export function dialogueWin(
     if (affection >= 100 && affLine) {
       return pick([...WIN_BIG, affLine]);
     }
-    return pick([...WIN_BIG, "大勝じゃな。運が向いておるぞ。"]);
+    return pick(WIN_BIG);
   }
 
   // ─── 通常勝ち ───
-  // 好感度セリフがあればそちらを優先（高好感度ほど座敷童らしい反応に）
+  // 星約セリフがあればそちらを優先（高いほどアステルらしい反応に）
   const affLine = pickByAffection(AFFECTION_WIN, affection);
   if (affLine) return affLine;
 
-  return pick([...WIN_SMALL[ctx.tier], "勝負はこれからじゃ。"]);
+  return pick(WIN_SMALL[ctx.tier]);
 }
 
 export function dialogueLose(ctx: DialogueContext & { userId?: string }, loseAmount: number): string {
   const affection = resolveAffection(ctx);
 
   // ─── Mode Override ───
-  if (ctx.mode === "tsundere") {
-    if (ctx.balance <= 0) return pick(TSUNDERE.bankruptcy);
-    if (ctx.loseStreak >= 10) return pick(TSUNDERE.loseBig);
-    if (ctx.loseStreak >= 5) return pick(TSUNDERE.loseStreak);
-    return pick(TSUNDERE.loseSmall);
-  }
-  if (ctx.mode === "yami") {
-    if (ctx.balance <= 0) return pick(YAMI.bankruptcy);
-    if (ctx.loseStreak >= 10) return pick(YAMI.loseBig);
-    if (ctx.loseStreak >= 5) return pick(YAMI.loseStreak);
-    return pick(YAMI.loseSmall);
+  const mp = modePool(ctx.mode);
+  if (mp) {
+    if (ctx.balance <= 0) return pick(mp.bankruptcy);
+    if (ctx.loseStreak >= 10) return pick(mp.loseBig);
+    if (ctx.loseStreak >= 5) return pick(mp.loseStreak);
+    return pick(mp.loseSmall);
   }
 
   // ─── 破産 ───
   if (ctx.balance <= 0) {
     if (affection >= 100) {
-      return "おやおや…全部使い果たしたか。しゃーないのう、少しだけ貸してやるから、泣くでないぞ。";
+      return "あらら、ぜんぶ使い果たしたか。しょうがないなあ、少しだけ貸すから、そんな顔しないの。";
     }
     return pick(BANKRUPTCY);
   }
@@ -190,20 +177,20 @@ export function dialogueLose(ctx: DialogueContext & { userId?: string }, loseAmo
   const affLine = pickByAffection(AFFECTION_LOSE, affection);
   if (affLine) return affLine;
 
-  return pick([...LOSE_SMALL[ctx.tier], "まぁ、気を取り直しての。"]);
+  return pick(LOSE_SMALL[ctx.tier]);
 }
 
 export function dialogueDaily(
   streak: number,
   affection: number = 0,
   userId?: string,
-  mode?: "default" | "tsundere" | "yami",
+  mode?: DialogueMode,
 ): string {
   // ─── Mode Override ───
-  if (mode === "tsundere") return pick(TSUNDERE.daily);
-  if (mode === "yami") return pick(YAMI.daily);
+  const mp = modePool(mode);
+  if (mp) return pick(mp.daily);
 
-  // ─── 好感度セリフ ───
+  // ─── 星約セリフ ───
   const affLine = pickByAffection(AFFECTION_DAILY, affection);
   if (affLine) return affLine;
 
@@ -214,19 +201,19 @@ export function dialogueDaily(
       return pick(DAILY[m]);
     }
   }
-  return pick([...DAILY_DEFAULT, "毎日コツコツが大事じゃぞ。"]);
+  return pick(DAILY_DEFAULT);
 }
 
 export function dialogueFukuWeight(balance: number): string | null {
   if (balance <= 10_000) return null;
-  return pick([...FUKU_WEIGHT, "大金は身を滅ぼすやもしれぬぞ？"]);
+  return pick(FUKU_WEIGHT);
 }
 
 export function dialogueUshimitsudoki(): string | null {
   if (!isUshimitsudoki()) return null;
-  return "…丑三つ時か。この時間の賭場は…少し違う雰囲気じゃろう？";
+  return "……丑三つ時か。この時間の賭場は、少しだけ雰囲気が変わるんだよ。";
 }
 
 export function dialogueAbout(): string {
-  return "先代の座敷童に敬意を込めて。";
+  return "星約の賭場 — アステル。先代（座敷童）に敬意を込めて。";
 }

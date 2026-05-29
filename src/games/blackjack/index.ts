@@ -132,7 +132,7 @@ export async function playBlackjack(
 
   const deduct = adjustBalance(userId, -bet, "bj_bet", "blackjack");
   if (!deduct.ok) {
-    await replyText("小判が足りぬぞ…。");
+    await replyText("エテルが足りぬぞ…。");
     return;
   }
   recordWager(userId, bet);

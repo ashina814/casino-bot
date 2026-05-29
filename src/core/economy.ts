@@ -107,7 +107,7 @@ export function getEffectiveHouseEdge(guildId: string, baseEdge: number): number
 // ─── ジャックポットプール管理 ──────────────────────────
 
 /**
- * ハウスが吸収した小判を各プールに分配する。
+ * ハウスが吸収したエテルを各プールに分配する。
  * 吸収額の 20% → JPプール, 30% → 底辺保護, 50% → 消滅
  */
 export function distributeHouseEarnings(guildId: string, absorbed: number): void {

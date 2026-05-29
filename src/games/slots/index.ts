@@ -153,7 +153,7 @@ export async function playSlots(
   if (!isFreeSpin) {
     const deductResult = adjustBalance(userId, -bet, "slots_bet", "slots");
     if (!deductResult.ok) {
-      const msg = { content: "小判が足りぬぞ…。", ephemeral: true };
+      const msg = { content: "エテルが足りぬぞ…。", ephemeral: true };
       if (interaction.deferred || interaction.replied) {
         await interaction.followUp(msg);
       } else {

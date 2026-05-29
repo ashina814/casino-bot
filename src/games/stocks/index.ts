@@ -3,7 +3,7 @@
  *
  * 龍脈の力を「銘柄」として売買する投資ゲーム。
  * 1時間ごとに値動き。ランダムウォーク + イベント。
- * 余剰小判のマネーシンク & 長期戦略コンテンツ。
+ * 余剰エテルのマネーシンク & 長期戦略コンテンツ。
  */
 import {
   SlashCommandBuilder,
@@ -472,7 +472,7 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     const totalCost = shares * stock.price;
     const result = adjustBalance(userId, -totalCost, "stock_buy", "stocks", guildId);
     if (!result.ok) {
-      await interaction.reply({ content: "小判が足りぬぞ…。", ephemeral: true });
+      await interaction.reply({ content: "エテルが足りぬぞ…。", ephemeral: true });
       return;
     }
 
