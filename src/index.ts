@@ -18,7 +18,8 @@ import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStoc
 import { handleAdminCommand } from "./admin/commands";
 import { handleShoutenCommand } from "./games/shouten";
 import { handleZashikiCommand } from "./games/zashiki";
-import { handleExchangeCommand } from "./games/exchange";
+import { handleExchangeCommand, handleExchangeApproval } from "./games/exchange";
+import { reconcileStaleExchangesOnStartup } from "./core/exchange";
 import { handleBoardCommand, handleBoardButton, handleBoardSelect, handleBoardModal, refundStaleMarketsOnStartup } from "./games/board";
 import { handleSashiCommand, handleSashiButton, refundStaleSashiOnStartup } from "./games/sashi";
 import { handleCheerCommand } from "./games/cheer";
@@ -65,6 +66,10 @@ async function bootstrap(): Promise<void> {
   } catch (err) {
     console.error("[bootstrap] refundStaleSashiOnStartup failed:", err);
   }
+  // 為替の中断分を回収（API有効時のみ・非同期で投げっぱなし）
+  reconcileStaleExchangesOnStartup().catch((err) =>
+    console.error("[bootstrap] reconcileStaleExchangesOnStartup failed:", err),
+  );
   // 起動時は全ゲームロックを開放する（プロセス再起動でメモリ上のセッションは消えている）
   const cleared = db.prepare("DELETE FROM game_sessions").run();
   if (cleared.changes > 0) {
@@ -136,6 +141,12 @@ async function bootstrap(): Promise<void> {
       // ── サシ星約 (sashi:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("sashi:")) {
         await handleSashiButton(interaction);
+        return;
+      }
+
+      // ── 両替承認 (exapprove:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("exapprove:")) {
+        await handleExchangeApproval(interaction);
         return;
       }
 

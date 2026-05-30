@@ -1,264 +1,163 @@
 /**
- * v2: 為替機構
+ * 為替オーケストレーション（Gil-bot API 連携）
  * ─────────────────────────────────────────────────────────
- * 第一通貨 ⇄ 第二通貨（カジノコイン）の為替レート計算と両替実行。
+ * レート/手数料/上限は Gil-bot 側が正。casino は API が返した額でエテルを増減するだけ。
  *
- * 設計（DESIGN_v2.md §1.2 ＆ §1.3）:
- *   - 基準レート: 1 第一通貨 = BASE_RATE カジノコイン
- *   - 自動補正: カジノコイン総供給量 vs (アクティブ人数 × HEALTHY_PER_PLAYER)
- *       供給過多 → レート悪化（コイン安）
- *       供給不足 → レート好転（コイン高）
- *   - 手動補正: server_config.exchange_rate_offset（管理者介入用）
+ * 入庫（Gil→エテル / internal_to_external）:
+ *   ①commit(amount=Gil) → Gil減算・externalPayout 返る ②エテル付与(原子) ③付与失敗→cancel(Gil返金)
+ * 出庫（エテル→Gil / external_to_internal）:
+ *   ①エテル徴収(原子) ②commit(amount=エテル) → Gil付与 ③commit失敗→エテル返金
  *
- * 両替手数料（DESIGN_v2.md §1.3, §1.4）:
- *   - 第一 → 第二（"in"）: 手数料 0%
- *   - 第二 → 第一（"out"）: 手数料 20%（半分→JPプール、半分→救済プール＝「奉納」）
+ * requestId = "casino-{rowId}" で安定生成。再試行は同IDで Gil-bot 冪等に乗る。
+ * 整合性: ローカルのエテル増減と status='done'/'pending_commit' を **同一 runTransaction** で更新し、
+ *   「付与したのに未記録」を防ぐ。再起動時の resume は方向別に分岐（出庫は再徴収しない）。
  */
-
-import { db, getServerConfig, runTransaction, type CurrencyExchange } from "./db";
+import { db, runTransaction } from "./db";
+import { adjustBalance } from "./bank";
 import {
-  ensureUser,
-  adjustBalance,
-  adjustCurrency1Balance,
-  addExchangeMiles,
-} from "./bank";
+  gilCommit, gilCancel, isExchangeApiAvailable,
+  type GilDirection, type GilOperation,
+} from "./gilApi";
 
-// ─── 定数 ─────────────────────────────────────────────
+export { isExchangeApiAvailable } from "./gilApi";
 
-/** 基準レート: 1 第一通貨 = この数の第二通貨 */
-export const BASE_RATE = 10.0;
-
-/** 1人あたりの健全カジノコイン保有量（経済の中心値） */
-export const HEALTHY_PER_PLAYER = 50_000;
-
-/** 自動補正の上限／下限（基準からの倍率） */
-export const AUTO_OFFSET_MIN = -3.0; // コイン安方向に最大 -3
-export const AUTO_OFFSET_MAX = 3.0;  // コイン高方向に最大 +3
-
-/** 第二→第一の換金時手数料率（奉納率） */
-export const EXCHANGE_OUT_FEE = 0.20;
-
-// ─── 型 ───────────────────────────────────────────────
-
-export type ExchangeRateInfo = {
-  /** 最終レート (1 第一 = N 第二) */
-  rate: number;
-  /** 基準レート */
-  base: number;
-  /** 自動補正値 */
-  autoOffset: number;
-  /** 手動補正値 (server_config から) */
-  manualOffset: number;
-  /** カジノコイン総供給量 */
-  totalSupply: number;
-  /** アクティブプレイヤー数 */
-  playerCount: number;
-  /** 健全ライン (= playerCount × HEALTHY_PER_PLAYER) */
-  healthyLine: number;
-  /** 経済状態ラベル */
-  trend: "コイン高" | "通常" | "コイン安";
+export type ApiExchangeRow = {
+  id: number;
+  guild_id: string;
+  user_id: string;
+  direction: GilDirection;
+  amount: number;
+  request_id: string;
+  status: string; // pending_approval / pending_commit / done / failed / cancelled
+  external_amount: number | null;
+  internal_amount: number | null;
+  fee_internal: number | null;
+  ether_delta: number | null;
+  memo: string | null;
 };
 
-export type ExchangeResult =
-  | {
-      ok: true;
-      direction: "in" | "out";
-      sourceAmount: number;
-      receivedAmount: number;
-      feeAmount: number; // 奉納額（第二通貨基準）
-      rate: number;
-      record: CurrencyExchange;
+export type ExecResult =
+  | { ok: true; etherDelta: number; op: GilOperation }
+  | { ok: false; code: string; message: string };
+
+export function getExchangeRow(id: number): ApiExchangeRow | undefined {
+  return db.prepare("SELECT * FROM api_exchanges WHERE id = ?").get(id) as ApiExchangeRow | undefined;
+}
+
+function setStatus(id: number, status: string): void {
+  db.prepare("UPDATE api_exchanges SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, id);
+}
+function setMeta(id: number, f: Partial<Pick<ApiExchangeRow, "external_amount" | "internal_amount" | "fee_internal">>): void {
+  db.prepare("UPDATE api_exchanges SET external_amount = COALESCE(?, external_amount), internal_amount = COALESCE(?, internal_amount), fee_internal = COALESCE(?, fee_internal), updated_at = datetime('now') WHERE id = ?")
+    .run(f.external_amount ?? null, f.internal_amount ?? null, f.fee_internal ?? null, id);
+}
+
+/** 両替リクエストを作成（pending_approval）。requestId を確定して返す。 */
+export function createExchange(
+  guildId: string, userId: string, direction: GilDirection, amount: number, memo?: string,
+): { id: number; requestId: string } {
+  const res = db.prepare(
+    "INSERT INTO api_exchanges (guild_id, user_id, direction, amount, request_id, status, memo) VALUES (?, ?, ?, ?, 'pending', 'pending_approval', ?)",
+  ).run(guildId, userId, direction, amount, memo ?? null);
+  const id = Number(res.lastInsertRowid);
+  const requestId = `casino-${id}`;
+  db.prepare("UPDATE api_exchanges SET request_id = ? WHERE id = ?").run(requestId, id);
+  return { id, requestId };
+}
+
+/** リクエストを実行する（承認後 or 即時）。 */
+export async function executeExchange(id: number): Promise<ExecResult> {
+  const row = getExchangeRow(id);
+  if (!row) return { ok: false, code: "NOT_FOUND", message: "両替リクエストが見つからないよ。" };
+  if (row.status === "done") return { ok: false, code: "ALREADY_DONE", message: "もう処理済みだよ。" };
+  if (!isExchangeApiAvailable()) return { ok: false, code: "API_DISABLED", message: "両替APIが準備中だよ。" };
+
+  if (row.direction === "internal_to_external") return runInflow(row);
+  return runOutflow(row, /*alreadyDebited*/ row.status === "pending_commit");
+}
+
+// ─── 入庫: Gil → エテル ───────────────────────────────
+async function runInflow(row: ApiExchangeRow): Promise<ExecResult> {
+  setStatus(row.id, "pending_commit");
+  const commit = await gilCommit({
+    guildId: row.guild_id, userId: row.user_id, direction: "internal_to_external",
+    amount: row.amount, requestId: row.request_id, memo: row.memo ?? "casino入庫(Gil→エテル)",
+  });
+  if (!commit.ok) {
+    setStatus(row.id, "failed");
+    return { ok: false, code: commit.code, message: commit.message };
+  }
+  const op = commit.data.operation;
+  const ether = op.externalPayout ?? op.externalAmount ?? row.amount;
+  setMeta(row.id, { internal_amount: op.internalAmount, external_amount: ether, fee_internal: op.feeInternal });
+
+  // エテル付与と done を原子的に
+  const credit = runTransaction<{ ok: boolean }>(() => {
+    const r = adjustBalance(row.user_id, ether, "両替: 入庫(Gil→エテル)", "exchange", row.guild_id);
+    if (!r.ok) return { ok: false };
+    db.prepare("UPDATE api_exchanges SET status='done', ether_delta=?, updated_at=datetime('now') WHERE id=?").run(ether, row.id);
+    return { ok: true };
+  });
+  if (!credit.ok) {
+    // 付与失敗（上限など稀ケース）→ Gil を返金
+    await gilCancel({ guildId: row.guild_id, requestId: row.request_id, reason: "casino側のエテル付与に失敗" });
+    setStatus(row.id, "cancelled");
+    return { ok: false, code: "CREDIT_FAILED", message: "エテルの付与に失敗したので、Gilを返金したよ。" };
+  }
+  return { ok: true, etherDelta: ether, op };
+}
+
+// ─── 出庫: エテル → Gil ───────────────────────────────
+async function runOutflow(row: ApiExchangeRow, alreadyDebited: boolean): Promise<ExecResult> {
+  if (!alreadyDebited) {
+    // ①エテル徴収 ＋ pending_commit を原子的に
+    const debit = runTransaction<{ ok: boolean }>(() => {
+      const r = adjustBalance(row.user_id, -row.amount, "両替: 出庫(エテル→Gil)", "exchange", row.guild_id);
+      if (!r.ok) return { ok: false };
+      db.prepare("UPDATE api_exchanges SET status='pending_commit', external_amount=?, updated_at=datetime('now') WHERE id=?").run(row.amount, row.id);
+      return { ok: true };
+    });
+    if (!debit.ok) {
+      setStatus(row.id, "failed");
+      return { ok: false, code: "INSUFFICIENT_ETHER", message: "エテルの残高が足りないみたい。" };
     }
-  | {
-      ok: false;
-      reason: "INVALID_AMOUNT" | "INSUFFICIENT_FUNDS" | "RECEIVED_TOO_SMALL";
-    };
-
-// ─── レート計算 ────────────────────────────────────────
-
-/**
- * 現在の為替レートを算出する。
- * 純関数（DBから状態を読むだけ、副作用なし）。
- */
-export function computeExchangeRate(guildId: string): ExchangeRateInfo {
-  const cfg = getServerConfig(guildId);
-
-  const stats = db.prepare(
-    "SELECT COUNT(*) as count, COALESCE(SUM(balance), 0) as total FROM users"
-  ).get() as { count: number; total: number };
-
-  const playerCount = stats.count;
-  const totalSupply = stats.total;
-  const healthyLine = playerCount * HEALTHY_PER_PLAYER;
-
-  // 自動補正: 供給過多なら + (コイン安)、不足なら - (コイン高)
-  let autoOffset = 0;
-  let trend: ExchangeRateInfo["trend"] = "通常";
-
-  if (healthyLine > 0) {
-    const ratio = totalSupply / healthyLine;
-    // ratio = 1 → 補正なし
-    // ratio = 2 → +2 (コイン安)
-    // ratio = 0.5 → -1 (コイン高)
-    autoOffset = (ratio - 1) * 2;
-    autoOffset = Math.max(AUTO_OFFSET_MIN, Math.min(AUTO_OFFSET_MAX, autoOffset));
-    if (autoOffset > 0.3) trend = "コイン安";
-    else if (autoOffset < -0.3) trend = "コイン高";
   }
 
-  const manualOffset = cfg.exchange_rate_offset ?? 0;
-  const rate = Math.max(1.0, BASE_RATE + autoOffset + manualOffset);
-
-  return {
-    rate: Math.round(rate * 100) / 100, // 小数点2桁
-    base: BASE_RATE,
-    autoOffset: Math.round(autoOffset * 100) / 100,
-    manualOffset,
-    totalSupply,
-    playerCount,
-    healthyLine,
-    trend,
-  };
-}
-
-// ─── 両替実行 ────────────────────────────────────────
-
-/**
- * 第一通貨 → 第二通貨 への両替。手数料なし。
- * @param sourceAmount 投入する第一通貨の額
- */
-export function exchangeIn(
-  userId: string,
-  sourceAmount: number,
-  guildId: string,
-): ExchangeResult {
-  return runTransaction(() => {
-    const amt = Math.floor(sourceAmount);
-    if (!Number.isFinite(amt) || amt <= 0 || !Number.isSafeInteger(amt)) {
-      return { ok: false as const, reason: "INVALID_AMOUNT" as const };
-    }
-
-    const info = computeExchangeRate(guildId);
-    const received = Math.floor(amt * info.rate);
-    if (received <= 0) {
-      return { ok: false as const, reason: "RECEIVED_TOO_SMALL" as const };
-    }
-
-    ensureUser(userId, guildId);
-
-    // 第一通貨を引く
-    const debit = adjustCurrency1Balance(userId, -amt, "両替: 第一→第二", guildId);
-    if (!debit.ok) {
-      return { ok: false as const, reason: "INSUFFICIENT_FUNDS" as const };
-    }
-
-    // カジノコインを足す（balance_cap 自動奉納あり）
-    const credit = adjustBalance(userId, received, "両替: 第一→第二", "exchange", guildId);
-    if (!credit.ok) {
-      // 万一失敗したらロールバック
-      throw new Error("exchangeIn credit failed: " + credit.reason);
-    }
-
-    addExchangeMiles(userId, "in", received);
-
-    const insert = db.prepare(`
-      INSERT INTO currency_exchanges
-        (user_id, direction, source_amount, received_amount, fee_amount, rate)
-      VALUES (?, 'in', ?, ?, 0, ?)
-    `);
-    const result = insert.run(userId, amt, received, info.rate);
-    const id = Number(result.lastInsertRowid);
-    const record = db.prepare("SELECT * FROM currency_exchanges WHERE id = ?").get(id) as CurrencyExchange;
-
-    return {
-      ok: true as const,
-      direction: "in" as const,
-      sourceAmount: amt,
-      receivedAmount: received,
-      feeAmount: 0,
-      rate: info.rate,
-      record,
-    };
+  // ②commit → Gil 付与
+  const commit = await gilCommit({
+    guildId: row.guild_id, userId: row.user_id, direction: "external_to_internal",
+    amount: row.amount, requestId: row.request_id, memo: row.memo ?? "casino出庫(エテル→Gil)",
   });
+  if (!commit.ok) {
+    // ③commit 失敗 → エテル返金
+    runTransaction(() => {
+      adjustBalance(row.user_id, row.amount, "両替: 出庫失敗の返金", "exchange", row.guild_id);
+      db.prepare("UPDATE api_exchanges SET status='failed', ether_delta=0, updated_at=datetime('now') WHERE id=?").run(row.id);
+    });
+    return { ok: false, code: commit.code, message: commit.message };
+  }
+  const op = commit.data.operation;
+  db.prepare("UPDATE api_exchanges SET status='done', internal_amount=?, fee_internal=?, ether_delta=?, updated_at=datetime('now') WHERE id=?")
+    .run(op.internalAmount ?? null, op.feeInternal ?? null, -row.amount, row.id);
+  return { ok: true, etherDelta: -row.amount, op };
 }
 
 /**
- * 第二通貨 → 第一通貨 への両替。手数料 20%。
- * 手数料は JP プール／救済プール に半々で奉納される。
- * @param sourceAmount 投入するカジノコインの額
+ * 起動時整合: 中断した両替（pending_commit）を回収する。
+ *  - 入庫: commit 再試行（冪等）→ 付与/返金
+ *  - 出庫: 既にエテル徴収済みなので **再徴収せず** commit 再試行のみ（冪等）
  */
-export function exchangeOut(
-  userId: string,
-  sourceAmount: number,
-  guildId: string,
-): ExchangeResult {
-  return runTransaction(() => {
-    const amt = Math.floor(sourceAmount);
-    if (!Number.isFinite(amt) || amt <= 0 || !Number.isSafeInteger(amt)) {
-      return { ok: false as const, reason: "INVALID_AMOUNT" as const };
+export async function reconcileStaleExchangesOnStartup(): Promise<void> {
+  if (!isExchangeApiAvailable()) return;
+  const rows = db.prepare("SELECT * FROM api_exchanges WHERE status = 'pending_commit'").all() as ApiExchangeRow[];
+  if (rows.length === 0) return;
+  for (const row of rows) {
+    try {
+      if (row.direction === "internal_to_external") await runInflow(row);
+      else await runOutflow(row, /*alreadyDebited*/ true);
+    } catch (e) {
+      console.warn(`[bootstrap] exchange reconcile failed id=${row.id}:`, e);
     }
-
-    const info = computeExchangeRate(guildId);
-    const fee = Math.floor(amt * EXCHANGE_OUT_FEE);
-    const netCoin = amt - fee; // 換金対象（手数料引き後のカジノコイン）
-    const received = Math.floor(netCoin / info.rate);
-    if (received <= 0) {
-      return { ok: false as const, reason: "RECEIVED_TOO_SMALL" as const };
-    }
-
-    ensureUser(userId, guildId);
-
-    // カジノコインを引く（全額）
-    const debit = adjustBalance(userId, -amt, "両替: 第二→第一", "exchange", guildId);
-    if (!debit.ok) {
-      return { ok: false as const, reason: "INSUFFICIENT_FUNDS" as const };
-    }
-
-    // 手数料を JP / 救済プール に半々奉納
-    if (fee > 0) {
-      const half = Math.floor(fee / 2);
-      const rest = fee - half;
-      db.prepare(`
-        UPDATE server_config
-        SET jackpot_pool = jackpot_pool + ?, relief_pool = relief_pool + ?
-        WHERE guild_id = ?
-      `).run(half, rest, guildId);
-    }
-
-    // 第一通貨を足す
-    const credit = adjustCurrency1Balance(userId, received, "両替: 第二→第一", guildId);
-    if (!credit.ok) {
-      throw new Error("exchangeOut credit failed: " + credit.reason);
-    }
-
-    addExchangeMiles(userId, "out", amt);
-
-    const insert = db.prepare(`
-      INSERT INTO currency_exchanges
-        (user_id, direction, source_amount, received_amount, fee_amount, rate)
-      VALUES (?, 'out', ?, ?, ?, ?)
-    `);
-    const result = insert.run(userId, amt, received, fee, info.rate);
-    const id = Number(result.lastInsertRowid);
-    const record = db.prepare("SELECT * FROM currency_exchanges WHERE id = ?").get(id) as CurrencyExchange;
-
-    return {
-      ok: true as const,
-      direction: "out" as const,
-      sourceAmount: amt,
-      receivedAmount: received,
-      feeAmount: fee,
-      rate: info.rate,
-      record,
-    };
-  });
-}
-
-/**
- * 管理者: 手動レート補正を設定。
- * 例えば +3 で大幅コイン安 (1:13)、 -3 でコイン高 (1:7) など。
- */
-export function setManualOffset(guildId: string, offset: number): void {
-  const clamped = Math.max(-5, Math.min(5, offset));
-  db.prepare("UPDATE server_config SET exchange_rate_offset = ? WHERE guild_id = ?").run(clamped, guildId);
+  }
+  console.log(`[bootstrap] reconciled ${rows.length} stale exchange(s)`);
 }

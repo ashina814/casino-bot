@@ -92,6 +92,10 @@ export type ServerConfig = {
   exchange_rate_offset: number;
   /** v2 Iter.2: 賭場の板の議題立て手数料 */
   board_fee: number;
+  /** v2 為替: この額以上の両替は管理者承認を要する */
+  exchange_threshold: number;
+  /** v2 為替: 承認ボタンを流すチャンネル（未設定なら実行チャンネル） */
+  exchange_approval_channel_id: string | null;
 };
 
 export type Title = {
@@ -411,6 +415,26 @@ export function initializeDatabase(): void {
       message_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- ═══ v2: 為替API連携（Gil-bot）操作ログ ═══
+    -- direction: 'internal_to_external'(入庫 Gil→エテル) / 'external_to_internal'(出庫 エテル→Gil)
+    -- status: pending_approval / pending_commit / pending_credit / done / failed / cancelled
+    CREATE TABLE IF NOT EXISTS api_exchanges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      request_id TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending_approval',
+      external_amount INTEGER,
+      internal_amount INTEGER,
+      fee_internal INTEGER,
+      ether_delta INTEGER,
+      memo TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // ─── Migration: exchange_logs CHECK 制約に 'refund' を許可 ──────
@@ -488,6 +512,8 @@ export function initializeDatabase(): void {
     "ALTER TABLE transaction_logs ADD COLUMN currency TEXT NOT NULL DEFAULT 'currency2'",
     "ALTER TABLE server_config ADD COLUMN exchange_rate_offset REAL NOT NULL DEFAULT 0.0",
     "ALTER TABLE server_config ADD COLUMN board_fee INTEGER NOT NULL DEFAULT 500",
+    "ALTER TABLE server_config ADD COLUMN exchange_threshold INTEGER NOT NULL DEFAULT 50000",
+    "ALTER TABLE server_config ADD COLUMN exchange_approval_channel_id TEXT",
   ];
   for (const sql of v2MigrationCols) {
     try { db.exec(sql); } catch { /* column exists */ }
@@ -513,6 +539,7 @@ export function updateServerConfig(guildId: string, updates: Partial<Omit<Server
     "casino_channel_id", "jackpot_channel_id", "stock_channel_id",
     "games_enabled", "lucky_game", "lucky_game_date",
     "exchange_rate_offset", "board_fee",
+    "exchange_threshold", "exchange_approval_channel_id",
   ] as const;
 
   for (const key of allowed) {

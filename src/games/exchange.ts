@@ -1,270 +1,208 @@
 /**
- * /両替 — 為替コマンド (v2)
+ * /両替 — Gil ⇄ エテル（Gil-bot API 連携）
  * ─────────────────────────────────────────────────────────
- * サブコマンド:
- *   - レート: 現在の為替レートと経済状態を表示
- *   - 第一→第二: currency1 → カジノコイン（手数料0%）
- *   - 第二→第一: カジノコイン → currency1（手数料20%、奉納）
- *   - 履歴: 自分の両替履歴
+ *   残高 : Gil(API) ＋ エテル(local) を表示
+ *   入庫 : Gil → エテル（賭場に入る / internal_to_external）
+ *   出庫 : エテル → Gil（換金 / external_to_internal）
+ *   履歴 : 直近の両替
+ * しきい値以上は管理者承認を挟む（server_config.exchange_threshold）。
+ * レート/手数料/上限は Gil-bot 側が決定。
  */
-
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  ButtonInteraction,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  PermissionFlagsBits,
+  ChannelType,
+  type TextChannel,
 } from "discord.js";
-import { ensureUser, getBalance, getCurrency1Balance } from "../core/bank";
+import { ensureUser, getBalance } from "../core/bank";
+import { getServerConfig, db } from "../core/db";
 import {
-  computeExchangeRate,
-  exchangeIn,
-  exchangeOut,
-  EXCHANGE_OUT_FEE,
-  BASE_RATE,
+  createExchange, executeExchange, getExchangeRow, isExchangeApiAvailable,
 } from "../core/exchange";
-import { db } from "../core/db";
-import { baseEmbed, infoEmbed, errorEmbed, COLORS } from "../ui/embeds";
-import { WORLD, formatCurrency1 } from "../world.config";
+import { gilBalance } from "../core/gilApi";
+import type { GilDirection } from "../core/gilApi";
+import { baseEmbed, errorEmbed } from "../ui/embeds";
+import { WORLD, formatEther, PALETTE } from "../world.config";
 
-const C1 = WORLD.CURRENCY_1_NAME;
-const C2 = WORLD.CURRENCY_2_NAME;
-const C1E = WORLD.CURRENCY_1_EMOJI;
-const C2E = WORLD.CURRENCY_2_SYMBOL;
+const C1 = WORLD.CURRENCY_1_NAME;   // Gil
+const C2 = WORLD.CURRENCY_2_NAME;   // エテル
+const fmtGil = (n: number) => `${n.toLocaleString()} ${C1}`;
 
-// ─── Command Builder ───────────────────────────────────
-
+// ─── Command ──────────────────────────────────────────
 export const exchangeCommand = new SlashCommandBuilder()
   .setName("両替")
   .setDescription(`💱 ${C1} と ${C2} を両替する`)
+  .addSubcommand((sc) => sc.setName("残高").setDescription(`${C1} と ${C2} の残高を見る`))
   .addSubcommand((sc) =>
-    sc.setName("レート").setDescription(`現在の為替レートを表示`),
+    sc.setName("入庫").setDescription(`${C1} → ${C2}（賭場に入る）`)
+      .addIntegerOption((o) => o.setName("額").setDescription(`投入する ${C1} の額`).setRequired(true).setMinValue(1)),
   )
   .addSubcommand((sc) =>
-    sc
-      .setName("入庫")
-      .setDescription(`${C1} → ${C2} に両替（手数料 0%）`)
-      .addIntegerOption((o) =>
-        o.setName("額").setDescription(`投入する ${C1} の額`).setRequired(true).setMinValue(1),
-      ),
+    sc.setName("出庫").setDescription(`${C2} → ${C1}（換金する）`)
+      .addIntegerOption((o) => o.setName("額").setDescription(`投入する ${C2} の額`).setRequired(true).setMinValue(1)),
   )
-  .addSubcommand((sc) =>
-    sc
-      .setName("出庫")
-      .setDescription(`${C2} → ${C1} に両替（${Math.round(EXCHANGE_OUT_FEE * 100)}% を ${WORLD.EXCHANGE_TRIBUTE}）`)
-      .addIntegerOption((o) =>
-        o.setName("額").setDescription(`投入する ${C2} の額`).setRequired(true).setMinValue(1),
-      ),
-  )
-  .addSubcommand((sc) =>
-    sc.setName("履歴").setDescription(`自分の両替履歴（直近10件）`),
-  );
-
-// ─── Handlers ───────────────────────────────────────────
+  .addSubcommand((sc) => sc.setName("履歴").setDescription("自分の両替履歴（直近10件）"));
 
 export async function handleExchangeCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
-  if (!guildId) {
-    await interaction.reply({ content: "サーバー内でのみ利用できる。", ephemeral: true });
+  if (!guildId) { await interaction.reply({ content: "サーバー内でのみ使えるよ。", ephemeral: true }); return; }
+
+  if (!isExchangeApiAvailable()) {
+    await interaction.reply({ embeds: [errorEmbed(`両替はいま準備中だよ。（${C1}連携の設定待ち）`)], ephemeral: true });
     return;
   }
 
   const sub = interaction.options.getSubcommand();
-
-  switch (sub) {
-    case "レート":
-      return handleRate(interaction, guildId);
-    case "入庫":
-      return handleIn(interaction, guildId);
-    case "出庫":
-      return handleOut(interaction, guildId);
-    case "履歴":
-      return handleHistory(interaction);
-  }
+  if (sub === "残高") return showBalance(interaction, guildId);
+  if (sub === "入庫") return startExchange(interaction, guildId, "internal_to_external");
+  if (sub === "出庫") return startExchange(interaction, guildId, "external_to_internal");
+  if (sub === "履歴") return showHistory(interaction);
 }
 
-// ─── レート表示 ────────────────────────────────────────
+// ─── 残高 ─────────────────────────────────────────────
+async function showBalance(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const userId = interaction.user.id;
+  ensureUser(userId, guildId);
+  await interaction.deferReply({ ephemeral: true });
 
-async function handleRate(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const info = computeExchangeRate(guildId);
+  const ether = getBalance(userId, guildId);
+  const gil = await gilBalance(guildId, userId);
+  const gilText = gil.ok ? fmtGil((gil.data as any).balance ?? 0) : `取得できなかった（${gil.message}）`;
 
-  const trendEmoji =
-    info.trend === "コイン高" ? "📈" :
-    info.trend === "コイン安" ? "📉" : "➖";
-
-  const embed = baseEmbed(`💱 為替レート — ${WORLD.CASINO_NAME}`, COLORS.GOLD)
-    .setDescription(
-      [
-        `**1 ${C1E} ${C1} = ${C2E}${info.rate.toLocaleString()} ${C2}**`,
-        ``,
-        `${trendEmoji} ${info.trend}`,
-      ].join("\n"),
-    )
+  const embed = baseEmbed("💱 残高", PALETTE.STARGOLD)
     .addFields(
-      {
-        name: "📊 経済指標",
-        value: [
-          `${C2} 総供給量: ${C2E}${info.totalSupply.toLocaleString()}`,
-          `プレイヤー数: ${info.playerCount}人`,
-          `健全ライン: ${C2E}${info.healthyLine.toLocaleString()}`,
-        ].join("\n"),
-        inline: true,
-      },
-      {
-        name: "🎯 レート内訳",
-        value: [
-          `基準: ${info.base.toFixed(2)}`,
-          `自動補正: ${info.autoOffset >= 0 ? "+" : ""}${info.autoOffset.toFixed(2)}`,
-          `手動補正: ${info.manualOffset >= 0 ? "+" : ""}${info.manualOffset.toFixed(2)}`,
-        ].join("\n"),
-        inline: true,
-      },
-      {
-        name: "💸 両替手数料",
-        value: [
-          `${C1E} → ${C2E}: **0%**`,
-          `${C2E} → ${C1E}: **${Math.round(EXCHANGE_OUT_FEE * 100)}%** (${WORLD.EXCHANGE_TRIBUTE})`,
-        ].join("\n"),
-        inline: false,
-      },
+      { name: `✦ ${C1}`, value: gilText, inline: true },
+      { name: `${WORLD.CURRENCY_2_SYMBOL} ${C2}`, value: formatEther(ether), inline: true },
     )
-    .setFooter({ text: "[仮: レートはプール総量に応じて自動変動する。換金時の奉納は半分がJP、半分が救済プールへ。]" });
-
-  await interaction.reply({ embeds: [embed] });
+    .setFooter({ text: `入庫=${C1}→${C2} / 出庫=${C2}→${C1}。レートや手数料は ${C1} 側で決まるよ。` });
+  await interaction.editReply({ embeds: [embed] });
 }
 
-// ─── 第一 → 第二 ────────────────────────────────────
-
-async function handleIn(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+// ─── 入庫 / 出庫 開始 ─────────────────────────────────
+async function startExchange(interaction: ChatInputCommandInteraction, guildId: string, direction: GilDirection): Promise<void> {
   const userId = interaction.user.id;
   const amount = interaction.options.getInteger("額", true);
-
   ensureUser(userId, guildId);
-  const currency1Before = getCurrency1Balance(userId, guildId);
+  const cfg = getServerConfig(guildId);
 
-  if (currency1Before < amount) {
-    await interaction.reply({
-      embeds: [errorEmbed(`${C1} の残高が足りぬ。\n所持: ${formatCurrency1(currency1Before)} / 必要: ${formatCurrency1(amount)}`)],
-      ephemeral: true,
-    });
+  // 出庫はローカルのエテル残高を事前チェック
+  if (direction === "external_to_internal") {
+    const bal = getBalance(userId, guildId);
+    if (bal < amount) {
+      await interaction.reply({ embeds: [errorEmbed(`${C2} が足りないよ。所持: ${formatEther(bal)}`)], ephemeral: true });
+      return;
+    }
+  }
+
+  const isInflow = direction === "internal_to_external";
+  const label = isInflow ? `入庫（${C1}→${C2}）` : `出庫（${C2}→${C1}）`;
+  const { id } = createExchange(guildId, userId, direction, amount, label);
+
+  const needsApproval = amount >= (cfg.exchange_threshold ?? 50000);
+
+  if (!needsApproval) {
+    await interaction.deferReply({ ephemeral: true });
+    const res = await executeExchange(id);
+    if (!res.ok) {
+      await interaction.editReply({ embeds: [errorEmbed(`両替できなかったよ。\n理由: ${res.message}`)] });
+      return;
+    }
+    await interaction.editReply({ embeds: [successEmbed(interaction, guildId, direction, amount, res.etherDelta)] });
     return;
   }
 
-  const result = exchangeIn(userId, amount, guildId);
+  // しきい値以上 → 管理者承認
+  const approvalChannelId = cfg.exchange_approval_channel_id || interaction.channelId;
+  const embed = baseEmbed("💱 両替の承認待ち", PALETTE.VERMILION)
+    .setDescription([
+      `**${interaction.user.displayName}** の両替申請（#${id}）`,
+      `種別: **${label}**　額: **${amount.toLocaleString()}**`,
+      "",
+      "管理者の承認で実行されるよ。",
+    ].join("\n"));
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`exapprove:approve:${id}`).setLabel("承認して実行").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`exapprove:reject:${id}`).setLabel("却下").setStyle(ButtonStyle.Danger),
+  );
 
-  if (!result.ok) {
-    const msg =
-      result.reason === "INSUFFICIENT_FUNDS" ? `${C1} の残高が足りぬ。` :
-      result.reason === "RECEIVED_TOO_SMALL" ? "受取額が小さすぎる。もっと多く入れよ。" :
-      "両替できない額だよ。";
-    await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
-    return;
-  }
+  try {
+    const ch = await interaction.client.channels.fetch(approvalChannelId);
+    if (ch && ch.type === ChannelType.GuildText) {
+      await (ch as TextChannel).send({ embeds: [embed], components: [row] });
+    }
+  } catch { /* チャンネル取得失敗 */ }
 
-  const balanceAfter = getBalance(userId, guildId);
-  const currency1After = getCurrency1Balance(userId, guildId);
-
-  const embed = baseEmbed(`✅ 両替 — ${C1} → ${C2}`, COLORS.WIN)
-    .setDescription(
-      [
-        `**${formatCurrency1(result.sourceAmount)} を ${C2E}${result.receivedAmount.toLocaleString()} に両替した。**`,
-        `適用レート: 1 ${C1E} = ${C2E}${result.rate.toLocaleString()}`,
-      ].join("\n"),
-    )
-    .addFields(
-      { name: `${C1E} ${C1}`, value: formatCurrency1(currency1After), inline: true },
-      { name: `${C2E} ${C2}`, value: `${C2E}${balanceAfter.toLocaleString()}`, inline: true },
-    )
-    .setFooter({ text: "[仮: 賭場へようこそ。たくさん遊んでいくがよい。]" });
-
-  await interaction.reply({ embeds: [embed] });
+  await interaction.reply({ content: `この額（${amount.toLocaleString()}）は承認が必要だよ。申請 #${id} を出したから、承認を待ってね。`, ephemeral: true });
 }
 
-// ─── 第二 → 第一 ────────────────────────────────────
-
-async function handleOut(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+function successEmbed(interaction: ChatInputCommandInteraction | ButtonInteraction, guildId: string, direction: GilDirection, amount: number, etherDelta: number) {
+  const isInflow = direction === "internal_to_external";
   const userId = interaction.user.id;
-  const amount = interaction.options.getInteger("額", true);
-
-  ensureUser(userId, guildId);
-  const balanceBefore = getBalance(userId, guildId);
-
-  if (balanceBefore < amount) {
-    await interaction.reply({
-      embeds: [errorEmbed(`${C2} の残高が足りぬ。\n所持: ${C2E}${balanceBefore.toLocaleString()} / 必要: ${C2E}${amount.toLocaleString()}`)],
-      ephemeral: true,
-    });
-    return;
-  }
-
-  const result = exchangeOut(userId, amount, guildId);
-
-  if (!result.ok) {
-    const msg =
-      result.reason === "INSUFFICIENT_FUNDS" ? `${C2} の残高が足りぬ。` :
-      result.reason === "RECEIVED_TOO_SMALL" ? "受取額が小さすぎる。もっと多く入れよ。" :
-      "両替できない額だよ。";
-    await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
-    return;
-  }
-
-  const balanceAfter = getBalance(userId, guildId);
-  const currency1After = getCurrency1Balance(userId, guildId);
-
-  const embed = baseEmbed(`✅ 両替 — ${C2} → ${C1}`, COLORS.GOLD)
+  const etherAfter = getBalance(userId, guildId);
+  const deltaText = `${etherDelta >= 0 ? "+" : "−"}${formatEther(Math.abs(etherDelta))}`;
+  return baseEmbed(`✅ 両替完了 — ${isInflow ? `${C1}→${C2}` : `${C2}→${C1}`}`, isInflow ? PALETTE.JADE : PALETTE.STARGOLD)
     .setDescription(
-      [
-        `**${C2E}${result.sourceAmount.toLocaleString()} を ${formatCurrency1(result.receivedAmount)} に両替した。**`,
-        `適用レート: 1 ${C1E} = ${C2E}${result.rate.toLocaleString()}`,
-        ``,
-        `✦ **${WORLD.EXCHANGE_TRIBUTE}**: ${C2E}${result.feeAmount.toLocaleString()}`,
-        `└ 半分は ${WORLD.POOL_JACKPOT} へ、もう半分は ${WORLD.POOL_RELIEF} へ。`,
-      ].join("\n"),
+      isInflow
+        ? `${fmtGil(amount)} を ${C2} に両替したよ。`
+        : `${formatEther(amount)} を ${C1} に両替したよ。`,
     )
     .addFields(
-      { name: `${C2E} ${C2}`, value: `${C2E}${balanceAfter.toLocaleString()}`, inline: true },
-      { name: `${C1E} ${C1}`, value: formatCurrency1(currency1After), inline: true },
+      { name: `${C2} の増減`, value: deltaText, inline: true },
+      { name: `${WORLD.CURRENCY_2_SYMBOL} ${C2} 残高`, value: formatEther(etherAfter), inline: true },
     )
-    .setFooter({ text: "[仮: 賭場の外へお戻りか。またいつでも来るとよい。]" });
-
-  await interaction.reply({ embeds: [embed] });
+    .setFooter({ text: isInflow ? "ようこそ、星約の賭場へ。" : "またいつでもおいで。" });
 }
 
-// ─── 履歴 ──────────────────────────────────────────────
+// ─── 承認ボタン ───────────────────────────────────────
+export async function handleExchangeApproval(interaction: ButtonInteraction): Promise<void> {
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: "承認できるのは管理者だけだよ。", ephemeral: true });
+    return;
+  }
+  const [, action, idStr] = interaction.customId.split(":");
+  const id = Number(idStr);
+  const row = getExchangeRow(id);
+  if (!row) { await interaction.reply({ content: "その申請は見つからないよ。", ephemeral: true }); return; }
+  if (row.status !== "pending_approval") {
+    await interaction.update({ content: `この申請は既に処理済み（${row.status}）。`, embeds: [], components: [] }).catch(() => {});
+    return;
+  }
 
-async function handleHistory(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (action === "reject") {
+    db.prepare("UPDATE api_exchanges SET status='failed', updated_at=datetime('now') WHERE id=?").run(id);
+    await interaction.update({ content: `申請 #${id} を却下したよ。`, embeds: [], components: [] }).catch(() => {});
+    return;
+  }
+
+  await interaction.deferUpdate();
+  const res = await executeExchange(id);
+  const text = res.ok
+    ? `✅ 申請 #${id} を承認・実行したよ。`
+    : `⚠️ 申請 #${id} の実行に失敗: ${res.message}`;
+  await interaction.editReply({ content: text, embeds: [], components: [] }).catch(() => {});
+}
+
+// ─── 履歴 ─────────────────────────────────────────────
+async function showHistory(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
-  const rows = db
-    .prepare(
-      `SELECT direction, source_amount, received_amount, fee_amount, rate, created_at
-       FROM currency_exchanges
-       WHERE user_id = ?
-       ORDER BY id DESC
-       LIMIT 10`,
-    )
-    .all(userId) as Array<{
-      direction: "in" | "out";
-      source_amount: number;
-      received_amount: number;
-      fee_amount: number;
-      rate: number;
-      created_at: string;
-    }>;
+  const rows = db.prepare(
+    `SELECT id, direction, amount, status, ether_delta, internal_amount, created_at
+     FROM api_exchanges WHERE user_id = ? ORDER BY id DESC LIMIT 10`,
+  ).all(userId) as Array<{ id: number; direction: string; amount: number; status: string; ether_delta: number | null; internal_amount: number | null }>;
 
   if (rows.length === 0) {
-    await interaction.reply({
-      embeds: [infoEmbed("📜 両替履歴", "まだ両替したことがないみたい。\n`/両替 入庫` か `/両替 出庫` で始めてみて。")],
-      ephemeral: true,
-    });
+    await interaction.reply({ embeds: [baseEmbed("📜 両替履歴", PALETTE.NIGHT).setDescription("まだ両替したことがないみたい。")], ephemeral: true });
     return;
   }
-
-  const lines = rows.map((r, i) => {
-    const arrow = r.direction === "in" ? `${C1E} → ${C2E}` : `${C2E} → ${C1E}`;
-    const fee = r.fee_amount > 0 ? ` (奉納 ${C2E}${r.fee_amount.toLocaleString()})` : "";
-    return `${i + 1}. ${arrow} ${r.source_amount.toLocaleString()} → ${r.received_amount.toLocaleString()}${fee} \`@${r.rate}\``;
+  const statusLabel: Record<string, string> = { done: "✅", failed: "✖", cancelled: "♻", pending_approval: "⏳", pending_commit: "⏳" };
+  const lines = rows.map((r) => {
+    const dir = r.direction === "internal_to_external" ? `${C1}→${C2}` : `${C2}→${C1}`;
+    return `${statusLabel[r.status] ?? "・"} #${r.id} ${dir} ${r.amount.toLocaleString()}`;
   });
-
-  const embed = baseEmbed("📜 両替履歴 — 直近10件", COLORS.BASE)
-    .setDescription(lines.join("\n"))
-    .setFooter({ text: `累計: ${rows.length}件表示` });
-
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [baseEmbed("📜 両替履歴 — 直近10件", PALETTE.STARGOLD).setDescription(lines.join("\n"))], ephemeral: true });
 }

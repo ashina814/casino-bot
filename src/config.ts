@@ -13,6 +13,9 @@ type AppConfig = {
   ownerId: string | null;
   dbPath: string;
   initialBalance: number;
+  /** Gil-bot 両替API。未設定なら /両替 は「準備中」応答 */
+  exchangeApiBaseUrl: string | null;
+  exchangeApiKey: string | null;
 };
 
 function requireEnv(name: string): string {
@@ -30,5 +33,7 @@ export const config: AppConfig = {
   raceChannelId: process.env.RACE_CHANNEL_ID ?? "",
   ownerId: process.env.OWNER_ID && process.env.OWNER_ID.trim() !== "" ? process.env.OWNER_ID.trim() : null,
   dbPath: path.resolve(process.cwd(), "data/database.sqlite"),
-  initialBalance: 3000
+  initialBalance: 3000,
+  exchangeApiBaseUrl: process.env.EXCHANGE_API_BASE_URL && process.env.EXCHANGE_API_BASE_URL.trim() !== "" ? process.env.EXCHANGE_API_BASE_URL.trim() : null,
+  exchangeApiKey: process.env.EXCHANGE_API_KEY && process.env.EXCHANGE_API_KEY.trim() !== "" ? process.env.EXCHANGE_API_KEY.trim() : null,
 };

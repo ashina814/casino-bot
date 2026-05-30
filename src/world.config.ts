@@ -25,10 +25,10 @@ export const WORLD = {
   MASCOT_ADDRESS: "きみ",
 
   // ─── 通貨 ─────────────────────────────────────────────
-  /** 第一通貨（向こうの Bot 管理）の名称。TODO: 決まり次第反映 */
-  CURRENCY_1_NAME: "[仮:第一通貨]",
+  /** 第一通貨（GilBeinBOT ASTERIA 管理）の名称 */
+  CURRENCY_1_NAME: "Gil",
   CURRENCY_1_EMOJI: "✧",
-  CURRENCY_1_SYMBOL: "[仮:¤]",
+  CURRENCY_1_SYMBOL: "Gil",
   /** 第二通貨。アステルの光のかけら。賭場でのみ意味を持つ */
   CURRENCY_2_NAME: "エテル",
   CURRENCY_2_EMOJI: "◈",
