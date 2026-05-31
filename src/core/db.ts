@@ -450,6 +450,31 @@ export function initializeDatabase(): void {
       PRIMARY KEY (user_id, effect_key)
     );
 
+    -- ═══ v2: 盆（多人数 丁半・BOT自動判定 PvP） ═══
+    -- status: open → settled / void。result: 'cho'(丁=偶) | 'han'(半=奇)
+    CREATE TABLE IF NOT EXISTS chohan_games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      host_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','void')),
+      deadline TEXT,
+      die1 INTEGER,
+      die2 INTEGER,
+      result TEXT CHECK(result IN ('cho','han')),
+      rake INTEGER NOT NULL DEFAULT 0,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS chohan_bets (
+      game_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      side TEXT NOT NULL CHECK(side IN ('cho','han')),
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (game_id, user_id)
+    );
+
     -- ═══ v2 §7.4: 卓を立てる（複製VC） ═══
     -- パネルから生成した一時VCを追跡。最後の1人退出 or 空のまま放置で自動削除。
     CREATE TABLE IF NOT EXISTS temp_voice_channels (

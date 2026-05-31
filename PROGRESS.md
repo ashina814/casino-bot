@@ -30,12 +30,17 @@ ASTERIA サーバー向け「星約の賭場」カジノ Bot。第二通貨**エ
 7. **複製VC「卓を立てる」(DESIGN_v2 §7.4)**: `/卓 パネル`(管理者)でパネル設置 → ボタンで用途別VC生成
    (サシ/麻雀/対戦/観戦/雑談)。最後の1人退出で自動削除。空き放置は起動時/10分毎にsweep。
    `temp_voice_channels`で追跡し再起動を跨いで掃除。**要 `GuildVoiceStates` intent / Bot権限 ManageChannels**
+   - 生成VCの入室権限は**パネル設置テキストチャンネルに追従**（permissionOverwritesをコピー）
+8. **`/盆` 多人数丁半（BOT自動判定 PvP）**: 胴(BOT)が二賽を振り、客が丁(偶)/半(奇)に分かれて張る。
+   締切(自動/手締め)→自動精算。勝ち側が負け側を賭け額比で山分け＋元本返却。**場代3%→星溜まり(JP)**。
+   片側のみ＝勝負不成立で全額返金。`chohan_games`/`chohan_bets`、起動時返金復旧。
+   - ⚠️ 既知: `/遊ぶ 丁半` は実装上ハイローに繋がってる（[asobu.ts:78](src/games/asobu.ts)）。本物の丁半は `/盆`
 
 ## 主要ファイル地図
 
 - `src/world.config.ts` — 世界観の値（名称/色/段階/星位/モード等）
 - `src/core/` — db / bank / economy / dialogue(+Data) / zashikiStage(星約段階) / exchange / gilApi / items
-- `src/games/` — 各ゲーム + board(板) + sashi + cheer + takutate(卓を立てる) + exchange(/両替) + shouten(/商店)
+- `src/games/` — 各ゲーム + board(板) + sashi + cheer + takutate(卓) + chohan(盆) + exchange(/両替) + shouten(/商店)
 - `src/index.ts` — interaction ルータ + 起動時返金/整合
 - `WORLD.md` 正典 / `DESIGN_v2.md` 構造設計 / `~/.claude/plans/ok-bot-clever-balloon.md` 詳細プラン全文
 

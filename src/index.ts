@@ -24,6 +24,7 @@ import { handleBoardCommand, handleBoardButton, handleBoardSelect, handleBoardMo
 import { handleSashiCommand, handleSashiButton, refundStaleSashiOnStartup } from "./games/sashi";
 import { handleCheerCommand } from "./games/cheer";
 import { handleTakuCommand, handleTakuButton, handleTableVoiceState, sweepStaleTempVCs } from "./games/takutate";
+import { handleChohanCommand, handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
 
 // ─── Startup Cleanup ───────────────────────────────────
 
@@ -66,6 +67,11 @@ async function bootstrap(): Promise<void> {
     refundStaleSashiOnStartup();
   } catch (err) {
     console.error("[bootstrap] refundStaleSashiOnStartup failed:", err);
+  }
+  try {
+    refundStaleChohanOnStartup();
+  } catch (err) {
+    console.error("[bootstrap] refundStaleChohanOnStartup failed:", err);
   }
   // 為替の中断分を回収（API有効時のみ・非同期で投げっぱなし）
   reconcileStaleExchangesOnStartup().catch((err) =>
@@ -135,6 +141,8 @@ async function bootstrap(): Promise<void> {
             return await handleCheerCommand(interaction);
           case "卓":
             return await handleTakuCommand(interaction);
+          case "盆":
+            return await handleChohanCommand(interaction);
         }
       }
 
@@ -161,6 +169,16 @@ async function bootstrap(): Promise<void> {
       // ── 卓を立てる (taku:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("taku:")) {
         await handleTakuButton(interaction);
+        return;
+      }
+
+      // ── 盆 (丁半 PvP / bon:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("bon:")) {
+        await handleChohanButton(interaction);
+        return;
+      }
+      if (interaction.isModalSubmit() && interaction.customId.startsWith("bon:")) {
+        await handleChohanModal(interaction);
         return;
       }
 
