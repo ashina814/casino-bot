@@ -191,6 +191,19 @@ async function createTable(interaction: ButtonInteraction, typeKey: string): Pro
   const parent: CategoryChannel | null =
     panelChannel && "parent" in panelChannel ? (panelChannel.parent as CategoryChannel | null) : null;
 
+  // 入室権限はパネルを置いたテキストチャンネルに追従させる。
+  // そのテキストチャンネルの上書きをコピーすれば「このチャンネルを見られる人＝卓に入れる人」になる。
+  // （ViewChannel が許可された者だけがVCを見て入れる／拒否された者は入れない）
+  const overwrites =
+    panelChannel && "permissionOverwrites" in panelChannel
+      ? panelChannel.permissionOverwrites.cache.map((o) => ({
+          id: o.id,
+          type: o.type,
+          allow: o.allow.bitfield,
+          deny: o.deny.bitfield,
+        }))
+      : undefined;
+
   lastCreate.set(userId, now);
 
   let vc: VoiceChannel;
@@ -200,6 +213,7 @@ async function createTable(interaction: ButtonInteraction, typeKey: string): Pro
       type: ChannelType.GuildVoice,
       parent: parent ?? undefined,
       userLimit: type.userLimit,
+      permissionOverwrites: overwrites,
       reason: `卓を立てる: ${interaction.user.tag} (${type.label})`,
     });
   } catch (err) {
