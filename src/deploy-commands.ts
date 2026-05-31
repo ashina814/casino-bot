@@ -15,6 +15,7 @@ import { exchangeCommand } from "./games/exchange";
 import { boardCommand } from "./games/board";
 import { sashiCommand } from "./games/sashi";
 import { cheerCommand } from "./games/cheer";
+import { takuCommand } from "./games/takutate";
 
 async function deployCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discordToken);
@@ -34,6 +35,7 @@ async function deployCommands(): Promise<void> {
     boardCommand.toJSON(),
     sashiCommand.toJSON(),
     cheerCommand.toJSON(),
+    takuCommand.toJSON(),
   ];
   if (config.guildId) {
     // 開発用: 特定 guild に即時デプロイ

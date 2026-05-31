@@ -23,6 +23,7 @@ import { reconcileStaleExchangesOnStartup } from "./core/exchange";
 import { handleBoardCommand, handleBoardButton, handleBoardSelect, handleBoardModal, refundStaleMarketsOnStartup } from "./games/board";
 import { handleSashiCommand, handleSashiButton, refundStaleSashiOnStartup } from "./games/sashi";
 import { handleCheerCommand } from "./games/cheer";
+import { handleTakuCommand, handleTakuButton, handleTableVoiceState, sweepStaleTempVCs } from "./games/takutate";
 
 // ─── Startup Cleanup ───────────────────────────────────
 
@@ -78,12 +79,23 @@ async function bootstrap(): Promise<void> {
   cleanStaleSessions();
 
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
   });
 
   client.once(Events.ClientReady, (ready) => {
     console.log(`✦ 星約の賭場 起動 — ${ready.user.tag}`);
     registerSchedulers(client);
+    // 卓を立てる: 再起動前に空のまま残った一時VCを掃除（grace 0 = 即時）
+    sweepStaleTempVCs(client, 0).catch((err) =>
+      console.error("[bootstrap] sweepStaleTempVCs failed:", err),
+    );
+  });
+
+  // 卓を立てる: 最後の1人が抜けたVCを自動削除
+  client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+    handleTableVoiceState(oldState, newState).catch((err) =>
+      console.error("[voiceState] handleTableVoiceState failed:", err),
+    );
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
@@ -121,6 +133,8 @@ async function bootstrap(): Promise<void> {
             return await handleSashiCommand(interaction);
           case "囃子":
             return await handleCheerCommand(interaction);
+          case "卓":
+            return await handleTakuCommand(interaction);
         }
       }
 
@@ -141,6 +155,12 @@ async function bootstrap(): Promise<void> {
       // ── サシ星約 (sashi:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("sashi:")) {
         await handleSashiButton(interaction);
+        return;
+      }
+
+      // ── 卓を立てる (taku:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("taku:")) {
+        await handleTakuButton(interaction);
         return;
       }
 

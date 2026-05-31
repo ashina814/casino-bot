@@ -53,6 +53,16 @@ export function registerSchedulers(client: Client): void {
     }
   });
 
+  // 卓を立てる: 空のまま放置された一時VCの定期掃除（10分ごと・grace 5分）
+  cron.schedule("*/10 * * * *", async () => {
+    try {
+      const { sweepStaleTempVCs } = require("../games/takutate");
+      await sweepStaleTempVCs(client, 5 * 60_000);
+    } catch (error) {
+      console.error("[scheduler] Failed to sweep temp VCs:", error);
+    }
+  });
+
   // ゾンビセッション（5分以上経過した排他ロック）の定期クリーンアップ
   cron.schedule("*/5 * * * *", () => {
     try {

@@ -27,12 +27,15 @@ ASTERIA サーバー向け「星約の賭場」カジノ Bot。第二通貨**エ
 5. **為替API連携**: `core/gilApi.ts`＋`/両替`(入庫/出庫/残高/履歴)。Gil-bot側が正、casinoはエテル増減のみ。
    requestId冪等・失敗時ロールバック・しきい値承認。**モック検証済み／実キー待ち**
 6. **景品ショップ拡充**: 使い切り景品5種(お守り/保険/庇護/二度振り/インサイダー)・装備制・6ゲームにフック
+7. **複製VC「卓を立てる」(DESIGN_v2 §7.4)**: `/卓 パネル`(管理者)でパネル設置 → ボタンで用途別VC生成
+   (サシ/麻雀/対戦/観戦/雑談)。最後の1人退出で自動削除。空き放置は起動時/10分毎にsweep。
+   `temp_voice_channels`で追跡し再起動を跨いで掃除。**要 `GuildVoiceStates` intent / Bot権限 ManageChannels**
 
 ## 主要ファイル地図
 
 - `src/world.config.ts` — 世界観の値（名称/色/段階/星位/モード等）
 - `src/core/` — db / bank / economy / dialogue(+Data) / zashikiStage(星約段階) / exchange / gilApi / items
-- `src/games/` — 各ゲーム + board(板) + sashi + cheer + exchange(/両替) + shouten(/商店)
+- `src/games/` — 各ゲーム + board(板) + sashi + cheer + takutate(卓を立てる) + exchange(/両替) + shouten(/商店)
 - `src/index.ts` — interaction ルータ + 起動時返金/整合
 - `WORLD.md` 正典 / `DESIGN_v2.md` 構造設計 / `~/.claude/plans/ok-bot-clever-balloon.md` 詳細プラン全文
 
@@ -45,7 +48,8 @@ ASTERIA サーバー向け「星約の賭場」カジノ Bot。第二通貨**エ
 - ⬜ **A/E/F系景品**（黄金ネーム・名前飾り等の可視化系）
 - ⬜ **Iter.3 派閥**（知恵/言葉/火）= **シーズン2送り**
 - ⬜ **Iter.4 従業員(支配人/ディーラー)+VIP** — 給与=Gil なので為替API稼働後
-- ⬜ **複製VCパネル / フォーラム化**（DESIGN_v2 §7）
+- ✅ **複製VCパネル**（DESIGN_v2 §7.4）→ 上記7で実装。実機スモーク未（VC生成/自動削除を実際に確認したい）
+  - 残: **遊技場フォーラム化**（§7.2.1）は常設卓スレッドをDiscordで手動作成する運用でBot側コード不要。要サーバー設定
 
 ## 運用メモ
 

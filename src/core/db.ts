@@ -449,6 +449,16 @@ export function initializeDatabase(): void {
       armed_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (user_id, effect_key)
     );
+
+    -- ═══ v2 §7.4: 卓を立てる（複製VC） ═══
+    -- パネルから生成した一時VCを追跡。最後の1人退出 or 空のまま放置で自動削除。
+    CREATE TABLE IF NOT EXISTS temp_voice_channels (
+      channel_id TEXT PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      table_type TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // ─── Migration: exchange_logs CHECK 制約に 'refund' を許可 ──────
