@@ -17,6 +17,7 @@ import {
   TextChannel,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -232,7 +233,10 @@ export async function runRouletteSession(
     const profile = getProfile(b.userId, guildId);
 
     if (won) {
-      const rawPayout = Math.floor(b.amount * PAYOUTS[b.betType]);
+      let rawPayout = Math.floor(b.amount * PAYOUTS[b.betType]);
+      const wb = consumeWinBonus(b.userId);
+      let itemTag = "";
+      if (wb.mult !== 1) { rawPayout = Math.floor(rawPayout * wb.mult); itemTag = " ✨"; }
       const net = rawPayout - b.amount;
       const newBal = getBalance(b.userId, guildId) + rawPayout;
       const fukuRate = getFukuWeight(newBal);
@@ -245,12 +249,20 @@ export async function runRouletteSession(
       addExp(b.userId, 15);
 
       const emoji = b.betType === "green" ? "🎯" : "👑";
-      results.push(`${emoji} <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → **+◈${(net - fukuTax).toLocaleString()}**`);
+      results.push(`${emoji} <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → **+◈${(net - fukuTax).toLocaleString()}**${itemTag}`);
     } else {
-      recordLoss(b.userId);
-      distributeHouseEarnings(guildId, b.amount);
+      const prot = consumeLossProtection(b.userId);
+      if (prot.refundRate > 0) {
+        const refund = Math.floor(b.amount * prot.refundRate);
+        adjustBalance(b.userId, refund, "item_refund", "roulette", guildId);
+        if (prot.refundRate < 1) { recordLoss(b.userId); distributeHouseEarnings(guildId, b.amount - refund); }
+        results.push(`🛡 <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → 返金 +◈${refund.toLocaleString()}（${prot.note}）`);
+      } else {
+        recordLoss(b.userId);
+        distributeHouseEarnings(guildId, b.amount);
+        results.push(`😭 <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → -◈${b.amount.toLocaleString()}`);
+      }
       addExp(b.userId, 5);
-      results.push(`😭 <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → -◈${b.amount.toLocaleString()}`);
     }
   }
 

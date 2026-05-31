@@ -22,6 +22,7 @@ import {
 } from "discord.js";
 import { db, getServerConfig, runTransaction } from "../../core/db";
 import { adjustBalance, getBalance, ensureUser, validateBet, getProfile } from "../../core/bank";
+import { consumeInsider } from "../../core/items";
 import { getTierByKey } from "../../core/economy";
 import { baseEmbed, COLORS, infoEmbed, errorEmbed, successEmbed } from "../../ui/embeds";
 
@@ -320,6 +321,19 @@ export async function renderDashboard(
         ] : []),
       ].join("\n"),
     );
+
+  // インサイダーの噂（装備中なら消費して、いちばん動きそうな銘柄をこっそり開示）
+  if (consumeInsider(userId)) {
+    const sorted = [...stocks].sort((a, b) => Math.abs(b.trend) - Math.abs(a.trend));
+    const top = sorted[0];
+    if (top) {
+      embed.addFields({
+        name: "🕵 インサイダーの噂",
+        value: `*「ここだけの話。『${top.emoji}${top.name}』が、これから${top.trend >= 0 ? "上がりそう" : "落ちそう"}だよ。……誰にも言わないでね？」*`,
+        inline: false,
+      });
+    }
+  }
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("stocks_buy_menu").setLabel("💰 購入する").setStyle(ButtonStyle.Success),

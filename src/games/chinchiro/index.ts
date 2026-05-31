@@ -22,6 +22,7 @@ import {
   ModalSubmitInteraction,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { consumeWinBonus, consumeLossProtection, consumeReroll } from "../../core/items";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -263,7 +264,11 @@ async function runRollLoop(
   let finalDice: Dice = [1, 1, 1];
   let finalHand: Hand = { type: "menashi" };
 
-  while (rollNo < MAX_ROLLS) {
+  // 二度振りの権（装備中なら消費して投数+1）
+  const rerollUsed = consumeReroll(userId);
+  const playerMaxRolls = MAX_ROLLS + (rerollUsed ? 1 : 0);
+
+  while (rollNo < playerMaxRolls) {
     rollNo += 1;
 
     // ── シェイクアニメ ──
@@ -279,7 +284,7 @@ async function runRollLoop(
           "",
           diceDisplay(shake),
           "",
-          `ベット: ◈${bet.toLocaleString()} / 第${rollNo}投 (残り${MAX_ROLLS - rollNo + 1})`,
+          `ベット: ◈${bet.toLocaleString()} / 第${rollNo}投 (残り${playerMaxRolls - rollNo + 1})${rerollUsed ? " ✨二度振り" : ""}`,
         ].join("\n")
       );
       await reply.edit({ embeds: [e], components: [] });
@@ -293,10 +298,10 @@ async function runRollLoop(
     finalHand = hand;
 
     const handLabel = describeHand(hand);
-    const remainingRolls = MAX_ROLLS - rollNo;
+    const remainingRolls = playerMaxRolls - rollNo;
 
     // ── メナシは自動再振り（ただし最終投なら決着） ──
-    if (hand.type === "menashi" && rollNo < MAX_ROLLS) {
+    if (hand.type === "menashi" && rollNo < playerMaxRolls) {
       const e = baseEmbed("🎲 チンチロ", COLORS.GOLD).setDescription(
         [
           handLabel,
@@ -320,7 +325,7 @@ async function runRollLoop(
     // ── 目 ──
     if (hand.type === "me") {
       // 最終投なら確定
-      if (rollNo >= MAX_ROLLS) {
+      if (rollNo >= playerMaxRolls) {
         await settleVsDealer(reply, guildId, userId, bet, tierKey, hand, dice);
         return;
       }
@@ -542,9 +547,12 @@ async function settleVsDealer(
   let fukuTax = 0;
   let extraSkipped = false;
 
+  let itemNote = "";
   if (mul > 0) {
     // 純利益: bet * mul * (1 - houseEdge)。賭金 bet も同時に返却
-    const profit = Math.floor(bet * mul * (1 - houseEdge));
+    let profit = Math.floor(bet * mul * (1 - houseEdge));
+    const wb = consumeWinBonus(userId);
+    if (wb.mult !== 1) { profit = Math.floor(profit * wb.mult); itemNote = wb.note ?? ""; }
     const total = bet + profit;
     const newBal = getBalance(userId, guildId) + total;
     const fukuRate = getFukuWeight(newBal);
@@ -569,15 +577,25 @@ async function settleVsDealer(
     // 通常負け：既に賭金控除済み、追加徴収なし
     if (checkSubstituteBlessing(userId)) {
       adjustBalance(userId, bet, "blessing_refund", "chinchiro", guildId);
-      dialogue = "「…しゃーないのう、今回だけじゃぞ？（身代わりの加護が発動し、掛け金が返還された！）」";
+      dialogue = "「あぶない。……今のは、わたしが庇っといたよ。（身代わりの加護で賭け金が戻った！）」";
       resultType = "win";
       payoutText = "🛡️ 身代わりの加護で返金";
     } else {
-      recordLoss(userId);
-      distributeHouseEarnings(guildId, bet);
-      addExp(userId, 5);
-      dialogue = dialogueLose(ctx, bet);
-      payoutText = `💸 -◈${bet.toLocaleString()}`;
+      const prot = consumeLossProtection(userId);
+      if (prot.refundRate > 0) {
+        const refund = Math.floor(bet * prot.refundRate);
+        adjustBalance(userId, refund, "item_refund", "chinchiro", guildId);
+        itemNote = prot.note ?? "";
+        if (prot.refundRate < 1) { recordLoss(userId); distributeHouseEarnings(guildId, bet - refund); addExp(userId, 5); }
+        dialogue = dialogueLose(ctx, bet);
+        payoutText = prot.refundRate >= 1 ? `🛡 敗北無効：◈${refund.toLocaleString()} 返金` : `🛡 保険：◈${refund.toLocaleString()} 返金`;
+      } else {
+        recordLoss(userId);
+        distributeHouseEarnings(guildId, bet);
+        addExp(userId, 5);
+        dialogue = dialogueLose(ctx, bet);
+        payoutText = `💸 -◈${bet.toLocaleString()}`;
+      }
     }
   } else {
     // mul ≤ -2: 大きい負け。賭金 bet は既に控除済み、追加で (|mul|-1) * bet を徴収
@@ -600,6 +618,8 @@ async function settleVsDealer(
       extraSkipped = true;
     }
   }
+
+  if (itemNote) dialogue += `\n（${itemNote}）`;
 
   const newWinStreak = mul > 0 ? profile.current_win_streak + 1 : 0;
   const streakBadge = newWinStreak >= 2 ? `🔥 ${newWinStreak}連勝中！\n` : "";

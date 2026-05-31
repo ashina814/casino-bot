@@ -2,14 +2,15 @@ import { ChatInputCommandInteraction, ActionRowBuilder, StringSelectMenuBuilder,
 import { adjustBalance, ensureUser, getBalance } from "../core/bank";
 import { db, runTransaction } from "../core/db";
 import { infoEmbed, errorEmbed, successEmbed, COLORS } from "../ui/embeds";
+import { CONSUMABLES, grantItem } from "../core/items";
 
 const SHOP_ITEMS = [
   // 称号
   { id: "title_patron", type: "title", name: "【称号】賭場のパトロン", cost: 100_000, desc: "賭場を支える太客の証。" },
   { id: "title_gold", type: "title", name: "【称号】黄金の成金", cost: 500_000, desc: "黄金のオーラを纏う金持ちの証。" },
   { id: "title_zashiki", type: "title", name: "【称号】アステルの寵児", cost: 1_000_000, desc: "アステルすら手なずける大富豪。" },
-  // 実用品
-  { id: "hint_stock", type: "consumable", name: "【秘匿】星脈相場の裏情報", cost: 5_000, desc: "現在の相場のトレンドをこっそり教えてもらう。" },
+  // 使い切り景品（在庫に入る。/商店 使う で装備）
+  ...CONSUMABLES.map((c) => ({ id: c.key, type: "consumable" as const, name: `🎴 ${c.name}`, cost: c.price, desc: `${c.desc}（/商店 使う で装備）` })),
   // プレゼント（好感度）
   { id: "present_dango", type: "present", name: "🍡 星屑の菓子（アステルへ）", cost: 1_000, desc: "アステルにプレゼントする。少しだけ喜ぶ。（好感度+1）", affection: 1 },
   { id: "present_sake", type: "present", name: "🍶 月光の雫（アステルへ）", cost: 10_000, desc: "アステルにプレゼントする。かなり喜ぶ。（好感度+15）", affection: 15 },
@@ -78,6 +79,7 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
           db.prepare("INSERT INTO titles (user_id, title_key, title_name) VALUES (?, ?, ?)").run(userId, item.id, item.name.replace("【称号】", ""));
         } else if (item.type === "consumable") {
           adjustBalance(userId, -item.cost, "shop_buy");
+          grantItem(userId, item.id, 1);
         } else if (item.type === "present") {
           adjustBalance(userId, -item.cost, "shop_present");
           const { addAffection } = require("../core/db");
@@ -103,15 +105,9 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
       }
 
       // 購入成功の演出
-      if (item.id === "hint_stock") {
-        const stocks = db.prepare("SELECT name, emoji, trend FROM stocks ORDER BY ABS(trend) DESC LIMIT 1").all() as { name: string; emoji: string; trend: number }[];
-        let hintMsg = "今は特に動きがないみたい。";
-        if (stocks.length > 0) {
-          const target = stocks[0];
-          hintMsg = `「いいよ。『${target.emoji}${target.name}』が${target.trend > 0 ? "これから上がる" : "これから落ちる"}はず。誰にも言わないでね？」`;
-        }
+      if (item.type === "consumable") {
         await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** を購入しました！\n\n${hintMsg}`)] });
+        await i.followUp({ embeds: [successEmbed(`**${item.name}** を手に入れたよ。\n\n`+"`/商店 使う` で装備すると、次の勝負で効くよ。")] });
       } else if (item.type === "present") {
         let zashikiReply = "";
         if (item.id === "present_dango") zashikiReply = "「わ、お菓子だ。ありがと、もらうね。……んむ。うん、悪くない。」";

@@ -435,6 +435,20 @@ export function initializeDatabase(): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- ═══ v2: 使い切り景品 在庫 & 装備中効果 ═══
+    CREATE TABLE IF NOT EXISTS consumable_items (
+      user_id TEXT NOT NULL,
+      item_key TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 0 CHECK(quantity >= 0),
+      PRIMARY KEY (user_id, item_key)
+    );
+    CREATE TABLE IF NOT EXISTS active_effects (
+      user_id TEXT NOT NULL,
+      effect_key TEXT NOT NULL,
+      armed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, effect_key)
+    );
   `);
 
   // ─── Migration: exchange_logs CHECK 制約に 'refund' を許可 ──────

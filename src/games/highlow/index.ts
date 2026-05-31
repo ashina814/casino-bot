@@ -14,6 +14,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -161,9 +162,12 @@ export async function startChohan(
     };
 
     let isBlessed = false;
+    let itemNote = "";
 
     if (won) {
-      const rawPayout = Math.floor(bet * 2 * (1 - houseEdge));
+      let rawPayout = Math.floor(bet * 2 * (1 - houseEdge));
+      const wb = consumeWinBonus(userId);
+      if (wb.mult !== 1) { rawPayout = Math.floor(rawPayout * wb.mult); itemNote = wb.note ?? ""; }
       const newBalance = getBalance(userId, guildId) + rawPayout;
       const fukuRate = getFukuWeight(newBalance);
       fukuTax = Math.floor(rawPayout * fukuRate);
@@ -178,8 +182,16 @@ export async function startChohan(
         adjustBalance(userId, bet, "blessing_refund", "chohan", guildId);
         isBlessed = true;
       } else {
-        recordLoss(userId);
-        distributeHouseEarnings(guildId, bet);
+        const prot = consumeLossProtection(userId);
+        if (prot.refundRate > 0) {
+          const refund = Math.floor(bet * prot.refundRate);
+          adjustBalance(userId, refund, "item_refund", "chohan", guildId);
+          itemNote = prot.note ?? "";
+          if (prot.refundRate < 1) { recordLoss(userId); distributeHouseEarnings(guildId, bet - refund); }
+        } else {
+          recordLoss(userId);
+          distributeHouseEarnings(guildId, bet);
+        }
       }
     }
 
@@ -189,9 +201,11 @@ export async function startChohan(
     let dialogue = won
       ? dialogueWin(ctx, payout, bet)
       : dialogueLose(ctx, bet);
-    
+
     if (isBlessed) {
-      dialogue = "「…しゃーないのう、今回だけじゃぞ？（身代わりの加護が発動し、掛け金が返還された！）」";
+      dialogue = "「あぶない。……今のは、わたしが庇っといたよ。（身代わりの加護で賭け金が戻った！）」";
+    } else if (itemNote) {
+      dialogue += `\n（${itemNote}）`;
     }
 
     const choLabel = result === "cho" ? "丁（偶数）" : "半（奇数）";

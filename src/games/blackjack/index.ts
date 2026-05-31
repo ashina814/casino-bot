@@ -14,6 +14,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -346,13 +347,20 @@ async function resolveGame(
 
   let actualPayout = payout;
   let fukuTax = 0;
-  const net = payout - totalBet;
+  let net = payout - totalBet;
+  let itemNote = "";
 
   if (net > 0) {
-    const newBal = getBalance(userId, guildId) + payout;
+    // 使い切り景品: 勝利ボーナス（勝ち分に倍率）
+    const wb = consumeWinBonus(userId);
+    let effPayout = payout;
+    if (wb.mult !== 1) { effPayout = totalBet + Math.floor(net * wb.mult); itemNote = wb.note ?? ""; }
+    net = effPayout - totalBet;
+
+    const newBal = getBalance(userId, guildId) + effPayout;
     const rate = getFukuWeight(newBal);
     fukuTax = Math.floor(net * rate);
-    actualPayout = payout - fukuTax;
+    actualPayout = effPayout - fukuTax;
 
     adjustBalance(userId, actualPayout, "bj_win", "blackjack", guildId);
     recordWin(userId, net - fukuTax);
@@ -360,8 +368,16 @@ async function resolveGame(
   } else if (net === 0) {
     adjustBalance(userId, totalBet, "bj_push", "blackjack", guildId);
   } else {
-    recordLoss(userId);
-    distributeHouseEarnings(guildId, totalBet);
+    const prot = consumeLossProtection(userId);
+    if (prot.refundRate > 0) {
+      const refund = Math.floor(totalBet * prot.refundRate);
+      adjustBalance(userId, refund, "item_refund", "blackjack", guildId);
+      itemNote = prot.note ?? "";
+      if (prot.refundRate < 1) { recordLoss(userId); distributeHouseEarnings(guildId, totalBet - refund); }
+    } else {
+      recordLoss(userId);
+      distributeHouseEarnings(guildId, totalBet);
+    }
   }
 
   addExp(userId, net > 0 ? 20 : net === 0 ? 10 : 5);
@@ -378,11 +394,12 @@ async function resolveGame(
     draw: "引き分け",
   };
 
-  const dialogue = net > 0
+  let dialogue = net > 0
     ? dialogueWin(ctx, net, totalBet)
     : net === 0
     ? "「引き分けか。悪くないね。」"
     : dialogueLose(ctx, totalBet);
+  if (itemNote) dialogue += `\n（${itemNote}）`;
 
   const embed = gameResultEmbed({
     title: `🃏 星札勝負${net >= 0 ? ` — ${resultMap[resultLabel] ?? ""}` : ""}`,

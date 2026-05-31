@@ -26,6 +26,7 @@ import {
 } from "../../core/economy";
 import { dialogueWin, dialogueLose, dialogueFukuWeight, type DialogueContext } from "../../core/dialogue";
 import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
+import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 
 // ─── Symbols & Payouts ─────────────────────────────────
 //
@@ -232,6 +233,13 @@ export async function playSlots(
     payout += jpWin;
   }
 
+  // 使い切り景品: 勝利ボーナス（福のお守り 等）
+  let itemNote = "";
+  if (payout > 0) {
+    const wb = consumeWinBonus(userId);
+    if (wb.mult !== 1) { payout = Math.floor(payout * wb.mult); itemNote = wb.note ?? ""; }
+  }
+
   // Apply fuku weight (progressive tax)
   let actualPayout = payout;
   let fukuTax = 0;
@@ -273,16 +281,33 @@ export async function playSlots(
       dialogue = "「フリースピン、外れたか…！」";
     } else if (checkSubstituteBlessing(userId)) {
       adjustBalance(userId, bet, "blessing_refund", "slots", guildId);
-      dialogue = "「…しゃーないのう、今回だけじゃぞ？（身代わりの加護が発動し、掛け金が返還された！）」";
+      dialogue = "「あぶない。……今のは、わたしが庇っといたよ。（身代わりの加護で賭け金が戻った！）」";
       resultType = "win";
     } else {
-      recordLoss(userId);
-      distributeHouseEarnings(guildId, bet);
-      resultType = "lose";
-      dialogue = dialogueLose(ctx, bet);
-      addExp(userId, 5);
+      const prot = consumeLossProtection(userId);
+      if (prot.refundRate > 0) {
+        const refund = Math.floor(bet * prot.refundRate);
+        adjustBalance(userId, refund, "item_refund", "slots", guildId);
+        if (prot.refundRate >= 1) {
+          resultType = "win";
+          dialogue = `${dialogueLose(ctx, bet)}\n*（${prot.note}）*`;
+        } else {
+          recordLoss(userId);
+          distributeHouseEarnings(guildId, bet - refund);
+          resultType = "lose";
+          dialogue = `${dialogueLose(ctx, bet)}\n*（${prot.note}）*`;
+          addExp(userId, 5);
+        }
+      } else {
+        recordLoss(userId);
+        distributeHouseEarnings(guildId, bet);
+        resultType = "lose";
+        dialogue = dialogueLose(ctx, bet);
+        addExp(userId, 5);
+      }
     }
   }
+  if (itemNote) dialogue += `\n*（${itemNote}）*`;
 
   // Fuku weight message
   const fukuMsg = payout > 0 ? dialogueFukuWeight(newBalance) : null;

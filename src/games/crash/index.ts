@@ -15,6 +15,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -267,7 +268,10 @@ export async function playCrash(
 
   if (cashedOut) {
     // Player won
-    const rawPayout = Math.floor(bet * cashOutMultiplier);
+    let rawPayout = Math.floor(bet * cashOutMultiplier);
+    let itemNote = "";
+    const wb = consumeWinBonus(userId);
+    if (wb.mult !== 1) { rawPayout = Math.floor(rawPayout * wb.mult); itemNote = wb.note ?? ""; }
     const net = rawPayout - bet;
     const newBal = getBalance(userId, guildId) + rawPayout;
     const fukuRate = getFukuWeight(newBal);
@@ -279,7 +283,8 @@ export async function playCrash(
     if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
     addExp(userId, 15);
 
-    const dialogue = dialogueWin(ctx, net, bet);
+    let dialogue = dialogueWin(ctx, net, bet);
+    if (itemNote) dialogue += `\n（${itemNote}）`;
     const embed = gameResultEmbed({
       title: "📈 星昇り — 離脱成功！",
       description: [
@@ -296,11 +301,21 @@ export async function playCrash(
     await replyMsg.edit({ embeds: [embed], components: [buildRetryRow()] });
   } else {
     // Crashed
-    recordLoss(userId);
-    distributeHouseEarnings(guildId, bet);
+    let lossNote = "";
+    const prot = consumeLossProtection(userId);
+    if (prot.refundRate > 0) {
+      const refund = Math.floor(bet * prot.refundRate);
+      adjustBalance(userId, refund, "item_refund", "crash", guildId);
+      lossNote = prot.note ?? "";
+      if (prot.refundRate < 1) { recordLoss(userId); distributeHouseEarnings(guildId, bet - refund); }
+    } else {
+      recordLoss(userId);
+      distributeHouseEarnings(guildId, bet);
+    }
     addExp(userId, 5);
 
-    const dialogue = dialogueLose(ctx, bet);
+    let dialogue = dialogueLose(ctx, bet);
+    if (lossNote) dialogue += `\n（${lossNote}）`;
     const embed = gameResultEmbed({
       title: "💥 星昇り — 燃え尽き！",
       description: [
