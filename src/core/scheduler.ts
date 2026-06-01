@@ -51,6 +51,16 @@ export function registerSchedulers(client: Client): void {
     }
   });
 
+  // VIP: 期限切れ会員のロール剥奪（毎時0分にチェック）
+  cron.schedule("0 * * * *", async () => {
+    try {
+      const { sweepExpiredVips } = require("../games/vip");
+      await sweepExpiredVips(client);
+    } catch (error) {
+      console.error("[scheduler] Failed to sweep expired VIPs:", error);
+    }
+  });
+
   // 卓を立てる: 空のまま放置された一時VCの定期掃除（10分ごと・grace 5分）
   cron.schedule("*/10 * * * *", async () => {
     try {

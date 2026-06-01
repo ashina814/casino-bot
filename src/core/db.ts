@@ -96,6 +96,8 @@ export type ServerConfig = {
   exchange_threshold: number;
   /** v2 為替: 承認ボタンを流すチャンネル（未設定なら実行チャンネル） */
   exchange_approval_channel_id: string | null;
+  /** v2 VIP: 入場権購入で付与するVIPロールのID（未設定ならロール付与スキップ） */
+  vip_role_id: string | null;
 };
 
 export type Title = {
@@ -249,7 +251,8 @@ export function initializeDatabase(): void {
       games_enabled TEXT NOT NULL DEFAULT '{"slots":true,"blackjack":true,"crash":true,"highlow":true,"roulette":true,"keiba":true,"stocks":true}',
       lucky_game TEXT,
       lucky_game_date TEXT,
-      exchange_rate_offset REAL NOT NULL DEFAULT 0.0
+      exchange_rate_offset REAL NOT NULL DEFAULT 0.0,
+      vip_role_id TEXT
     );
 
     -- ═══ v2: Currency Exchange Log ═══
@@ -475,6 +478,16 @@ export function initializeDatabase(): void {
       PRIMARY KEY (game_id, user_id)
     );
 
+    -- ═══ v2: VIP（奥座敷・月課金エテル） ═══
+    -- expires_at を過ぎたら期限切れ（スケジューラがロール剥奪）。
+    CREATE TABLE IF NOT EXISTS vip_members (
+      user_id TEXT NOT NULL,
+      guild_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      since TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, guild_id)
+    );
+
     -- ═══ v2: 賽勝負（1v1 チンチロ・BOT自動判定 PvP） ═══
     -- status: pending(未承認・未徴収) → active(両者エスクロー) → settled / declined / void
     CREATE TABLE IF NOT EXISTS dice_duels (
@@ -580,6 +593,7 @@ export function initializeDatabase(): void {
     "ALTER TABLE server_config ADD COLUMN board_fee INTEGER NOT NULL DEFAULT 500",
     "ALTER TABLE server_config ADD COLUMN exchange_threshold INTEGER NOT NULL DEFAULT 50000",
     "ALTER TABLE server_config ADD COLUMN exchange_approval_channel_id TEXT",
+    "ALTER TABLE server_config ADD COLUMN vip_role_id TEXT",
   ];
   for (const sql of v2MigrationCols) {
     try { db.exec(sql); } catch { /* column exists */ }

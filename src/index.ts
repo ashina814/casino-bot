@@ -26,6 +26,7 @@ import { handleCheerCommand } from "./games/cheer";
 import { handleTakuCommand, handleTakuButton, handleTableVoiceState, sweepStaleTempVCs } from "./games/takutate";
 import { handleChohanCommand, handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
 import { handleSaiCommand, handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
+import { handleVipCommand, handleVipButton } from "./games/vip";
 
 // ─── Startup Cleanup ───────────────────────────────────
 
@@ -151,6 +152,8 @@ async function bootstrap(): Promise<void> {
             return await handleChohanCommand(interaction);
           case "チンチロ対戦":
             return await handleSaiCommand(interaction);
+          case "vip":
+            return await handleVipCommand(interaction);
         }
       }
 
@@ -199,6 +202,12 @@ async function bootstrap(): Promise<void> {
       // ── 賽勝負 (チンチロ 1v1 / sai:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("sai:")) {
         await handleSaiButton(interaction);
+        return;
+      }
+
+      // ── VIP (vip:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("vip:")) {
+        await handleVipButton(interaction);
         return;
       }
 

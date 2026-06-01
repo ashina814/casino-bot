@@ -18,6 +18,7 @@ import { cheerCommand } from "./games/cheer";
 import { takuCommand } from "./games/takutate";
 import { chohanCommand } from "./games/chohan";
 import { saiCommand } from "./games/saishoubu";
+import { vipCommand } from "./games/vip";
 
 async function deployCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discordToken);
@@ -40,6 +41,7 @@ async function deployCommands(): Promise<void> {
     takuCommand.toJSON(),
     chohanCommand.toJSON(),
     saiCommand.toJSON(),
+    vipCommand.toJSON(),
   ];
   if (config.guildId) {
     // 開発用: 特定 guild に即時デプロイ

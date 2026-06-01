@@ -119,7 +119,7 @@ export function gameResultEmbed(opts: {
 
 // ─── Profile Embed ─────────────────────────────────────
 
-export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedBuilder {
+export function profileEmbed(profile: UserProfile, activeTitle?: string, vip = false): EmbedBuilder {
   const tier = getTierByKey(profile.tier);
   const totalGames = profile.total_wins + profile.total_losses;
   const winRate = totalGames > 0 ? ((profile.total_wins / totalGames) * 100).toFixed(1) : "0.0";
@@ -150,6 +150,7 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedB
       {
         name: "👤 プレイヤー",
         value: [
+          vip ? "💎 **VIP会員**" : "",
           activeTitle ? `🏷️ 「${activeTitle}」` : "",
           `${tier.emoji} **${tier.name}** （Lv.${profile.level}）`,
           `星の力 \`${expBar}\` ${profile.exp.toLocaleString()} / ${expNext.toLocaleString()}`,

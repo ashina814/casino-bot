@@ -401,6 +401,9 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
           new ActionRowBuilder<TextInputBuilder>().addComponents(
             new TextInputBuilder().setCustomId("stock_channel").setLabel("株 速報チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.stock_channel_id ?? "").setRequired(false),
           ),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("vip_role").setLabel("VIPロールID（奥座敷）").setStyle(TextInputStyle.Short).setValue(cfg.vip_role_id ?? "").setRequired(false),
+          ),
         );
 
       await btn.showModal(modal);
@@ -410,6 +413,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
           casino_channel_id: m.fields.getTextInputValue("casino_channel") || null,
           jackpot_channel_id: m.fields.getTextInputValue("jackpot_channel") || null,
           stock_channel_id: m.fields.getTextInputValue("stock_channel") || null,
+          vip_role_id: m.fields.getTextInputValue("vip_role") || null,
         });
         await m.reply({ embeds: [successEmbed("チャンネル設定を更新しました。")], ephemeral: true });
       } catch { /* timeout */ }

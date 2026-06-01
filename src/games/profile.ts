@@ -32,7 +32,8 @@ export async function handleProfileCommand(interaction: ChatInputCommandInteract
      WHERE a.user_id = ?`
   ).get(target.id) as { title_name: string } | undefined;
 
-  const embed = profileEmbed(profile, activeTitle?.title_name)
+  const { isVip } = require("../core/vip");
+  const embed = profileEmbed(profile, activeTitle?.title_name, isVip(target.id, guildId))
     .setAuthor({
       name: target.displayName,
       iconURL: target.displayAvatarURL(),
