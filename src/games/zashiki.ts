@@ -1,31 +1,23 @@
 /**
- * /zashiki — 座敷童の覚醒状況確認 & モード切替 & 属性選択
+ * /zashiki — 座敷童の覚醒状況確認 & モード切替
  *
  * サブコマンド:
- *   /zashiki status  — 現在の覚醒段階・好感度・属性を表示
- *   /zashiki mode    — セリフモード切替 (default / tsundere / yami)
- *   /zashiki element — 五行属性の選択（初回）/ 変更（50,000G・1回限り）
+ *   /zashiki status  — 現在の覚醒段階・好感度を表示
+ *   /zashiki mode    — セリフモード切替 (default / tsundere / yami / zense)
+ *
+ * 注: 旧「五行属性」は廃止（WORLD.md で三星＝星の盟約に統合、派閥はシーズン2送り）。
  */
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ButtonInteraction,
-  ComponentType,
 } from "discord.js";
 import {
-  getAffection, getAffectionMode, setAffectionMode, getAffectionFull,
-  needsElementChoice, setElement, canChangeElement, changeElement,
+  getAffection, getAffectionMode, setAffectionMode,
 } from "../core/db";
-import { adjustBalance, getBalance } from "../core/bank";
 import {
   getStage, getNextStage, affectionToNextStage,
-  GOGYO, ELEMENT_CHANGE_COST, getElementAwakeningDialogue,
 } from "../core/zashikiStage";
-import type { GogyoElement } from "../core/zashikiStage";
 
 // ─── Command ───────────────────────────────────────────
 
@@ -33,7 +25,7 @@ export const zashikiCommand = new SlashCommandBuilder()
   .setName("アステル")
   .setDescription("アステルとの星約（覚醒）を確認する")
   .addSubcommand((sub) =>
-    sub.setName("status").setDescription("星約段階・好感度・星の属性を表示")
+    sub.setName("status").setDescription("星約段階・好感度を表示")
   )
   .addSubcommand((sub) =>
     sub
@@ -51,9 +43,6 @@ export const zashikiCommand = new SlashCommandBuilder()
             { name: "◌ 前世（座敷童）", value: "zense" },
           )
       )
-  )
-  .addSubcommand((sub) =>
-    sub.setName("element").setDescription("星の属性を選択・変更する")
   );
 
 // ─── Handlers ──────────────────────────────────────────
@@ -62,7 +51,6 @@ export async function handleZashikiCommand(interaction: ChatInputCommandInteract
   const sub = interaction.options.getSubcommand();
   if (sub === "status") return handleStatus(interaction);
   if (sub === "mode") return handleMode(interaction);
-  if (sub === "element") return handleElement(interaction);
 }
 
 // ─── Status ────────────────────────────────────────────
@@ -73,8 +61,6 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
   const stage = getStage(affection);
   const remaining = affectionToNextStage(affection);
   const mode = getAffectionMode(userId);
-  const row = getAffectionFull(userId);
-  const element = row.element as GogyoElement | null;
 
   const maxStage = 6;
   const filled = Math.round((stage.level / maxStage) * 10);
@@ -86,20 +72,6 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
     yami: "☄ 蝕",
     zense: "◌ 前世（座敷童）",
   };
-
-  // 五行属性表示
-  let elementValue: string;
-  if (element && GOGYO[element]) {
-    const info = GOGYO[element];
-    elementValue = `${info.emoji} **${info.name}**（${info.reading}）\n${info.theme}`;
-    if (stage.level >= 6) {
-      elementValue += `\n✨ 神柱: **${info.shinchu}**（${info.shinchuReading}）`;
-    }
-  } else {
-    elementValue = stage.level >= 3
-      ? "*`/アステル element` で選択可能*"
-      : "*Lv3「星約」で解放*";
-  }
 
   // 覚醒の恩恵
   const benefitLines: string[] = [];
@@ -132,11 +104,6 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
         name: "🎭 モード",
         value: modeLabels[mode] ?? "🌙 通常",
         inline: true,
-      },
-      {
-        name: "🪷 五行属性",
-        value: elementValue,
-        inline: false,
       },
       {
         name: "✨ 覚醒の恩恵",
@@ -214,117 +181,4 @@ async function handleMode(interaction: ChatInputCommandInteraction): Promise<voi
     .setDescription(`*${dialogues[targetMode]}*\n\nモードを **${modeLabels[targetMode]}** に変更した。`);
 
   await interaction.reply({ embeds: [embed] });
-}
-
-// ─── Element Selection ─────────────────────────────────
-
-async function handleElement(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const affection = getAffection(userId);
-  const stage = getStage(affection);
-  const row = getAffectionFull(userId);
-  const currentElement = row.element as GogyoElement | null;
-
-  // 段階3未満: まだ選べない
-  if (stage.level < 3) {
-    await interaction.reply({
-      content: "まだ属性を選ぶ時ではないぞ。覚醒Lv3「結び」（好感度100+）に到達すると選択できるようになる。",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // 既に属性あり & 変更不可
-  if (currentElement && !canChangeElement(userId)) {
-    const info = GOGYO[currentElement];
-    await interaction.reply({
-      content: `きみの属性はもう ${info.emoji} **${info.name}** だよ。属性変更はもう使えない。`,
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // 属性変更の場合: コスト確認
-  const isChange = currentElement != null;
-  if (isChange) {
-    const balance = getBalance(userId);
-    if (balance < ELEMENT_CHANGE_COST) {
-      await interaction.reply({
-        content: `属性変更には ◈${ELEMENT_CHANGE_COST.toLocaleString()} が必要じゃ。（現在: ◈${balance.toLocaleString()}）\nこれは一度きりの機会じゃぞ。`,
-        ephemeral: true,
-      });
-      return;
-    }
-  }
-
-  // 属性選択UIを表示
-  const elements: GogyoElement[] = ["wood", "fire", "earth", "metal", "water"];
-
-  const desc = isChange
-    ? `⚠️ **属性変更**（◈${ELEMENT_CHANGE_COST.toLocaleString()} 消費・一度限り）\n現在: ${GOGYO[currentElement!].emoji} ${GOGYO[currentElement!].name}\n\n`
-    : "アステルの瞳が光って、五つの力がきみの前に顕れた。\nきみの魂にいちばん近い属性を選んで。\n\n";
-
-  const elementList = elements.map((e) => {
-    const info = GOGYO[e];
-    return `${info.emoji} **${info.name}（${info.reading}）** — ${info.theme}\n　神柱: *${info.shinchu}（${info.shinchuReading}）*`;
-  }).join("\n");
-
-  const embed = new EmbedBuilder()
-    .setColor(0xffd700)
-    .setTitle("✦ 五行属性の選択")
-    .setDescription(desc + elementList)
-    .setFooter({ text: isChange ? "⚠️ 変更は1回限りです" : "この選択は重要です。慎重に選んでください。" });
-
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    ...elements.map((e) => {
-      const info = GOGYO[e];
-      return new ButtonBuilder()
-        .setCustomId(`gogyo_${e}`)
-        .setLabel(`${info.name}`)
-        .setEmoji(info.emoji)
-        .setStyle(currentElement === e ? ButtonStyle.Secondary : ButtonStyle.Primary);
-    })
-  );
-
-  const reply = await interaction.reply({ embeds: [embed], components: [row1], fetchReply: true });
-
-  const collector = reply.createMessageComponentCollector({
-    componentType: ComponentType.Button,
-    time: 60_000,
-    filter: (i: ButtonInteraction) => i.user.id === userId,
-  });
-
-  collector.on("collect", async (btn: ButtonInteraction) => {
-    collector.stop();
-    const chosen = btn.customId.replace("gogyo_", "") as GogyoElement;
-    const info = GOGYO[chosen];
-
-    if (isChange) {
-      // 属性変更: コスト引いてから変更
-      const deduct = adjustBalance(userId, -ELEMENT_CHANGE_COST, "element_change");
-      if (!deduct.ok) {
-        await btn.update({ content: "エテルが足りぬ…。", embeds: [], components: [] });
-        return;
-      }
-      changeElement(userId, chosen);
-    } else {
-      // 初回選択
-      setElement(userId, chosen);
-    }
-
-    const dialogue = getElementAwakeningDialogue(chosen);
-    const resultEmbed = new EmbedBuilder()
-      .setColor(parseInt(info.color.replace("#", ""), 16))
-      .setTitle(`${info.emoji} 五行覚醒 — ${info.name}`)
-      .setDescription(`*${dialogue}*`)
-      .setFooter({ text: `神柱: ${info.shinchu}（${info.shinchuReading}） — ${info.shinchuTitle}` });
-
-    await btn.update({ embeds: [resultEmbed], components: [] });
-  });
-
-  collector.on("end", async (_: any, reason: string) => {
-    if (reason === "time") {
-      try { await reply.edit({ components: [] }); } catch {}
-    }
-  });
 }

@@ -182,7 +182,6 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
       const newModes = stageAfter.unlockedModes.filter((m) => !(stageBefore.unlockedModes ?? []).includes(m));
       if (newModes.length > 0) unlocks.push(`🎭 新モード解放: **${newModes.join(" / ")}**`);
     }
-    if (stageAfter.level === 3) unlocks.push("🪷 **五行属性** が選べるようになった！ `/アステル element`");
 
     const stageUpEmbed = new EmbedBuilder()
       .setColor(0xffd700)

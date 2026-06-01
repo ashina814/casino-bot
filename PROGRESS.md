@@ -67,6 +67,13 @@ ASTERIA サーバー向け「星約の賭場」カジノ Bot。第二通貨**エ
 - `/商店 設置`(管理者)→ #賭場商店 に公開常設パネル。ボタン[購入][持ち物][使う]→各自ephemeral。購入UIもephemeral化。
 - ⚠️ `/案内` はサブコマンド化（`/案内 ホーム`）。ボタンは共有メッセージを書き換えず各自ephemeralで開くので安全。
 
+**五行（旧GOGYO）撤去（実装済）**: WORLD.md で五行→三星(知恵/言葉/火=星の盟約)に統合済みなのにコードが旧五行のままだったため撤去。
+- `/アステル element` サブコマンド削除（`/アステル` は status/mode のみに）。status/通行証/ヘルプ/daily から五行表示・記述を除去。
+- 死蔵: `core/zashikiStage.ts` の GOGYO/gogyoMultiplier/getElementAwakeningDialogue、`db.ts` の element系関数＋ users/affection の element 列は**残置（未使用）**。三星＝派閥はS2で本実装する際に整理。
+
+**バグ修正（案内パネル）**: 通行証(options例外)・福分け(非ephemeral)・ヘルプ(`✦`がCOMPONENT_INVALID_EMOJI)を修正。
+教訓: **ボタン/セレクトのemojiは標準絵文字限定**（星グリフ ✦✧… はembed本文のみ）。
+
 **次の候補**: ①`/管理`で速報ch設定(stock→#株式市場, jackpot→#賭場) ②#勝負場新設+Integration権限ロック(手動) ③遊技場Forum化(手動)
 
 ## 主要ファイル地図

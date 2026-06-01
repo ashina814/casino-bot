@@ -124,25 +124,15 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedB
   const totalGames = profile.total_wins + profile.total_losses;
   const winRate = totalGames > 0 ? ((profile.total_wins / totalGames) * 100).toFixed(1) : "0.0";
 
-  // 座敷童の覚醒情報
+  // アステルとの星約（覚醒）情報
   let zashikiLine = "";
   try {
-    const { getAffection, getAffectionFull } = require("../core/db");
-    const { getStage, GOGYO } = require("../core/zashikiStage");
+    const { getAffection } = require("../core/db");
+    const { getStage } = require("../core/zashikiStage");
     const affection = getAffection(profile.user_id);
     const stage = getStage(affection);
-    const row = getAffectionFull(profile.user_id);
-    const element = row.element;
-
     zashikiLine = `${stage.emoji} ${stage.name}（Lv${stage.level}）`;
     if (affection > 0) zashikiLine += `\n💖 好感度: ${affection}`;
-    if (element && GOGYO[element]) {
-      const info = GOGYO[element];
-      zashikiLine += `\n${info.emoji} ${info.name}`;
-      if (stage.level >= 6) {
-        zashikiLine += ` → ✨ ${info.shinchu}`;
-      }
-    }
   } catch {
     zashikiLine = "◌ 暗";
   }
