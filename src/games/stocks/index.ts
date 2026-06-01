@@ -27,7 +27,7 @@ import { getTierByKey } from "../../core/economy";
 import { baseEmbed, COLORS, infoEmbed, errorEmbed, successEmbed } from "../../ui/embeds";
 
 // 株の1回投資上限。投資は単発の賭けと別物なので、賭け上限(betCap)に下限を被せる。
-const STOCK_TX_FLOOR = 10_000;
+const STOCK_TX_FLOOR = 3_000;
 function stockTxMax(betCap: number): number {
   return Math.max(betCap, STOCK_TX_FLOOR);
 }
@@ -462,7 +462,7 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     const stockId = interaction.customId.replace("stocks_buy_modal_", "");
     const amountStr = interaction.fields.getTextInputValue("amount");
 
-    // 1回投資の上限。投資は単発の賭けと性質が違うので betCap に下限(10,000)を被せる
+    // 1回投資の上限。投資は単発の賭けと性質が違うので betCap に下限(3,000)を被せる
     // （漂着者の betCap=500 だと最安株すら買えない問題への対処）
     const profile = getProfile(userId, guildId);
     const tier = getTierByKey(profile.tier);
