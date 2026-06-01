@@ -27,6 +27,8 @@ import {
 import { dialogueWin, dialogueLose, dialogueFukuWeight, type DialogueContext } from "../../core/dialogue";
 import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
 import { consumeWinBonus, consumeLossProtection } from "../../core/items";
+import { broadcastBigWin } from "../../core/bigwin";
+import { WORLD } from "../../world.config";
 
 // ─── Symbols & Payouts ─────────────────────────────────
 //
@@ -384,6 +386,13 @@ export async function playSlots(
   );
 
   await reply.edit({ embeds: [resultEmbed], components: [row] });
+
+  // 大勝ち速報（JP当選 or 高倍率）
+  if (actualPayout > 0) {
+    broadcastBigWin(interaction.client, guildId, {
+      userId, game: WORLD.GAME_SLOTS, bet, payout: actualPayout, isJackpot: resultType === "jackpot",
+    });
+  }
 
   // ── フリースピンが発動していれば、結果表示後に自動で再スピン ──
   if (freeSpinTriggered && !isFreeSpin) {

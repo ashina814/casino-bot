@@ -27,6 +27,8 @@ import {
 } from "../../core/economy";
 import { dialogueWin, dialogueLose, type DialogueContext } from "../../core/dialogue";
 import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
+import { broadcastBigWin } from "../../core/bigwin";
+import { WORLD } from "../../world.config";
 
 // ─── Crash Point Generation ────────────────────────────
 
@@ -299,6 +301,10 @@ export async function playCrash(
     });
 
     await replyMsg.edit({ embeds: [embed], components: [buildRetryRow()] });
+
+    broadcastBigWin(replyMsg.client, guildId, {
+      userId, game: WORLD.GAME_CRASH, bet, payout: actualPayout,
+    });
   } else {
     // Crashed
     let lossNote = "";

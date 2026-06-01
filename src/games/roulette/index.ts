@@ -28,6 +28,7 @@ import {
   getTierByKey,
 } from "../../core/economy";
 import { baseEmbed, gameResultEmbed, COLORS } from "../../ui/embeds";
+import { broadcastBigWin } from "../../core/bigwin";
 
 // ─── Roulette Layout ───────────────────────────────────
 
@@ -247,6 +248,7 @@ export async function runRouletteSession(
       recordWin(b.userId, net - fukuTax);
       if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
       addExp(b.userId, 15);
+      broadcastBigWin(interaction.client, guildId, { userId: b.userId, game: "ルーレット", bet: b.amount, payout: actualPayout });
 
       const emoji = b.betType === "green" ? "🎯" : "👑";
       results.push(`${emoji} <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → **+◈${(net - fukuTax).toLocaleString()}**${itemTag}`);

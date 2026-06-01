@@ -35,6 +35,7 @@ import {
 } from "../../core/economy";
 import { dialogueWin, dialogueLose, type DialogueContext } from "../../core/dialogue";
 import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
+import { broadcastBigWin } from "../../core/bigwin";
 
 const DIE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]; // 1..6
 
@@ -582,6 +583,7 @@ async function settleVsDealer(
     addExp(userId, 15);
 
     resultType = (playerHand.type === "pinzoro" || playerHand.type === "zorome") ? "jackpot" : "win";
+    broadcastBigWin(reply.client, guildId, { userId, game: "チンチロ", bet, payout: actualTotal });
     dialogue = dialogueWin(ctx, profit - fukuTax, bet);
     payoutText = `💰 配当: ◈${actualTotal.toLocaleString()}（賭金返却+利益 ◈${(profit - fukuTax).toLocaleString()}）`;
   } else if (mul === 0) {
