@@ -255,10 +255,10 @@ function buildSelectMenu(currentSection: string | null = null): ActionRowBuilder
     .setCustomId("help_section_select")
     .setPlaceholder("カテゴリを選んで詳細を読む")
     .addOptions(
-      { label: "概要に戻る", value: "overview", emoji: "✦", default: currentSection === "overview" || currentSection === null },
+      { label: "概要に戻る", value: "overview", emoji: "📖", default: currentSection === "overview" || currentSection === null },
       { label: "ゲーム一覧", value: "games", emoji: "🎮", default: currentSection === "games" },
       { label: "経済の仕組み", value: "economy", emoji: "💼", default: currentSection === "economy" },
-      { label: "アステルとの星約", value: "zashiki", emoji: "✦", default: currentSection === "zashiki" },
+      { label: "アステルとの星約", value: "zashiki", emoji: "💫", default: currentSection === "zashiki" },
       { label: "隠し・レア", value: "hidden", emoji: "✨", default: currentSection === "hidden" },
       { label: "用語集", value: "glossary", emoji: "🔤", default: currentSection === "glossary" },
     );
