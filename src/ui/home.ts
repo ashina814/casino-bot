@@ -76,7 +76,7 @@ export const casinoCommand = new SlashCommandBuilder()
   .addSubcommand((sc) => sc.setName("ホーム").setDescription("✦ 自分のホーム画面を開く（残高・各ゲームへの入口）"))
   .addSubcommand((sc) => sc.setName("設置").setDescription("📌 このチャンネルに常設の案内パネルを置く（管理者）"));
 
-// 全ゲーム/アクションへの入口ボタン（個人ホーム・常設パネル共用）
+// 玄関のアクション（個人情報・案内のみ）。ゲームは各チャンネルで遊ぶので起動ボタンは置かない。
 function buildHomeRows(): ActionRowBuilder<ButtonBuilder>[] {
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("home_daily").setLabel("📅 福分け").setStyle(ButtonStyle.Success),
@@ -84,24 +84,19 @@ function buildHomeRows(): ActionRowBuilder<ButtonBuilder>[] {
     new ButtonBuilder().setCustomId("home_profile").setLabel("👤 通行証").setStyle(ButtonStyle.Secondary),
   );
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("home_slots").setLabel("🎰 スロット").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_chohan").setLabel("🎴 丁半").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_blackjack").setLabel("🃏 ブラックジャック").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_chinchiro").setLabel("🎲 チンチロ").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_crash").setLabel("📈 クラッシュ").setStyle(ButtonStyle.Primary),
-  );
-  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("home_roulette").setLabel("🎡 ルーレット").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_keiba").setLabel("🏇 競馬").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_stocks").setLabel("📈 株").setStyle(ButtonStyle.Primary),
-  );
-  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("home_history").setLabel("📒 履歴").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("home_titles").setLabel("📜 二つ名").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("home_help").setLabel("📖 ヘルプ").setStyle(ButtonStyle.Secondary),
   );
-  return [row1, row2, row3, row4];
+  return [row1, row2];
 }
+
+// 「どこで遊ぶか」の案内文（玄関＝ナビに徹する）
+const PLAY_GUIDE = [
+  "🎰 ソロで遊ぶ → **#遊技場**（スロット/ブラックジャック/チンチロ/丁半/ハイロー/ルーレット）",
+  "🀄 対人で遊ぶ → **#勝負場**（丁半/チンチロ対戦/サシ/板）",
+  "🐎 競馬 → **#競馬場**　📈 株 → **#株式市場**　🔧 卓を立てる → **#卓を立てる**",
+].join("\n");
 
 export async function handleCasinoCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const sub = interaction.options.getSubcommand();
@@ -121,12 +116,15 @@ async function postHomePanel(interaction: ChatInputCommandInteraction): Promise<
 
   const embed = baseEmbed("✦ 星約の賭場 — 案内所", COLORS.GOLD).setDescription(
     [
-      "*「いらっしゃい、星約の賭場へ。下のボタンから、好きなところへどうぞ。」*",
+      "*「いらっしゃい、星約の賭場へ。」*",
       "",
       `🎯 本日のラッキーゲーム: **${GAME_NAMES[luckyGame] ?? luckyGame}**（配当1.2倍）`,
       `${eco.emoji} 星気: *${eco.label}*`,
       "",
       "🌱 初めての方は **「📅 福分け」** から。毎日のエテルが受け取れるよ。",
+      "",
+      "**🎲 遊ぶ場所**",
+      PLAY_GUIDE,
     ].join("\n"),
   ).setFooter({ text: "ボタンの結果はあなたにだけ表示されるよ。" });
 
@@ -169,6 +167,9 @@ async function personalHome(interaction: ChatInputCommandInteraction): Promise<v
         "",
         `🎯 本日のラッキーゲーム: **${GAME_NAMES[luckyGame] ?? luckyGame}**（配当1.2倍）`,
         `${eco.emoji} 星気: *${eco.label}*`,
+        "",
+        "**🎲 遊ぶ場所**",
+        PLAY_GUIDE,
       ].join("\n"),
     );
 
