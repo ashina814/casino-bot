@@ -74,6 +74,13 @@ ASTERIA サーバー向け「星約の賭場」カジノ Bot。第二通貨**エ
 **バグ修正（案内パネル）**: 通行証(options例外)・福分け(非ephemeral)・ヘルプ(`✦`がCOMPONENT_INVALID_EMOJI)を修正。
 教訓: **ボタン/セレクトのemojiは標準絵文字限定**（星グリフ ✦✧… はembed本文のみ）。
 
+**経済・バランス調整ログ**（数値の所在も明示。仕様書は無く、値はコードが正）:
+- **株の1回投資上限 = `max(betCap, 3000)`**（`games/stocks/index.ts` の `STOCK_TX_FLOOR=3000`）。
+  理由: 漂着者の betCap=500 だと最安株(約600)すら買えなかった。投資は単発の賭けと別物として下限を被せる。
+- 値の所在: 賭け上限(betCap)＝`core/economy.ts` TIERS（漂着者500/星拾い2000/星約者10000/星詠み50000/北極星100000）。
+  min_bet/初期残高/balance_cap 等＝`core/db.ts` server_config 既定値（初期3000・min_bet50・cap300000）。株価シード＝`games/stocks/index.ts`(600〜1500)。
+- ⚠️ 今後バランス値を変えたら**このログに1行残す**（散在防止・引き継ぎ用）。
+
 **次の候補**: ①`/管理`で速報ch設定(stock→#株式市場, jackpot→#賭場) ②#勝負場新設+Integration権限ロック(手動) ③遊技場Forum化(手動)
 
 ## 主要ファイル地図
