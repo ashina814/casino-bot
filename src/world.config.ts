@@ -54,17 +54,18 @@ export const WORLD = {
   AREA_BACK: "奥座敷",
   AREA_FACTION: "星々の座",
 
-  // ─── ゲーム名（Iter.5 で各ゲームに反映） ───────────────
-  GAME_SLOTS: "星辰の巻",
-  GAME_BLACKJACK: "星札勝負",
-  GAME_CHINCHIRO: "賽",
-  GAME_CRASH: "星昇り",
+  // ─── ゲーム名 ─────────────────────────────────────────
+  // 方針: 名前は「何のゲームか一目で分かる通称」。世界観はアステルのセリフ・演出・embed色で出す。
+  GAME_SLOTS: "スロット",
+  GAME_BLACKJACK: "ブラックジャック",
+  GAME_CHINCHIRO: "チンチロ",
+  GAME_CRASH: "クラッシュ",
   GAME_HIGHLOW: "丁半",
-  GAME_ROULETTE: "運命の星盤",
-  GAME_KEIBA: "天馬競走",
-  GAME_STOCKS: "星脈相場",
-  GAME_SASHI: "サシ星約",
-  GAME_BOARD: "星約の板",
+  GAME_ROULETTE: "ルーレット",
+  GAME_KEIBA: "競馬",
+  GAME_STOCKS: "株",
+  GAME_SASHI: "サシ勝負",
+  GAME_BOARD: "賭場の板",
 
   // ─── プール ────────────────────────────────────────────
   /** ジャックポットプール */

@@ -1,5 +1,5 @@
 /**
- * 🃏 星札勝負（ブラックジャック）
+ * 🃏 ブラックジャック（ブラックジャック）
  *
  * 七星と第八の星をかたどった札を使った21勝負。ディーラーはアステル。
  * Hit / Stand / Double / Surrender のフルルール。
@@ -160,7 +160,7 @@ export async function playBlackjack(
       : `${dealerHand[0].display} ✦❓`;
     const dVal = showDealerHole ? handValue(dealerHand) : "？";
 
-    return baseEmbed("🃏 星札勝負", COLORS.GOLD).setDescription(
+    return baseEmbed("🃏 ブラックジャック", COLORS.GOLD).setDescription(
       [
         `*「さぁ、次の手はどうする？」*`,
         "",
@@ -257,7 +257,7 @@ export async function playBlackjack(
       addExp(userId, 5);
 
       const embed = gameResultEmbed({
-        title: "🃏 星札勝負 — 降参",
+        title: "🃏 ブラックジャック — 降参",
         description: `*「降りる？ 賢い判断かもね。」*\n\n半額の ◈${refund.toLocaleString()} を返すぞ。`,
         result: "lose",
         userId,
@@ -402,7 +402,7 @@ async function resolveGame(
   if (itemNote) dialogue += `\n（${itemNote}）`;
 
   const embed = gameResultEmbed({
-    title: `🃏 星札勝負${net >= 0 ? ` — ${resultMap[resultLabel] ?? ""}` : ""}`,
+    title: `🃏 ブラックジャック${net >= 0 ? ` — ${resultMap[resultLabel] ?? ""}` : ""}`,
     description: [
       `*${dialogue}*`,
       "",
@@ -525,7 +525,7 @@ function setupRetryCollector(reply: any, guildId: string, userId: string, bet: n
 // ─── Paytable ──────────────────────────────────────────
 
 function blackjackPaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 星札勝負 — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 ブラックジャック — ルール", COLORS.GOLD).setDescription(
     [
       "*「21を目指して札を引け。ディーラー（アステル）に勝てば配当だよ。」*",
       "",

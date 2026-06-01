@@ -1,5 +1,5 @@
 /**
- * 📈 星昇り（クラッシュ）
+ * 📈 クラッシュ（クラッシュ）
  *
  * 倍率が上がり続け、いつ「崩壊」するか分からない。
  * 降りるタイミングを見極めるチキンレース。
@@ -139,7 +139,7 @@ export async function playCrash(
   const makeEmbed = (multi: number) => {
     const currentValue = Math.floor(bet * multi);
     const canCashOut = multi >= MIN_CASHOUT;
-    return baseEmbed("📈 星昇り", COLORS.GOLD).setDescription(
+    return baseEmbed("📈 クラッシュ", COLORS.GOLD).setDescription(
       [
         `*「星が昇っていく……いつ墜ちる？」*`,
         "",
@@ -286,7 +286,7 @@ export async function playCrash(
     let dialogue = dialogueWin(ctx, net, bet);
     if (itemNote) dialogue += `\n（${itemNote}）`;
     const embed = gameResultEmbed({
-      title: "📈 星昇り — 離脱成功！",
+      title: "📈 クラッシュ — 離脱成功！",
       description: [
         `*${dialogue}*`,
         "",
@@ -317,7 +317,7 @@ export async function playCrash(
     let dialogue = dialogueLose(ctx, bet);
     if (lossNote) dialogue += `\n（${lossNote}）`;
     const embed = gameResultEmbed({
-      title: "💥 星昇り — 燃え尽き！",
+      title: "💥 クラッシュ — 燃え尽き！",
       description: [
         `*${dialogue}*`,
         "",
@@ -381,7 +381,7 @@ export async function playCrash(
 // ─── Paytable ──────────────────────────────────────────
 
 function crashPaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 星昇り — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 クラッシュ — ルール", COLORS.GOLD).setDescription(
     [
       "*「星は天井知らずに昇るけど、いつ燃え尽きるかは分からない。墜ちる前に降りれば、倍率で買い取るよ。」*",
       "",

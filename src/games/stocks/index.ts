@@ -1,5 +1,5 @@
 /**
- * 📈 星脈相場（株式投資）
+ * 📈 株（株式投資）
  *
  * 星脈の力を「銘柄」として売買する投資ゲーム。
  * 1時間ごとに値動き。ランダムウォーク + イベント。
@@ -243,8 +243,8 @@ function changeEmoji(current: number, prev: number): string {
 // ─── Command ───────────────────────────────────────────
 
 export const stocksCommand = new SlashCommandBuilder()
-  .setName("星脈")
-  .setDescription("📈 星脈相場 — 星脈の力に投資する");
+  .setName("株")
+  .setDescription("📈 株 — 銘柄に投資して値動きで稼ぐ");
 
 export async function handleStocksCommand(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
   const guildId = interaction.guildId!;
@@ -304,10 +304,10 @@ export async function renderDashboard(
   const totalProfit = totalValue - totalCost;
   const totalPct = totalCost > 0 ? ((totalProfit / totalCost) * 100).toFixed(1) : "0.0";
 
-  const embed = baseEmbed("📈 星脈相場（投資）", COLORS.GOLD)
+  const embed = baseEmbed("📈 株（投資）", COLORS.GOLD)
     .setDescription(
       [
-        `*「星脈の流れは日々変わる。見極めてね。」*`,
+        `*「相場の流れは日々変わる。見極めてね。」*`,
         "",
         `**【 銘柄一覧 】**`,
         ...marketLines,

@@ -1,5 +1,5 @@
 /**
- * 🎰 星辰の巻（スロット）
+ * 🎰 スロット（スロット）
  *
  * メッセージ編集3回で「左→中→右」とリールが止まる擬似アニメーション。
  * 最後のリールは溜めを入れて緊張感を演出。
@@ -172,7 +172,7 @@ export async function playSlots(
 
   // ── Phase 1: Spinning animation ──
   const jpDisplay = getJackpotPool(guildId);
-  const labelPrefix = isFreeSpin ? "✨ フリースピン中" : "✦ 星辰の巻";
+  const labelPrefix = isFreeSpin ? "✨ フリースピン中" : "✦ スロット";
   const spinSlot = (s: string) => `┃ ${s} ┃`;
   // 高速サイクル用のダミー絵柄列
   const cycle = ["🌠","☄️","🪐","☀️","🌟","✴️","🌙","✨"];
@@ -351,7 +351,7 @@ export async function playSlots(
   ].filter((s) => s !== "").join("\n");
 
   const resultEmbed = gameResultEmbed({
-    title: `${prefix}✦ 星辰の巻${suffix}`,
+    title: `${prefix}✦ スロット${suffix}`,
     description: descLines,
     result: resultType === "jackpot" ? "jackpot" : payout > 0 ? "win" : "lose",
     userId,
@@ -444,7 +444,7 @@ function buildPaytableEmbed(): import("discord.js").EmbedBuilder {
       return `　${sym.emoji} ${name}: **${mul}倍**`;
     }).join("\n");
 
-  return baseEmbed("📖 星辰の巻 — 配当表", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 スロット — 配当表", COLORS.GOLD).setDescription(
     [
       "**🎯 3つ揃い** (左から3つ同じ絵柄)",
       tripleLines,

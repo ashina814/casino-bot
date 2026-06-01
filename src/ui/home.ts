@@ -37,12 +37,12 @@ import { showQuestsPanel } from "./panels/quests";
 
 const ALL_GAMES = ["slots", "chohan", "blackjack", "crash", "roulette", "keiba", "chinchiro"] as const;
 const GAME_NAMES: Record<string, string> = {
-  slots: "星辰の巻",
-  chohan: "丁半博打",
-  blackjack: "星札勝負",
-  crash: "星昇り",
-  roulette: "運命の星盤",
-  keiba: "天馬競走",
+  slots: "スロット",
+  chohan: "丁半",
+  blackjack: "ブラックジャック",
+  crash: "クラッシュ",
+  roulette: "ルーレット",
+  keiba: "競馬",
   chinchiro: "チンチロ",
 };
 
@@ -121,18 +121,18 @@ export async function handleCasinoCommand(interaction: ChatInputCommandInteracti
 
   // Row 2 — メインゲーム（単独プレイ）
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("home_slots").setLabel("🎰 巻物").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_slots").setLabel("🎰 スロット").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("home_chohan").setLabel("🎴 丁半").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_blackjack").setLabel("🃏 星札").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_blackjack").setLabel("🃏 ブラックジャック").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("home_chinchiro").setLabel("🎲 チンチロ").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_crash").setLabel("📈 星昇り").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_crash").setLabel("📈 クラッシュ").setStyle(ButtonStyle.Primary),
   );
 
   // Row 3 — みんなで遊ぶ + 投資
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("home_roulette").setLabel("🎡 星盤").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_keiba").setLabel("🏇 天馬競走").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_stocks").setLabel("📈 星脈相場").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_roulette").setLabel("🎡 ルーレット").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_keiba").setLabel("🏇 競馬").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_stocks").setLabel("📈 株").setStyle(ButtonStyle.Primary),
   );
 
   // Row 4 — 情報・参考

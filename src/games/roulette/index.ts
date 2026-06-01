@@ -1,5 +1,5 @@
 /**
- * 🎡 運命の星盤（ルーレット）
+ * 🎡 ルーレット（ルーレット）
  *
  * みんなで参加する共有型ゲーム。
  * 60秒の受付 → 一斉結果発表。ソーシャル体験の核。
@@ -125,7 +125,7 @@ export async function runRouletteSession(
       : "まだ誰も賭けてないよ……";
     const totalBet = bets.reduce((s, b) => s + b.amount, 0);
 
-    return baseEmbed(`🎡 運命の星盤 — 受付中（残り${secondsLeft}秒）`, COLORS.GOLD)
+    return baseEmbed(`🎡 ルーレット — 受付中（残り${secondsLeft}秒）`, COLORS.GOLD)
       .setDescription(
         [
           `*「星盤に数字が浮かぶ……さあ、どこに賭ける？」*`,
@@ -205,14 +205,14 @@ export async function runRouletteSession(
 
   if (bets.length === 0) {
     await reply.edit({
-      embeds: [baseEmbed("🎡 運命の星盤 — 中止", COLORS.BASE).setDescription("誰も賭けなかったから、星盤は閉じたよ。")],
+      embeds: [baseEmbed("🎡 ルーレット — 中止", COLORS.BASE).setDescription("誰も賭けなかったから、ルーレットは閉じたよ。")],
       components: [],
     });
     return;
   }
 
   // ── Spin ──
-  const spinEmbed = baseEmbed("🎡 運命の星盤 — 回転中…", COLORS.EVENT)
+  const spinEmbed = baseEmbed("🎡 ルーレット — 回転中…", COLORS.EVENT)
     .setDescription("*「星盤が回る……」*\n\n✨ ？？？ ✨");
   await reply.edit({ embeds: [spinEmbed], components: [] });
 
@@ -266,7 +266,7 @@ export async function runRouletteSession(
     }
   }
 
-  const resultEmbed = baseEmbed("🎡 運命の星盤 — 結果発表", winningNumber === 0 ? COLORS.WIN : isRed ? COLORS.MAIN : COLORS.BASE)
+  const resultEmbed = baseEmbed("🎡 ルーレット — 結果発表", winningNumber === 0 ? COLORS.WIN : isRed ? COLORS.MAIN : COLORS.BASE)
     .setDescription(
       [
         `*「星盤が回る……映ったのは…」*`,
@@ -275,7 +275,7 @@ export async function runRouletteSession(
         "",
         ...results,
         "",
-        `次の星盤: \`/遊ぶ 輪盤\` または \`/案内\` から開始`,
+        `次の星盤: \`/遊ぶ ルーレット\` または \`/案内\` から開始`,
       ].join("\n"),
     );
 
@@ -299,7 +299,7 @@ function checkWin(betType: BetType, number: number): boolean {
 // ─── Paytable ──────────────────────────────────────────
 
 function roulettePaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 運命の星盤 — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 ルーレット — ルール", COLORS.GOLD).setDescription(
     [
       "*「星盤に浮かぶ数字に賭けてね。みんなで参加できる遊びだよ。」*",
       "",

@@ -48,8 +48,8 @@ function getDuel(id: number): DuelRow | undefined {
 
 // ─── Command ──────────────────────────────────────────
 export const saiCommand = new SlashCommandBuilder()
-  .setName("賽勝負")
-  .setDescription("🎲 1対1のチンチロ対戦 — BOTが両者の賽を振って即決着")
+  .setName("チンチロ対戦")
+  .setDescription("🎲 1対1のチンチロ対戦 — BOTが両者のサイコロを振って即決着")
   .addSubcommand((sc) =>
     sc
       .setName("申込み")
@@ -87,7 +87,7 @@ async function challenge(interaction: ChatInputCommandInteraction): Promise<void
     "INSERT INTO dice_duels (guild_id, challenger_id, opponent_id, stake, channel_id) VALUES (?, ?, ?, ?, ?)",
   ).run(guildId, challengerId, opponent.id, stake, interaction.channelId).lastInsertRowid);
 
-  const embed = baseEmbed(`🎲 賽勝負 #${duelId}`, PALETTE.STARGOLD).setDescription([
+  const embed = baseEmbed(`🎲 チンチロ対戦 #${duelId}`, PALETTE.STARGOLD).setDescription([
     `**${interaction.user.displayName}** が <@${opponent.id}> にチンチロ対戦を申し込んだ。`,
     `賭け金: **${formatEther(stake)}**（両者同額・勝者総取り）`,
     `*場代 ${Math.round(RAKE_PCT * 100)}% は ${WORLD.POOL_JACKPOT} へ。*`,
@@ -117,7 +117,7 @@ async function decline(interaction: ButtonInteraction, d: DuelRow): Promise<void
   if (interaction.user.id !== d.opponent_id) { await interaction.reply({ content: "申し込まれた本人だけが操作できるよ。", ephemeral: true }); return; }
   if (d.status !== "pending") { await interaction.reply({ content: "もう受付は終わってるよ。", ephemeral: true }); return; }
   db.prepare("UPDATE dice_duels SET status = 'declined' WHERE id = ?").run(d.id);
-  await interaction.update({ content: "", embeds: [baseEmbed(`🎲 賽勝負 #${d.id} — 辞退`, PALETTE.NIGHT).setDescription("この勝負は見送られたよ。")], components: [] });
+  await interaction.update({ content: "", embeds: [baseEmbed(`🎲 チンチロ対戦 #${d.id} — 辞退`, PALETTE.NIGHT).setDescription("この勝負は見送られたよ。")], components: [] });
 }
 
 async function accept(interaction: ButtonInteraction, d: DuelRow): Promise<void> {
@@ -207,7 +207,7 @@ async function settle(
     winnerId && rake > 0 ? `*場代 ${formatEther(rake)} を ${WORLD.POOL_JACKPOT} に納めた。*` : "",
   ].filter(Boolean).join("\n");
 
-  const embed = baseEmbed(`🎲 賽勝負 #${d.id} — 決着`, winnerId ? PALETTE.JADE : PALETTE.NIGHT).setDescription(lines);
+  const embed = baseEmbed(`🎲 チンチロ対戦 #${d.id} — 決着`, winnerId ? PALETTE.JADE : PALETTE.NIGHT).setDescription(lines);
   await announce(client, d, { embeds: [embed] });
 }
 

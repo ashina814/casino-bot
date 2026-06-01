@@ -91,7 +91,7 @@ async function handleUse(interaction: ChatInputCommandInteraction): Promise<void
   const when = def.kind === "armed_win" ? "次に勝った時に発動するよ。"
     : def.kind === "armed_loss" ? "次に負けた時に発動するよ。"
     : def.kind === "game_reroll" ? "次のチンチロで振り直せるよ。"
-    : "次に星脈相場を開いた時に発動するよ。";
+    : "次に株を開いた時に発動するよ。";
   const embed = baseEmbed(`✨ ${def.name} を装備した`, PALETTE.JADE)
     .setDescription(`${def.desc}\n\n${when}`);
   await interaction.reply({ embeds: [embed], ephemeral: true });

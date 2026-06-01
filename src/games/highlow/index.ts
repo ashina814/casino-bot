@@ -1,5 +1,5 @@
 /**
- * 🎴 丁半博打（ハイ＆ロー）
+ * 🎴 丁半（ハイ＆ロー）
  *
  * テンポ重視。5秒で1ゲーム。連勝チャレンジ。
  * 倍プッシュと勝ち逃げの判断が熱い。
@@ -99,7 +99,7 @@ export async function startChohan(
   try { require("../../core/db").addGamePlayAffection(userId); } catch {}
 
   // Show betting UI
-  const betEmbed = baseEmbed("🎴 丁半博打", COLORS.GOLD)
+  const betEmbed = baseEmbed("🎴 丁半", COLORS.GOLD)
     .setDescription(
       `*「丁か、半か。さぁ張りな。」*\n\n` +
       `🎲🎲 サイコロの出目は…？\n\n` +
@@ -215,7 +215,7 @@ export async function startChohan(
       : "";
 
     const resultEmbed = gameResultEmbed({
-      title: `🎴 丁半博打${won ? " — 的中！" : ""}`,
+      title: `🎴 丁半${won ? " — 的中！" : ""}`,
       description: [
         `*${dialogue}*`,
         "",
@@ -306,7 +306,7 @@ export async function startChohan(
 // ─── Paytable ──────────────────────────────────────────
 
 function chohanPaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 丁半博打 — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 丁半 — ルール", COLORS.GOLD).setDescription(
     [
       "*「丁か半か。それだけじゃ。さあ、どっちじゃ？」*",
       "",

@@ -22,8 +22,8 @@ export const asobuCommand = new SlashCommandBuilder()
   .setDescription("🎰 星約の賭場で遊ぶ")
   .addSubcommand((sub) =>
     sub
-      .setName("巻物")
-      .setDescription("🎰 星辰の巻（スロット）を回す")
+      .setName("スロット")
+      .setDescription("🎰 スロットを回す")
       .addIntegerOption((opt) =>
         opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
@@ -31,35 +31,35 @@ export const asobuCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("丁半")
-      .setDescription("🎴 丁半博打 — 丁か半か")
+      .setDescription("🎴 丁半 — 丁（偶）か半（奇）か")
       .addIntegerOption((opt) =>
         opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
   )
   .addSubcommand((sub) =>
     sub
-      .setName("札遊び")
-      .setDescription("🃏 星札勝負（ブラックジャック）")
+      .setName("ブラックジャック")
+      .setDescription("🃏 ブラックジャック")
       .addIntegerOption((opt) =>
         opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
   )
   .addSubcommand((sub) =>
     sub
-      .setName("暴落")
-      .setDescription("📈 星昇り — どこまで耐えられるか")
+      .setName("クラッシュ")
+      .setDescription("📈 クラッシュ — どこまで耐えられるか")
       .addIntegerOption((opt) =>
         opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
       )
   )
   .addSubcommand((sub) =>
     sub
-      .setName("輪盤")
-      .setDescription("🎡 運命の星盤（ルーレット）")
+      .setName("ルーレット")
+      .setDescription("🎡 ルーレット")
   )
   .addSubcommand((sub) =>
     sub
-      .setName("賽")
+      .setName("チンチロ")
       .setDescription("🎲 チンチロ — 3つのサイコロを振る")
       .addIntegerOption((opt) =>
         opt.setName("bet").setDescription("賭けるエテルの額").setRequired(false).setMinValue(50).setMaxValue(1000000000)
@@ -72,17 +72,17 @@ export async function handleAsobuCommand(interaction: ChatInputCommandInteractio
   const sub = interaction.options.getSubcommand();
 
   switch (sub) {
-    case "巻物":
+    case "スロット":
       return handleSlotsCommand(interaction);
     case "丁半":
       return handleHighlowCommand(interaction);
-    case "札遊び":
+    case "ブラックジャック":
       return handleBlackjackCommand(interaction);
-    case "暴落":
+    case "クラッシュ":
       return handleCrashCommand(interaction);
-    case "輪盤":
+    case "ルーレット":
       return handleRouletteCommand(interaction);
-    case "賽":
+    case "チンチロ":
       return handleChinchiroCommand(interaction);
   }
 }

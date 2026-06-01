@@ -119,7 +119,7 @@ async function bootstrap(): Promise<void> {
             return await handleAsobuCommand(interaction);
           case "競馬":
             return await handleRaceCommand(interaction);
-          case "星脈":
+          case "株":
             return await handleStocksCommand(interaction);
           case "福分け":
             return await handleDailyCommand(interaction);
@@ -147,9 +147,9 @@ async function bootstrap(): Promise<void> {
             return await handleCheerCommand(interaction);
           case "卓":
             return await handleTakuCommand(interaction);
-          case "盆":
+          case "丁半":
             return await handleChohanCommand(interaction);
-          case "賽勝負":
+          case "チンチロ対戦":
             return await handleSaiCommand(interaction);
         }
       }

@@ -28,7 +28,7 @@ export const CONSUMABLES: ConsumableDef[] = [
   { key: "hoken", name: "保険符", desc: "次に負けた時、賭け金の半分が戻る。", price: 3_000, kind: "armed_loss", power: 0.5 },
   { key: "higo", name: "庇護の札", desc: "次の敗北を無効化（賭け金が全額戻る）。", price: 12_000, kind: "armed_loss", power: 1.0 },
   { key: "reroll", name: "二度振りの権", desc: "チンチロでもう一度振り直せる（1回）。", price: 5_000, kind: "game_reroll", power: 0 },
-  { key: "insider", name: "インサイダーの噂", desc: "次に星脈相場を開いた時、トレンドをこっそり開示。", price: 5_000, kind: "stocks_insider", power: 0 },
+  { key: "insider", name: "インサイダーの噂", desc: "次に株を開いた時、トレンドをこっそり開示。", price: 5_000, kind: "stocks_insider", power: 0 },
 ];
 
 const BY_KEY = new Map(CONSUMABLES.map((c) => [c.key, c]));

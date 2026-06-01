@@ -83,12 +83,12 @@ function clearTimer(id: number): void {
 
 // ─── Command ──────────────────────────────────────────
 export const chohanCommand = new SlashCommandBuilder()
-  .setName("盆")
+  .setName("丁半")
   .setDescription("🎴 丁半 — 胴が振り、丁(偶)か半(奇)に分かれて張る多人数勝負")
   .addSubcommand((sc) =>
     sc
       .setName("立てる")
-      .setDescription("盆を開く（丁半の卓を立てる）")
+      .setDescription("丁半の卓を立てる（参加者を募る）")
       .addIntegerOption((o) => o.setName("締切分").setDescription("自動で振るまでの分数（任意・1〜60）").setRequired(false).setMinValue(1).setMaxValue(60))
       .addStringOption((o) =>
         o.setName("面").setDescription("自分の最初の賭け（任意）").setRequired(false)
@@ -138,7 +138,7 @@ async function openBon(interaction: ChatInputCommandInteraction): Promise<void> 
     return id;
   });
 
-  await interaction.reply({ content: `盆 #${gameId} を開いたよ。${initial ? `【${SIDE_LABEL[initial.side]}】に ${formatEther(initial.amount)} を張った。` : ""}`, ephemeral: true });
+  await interaction.reply({ content: `丁半 #${gameId} を始めたよ。${initial ? `【${SIDE_LABEL[initial.side]}】に ${formatEther(initial.amount)} を張った。` : ""}`, ephemeral: true });
 
   const panel = renderPanel(gameId);
   const channel = interaction.channel;
@@ -175,7 +175,7 @@ function renderPanel(gameId: number): { embeds: EmbedBuilder[]; components: Acti
     lines.push("", `🎲 ${DICE_FACES[g.die1]} ${DICE_FACES[g.die2]} ＝ ${sum} → **${SIDE_LABEL[g.result]}（${g.result === "cho" ? "偶" : "奇"}）の勝ち**`);
   }
 
-  const embed = baseEmbed(`🎴 盆 #${g.id}　丁半`, color)
+  const embed = baseEmbed(`🎴 丁半 #${g.id}`, color)
     .setDescription(lines.filter(Boolean).join("\n"))
     .setFooter({ text: "1人1面（賭け直しは同じ面に加算）　|　締切は主催か管理者が手締めも可" });
 
@@ -217,7 +217,7 @@ export async function handleChohanButton(interaction: ButtonInteraction): Promis
   const [, action, idStr, sideArg] = interaction.customId.split(":");
   const gameId = Number(idStr);
   const g = getGame(gameId);
-  if (!g) { await interaction.reply({ content: "その盆はもう無いみたい。", ephemeral: true }); return; }
+  if (!g) { await interaction.reply({ content: "その丁半はもう無いみたい。", ephemeral: true }); return; }
   if (action === "bet") return openBetModal(interaction, g, sideArg as Side);
   if (action === "close") return doClose(interaction, g);
 }
@@ -227,7 +227,7 @@ export async function handleChohanModal(interaction: ModalSubmitInteraction): Pr
   if (action !== "betmodal") return;
   const gameId = Number(idStr);
   const g = getGame(gameId);
-  if (!g) { await interaction.reply({ content: "その盆はもう無いみたい。", ephemeral: true }); return; }
+  if (!g) { await interaction.reply({ content: "その丁半はもう無いみたい。", ephemeral: true }); return; }
   return submitBet(interaction, g, sideArg as Side);
 }
 
@@ -307,7 +307,7 @@ function canManage(interaction: ButtonInteraction, g: GameRow): boolean {
 }
 
 async function doClose(interaction: ButtonInteraction, g: GameRow): Promise<void> {
-  if (!canManage(interaction, g)) { await interaction.reply({ content: "締められるのは盆を開いた人か管理者だけだよ。", ephemeral: true }); return; }
+  if (!canManage(interaction, g)) { await interaction.reply({ content: "締められるのは丁半を始めた人か管理者だけだよ。", ephemeral: true }); return; }
   if (g.status !== "open") { await interaction.reply({ content: "もう受付中じゃないよ。", ephemeral: true }); return; }
   await interaction.deferUpdate();
   await roll(interaction.client, g.id);

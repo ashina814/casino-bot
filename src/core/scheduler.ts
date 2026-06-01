@@ -39,7 +39,7 @@ export function registerSchedulers(client: Client): void {
           try {
             const channel = await client.channels.fetch(r.stock_channel_id);
             if (channel && channel.isTextBased()) {
-              const embed = baseEmbed("📈 星脈速報", COLORS.EVENT)
+              const embed = baseEmbed("📈 株価速報", COLORS.EVENT)
                 .setDescription(events.join("\n\n"));
               await (channel as any).send({ embeds: [embed] });
             }
