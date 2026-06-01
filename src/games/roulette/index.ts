@@ -29,6 +29,7 @@ import {
 } from "../../core/economy";
 import { baseEmbed, gameResultEmbed, COLORS } from "../../ui/embeds";
 import { broadcastBigWin } from "../../core/bigwin";
+import { effectiveBetCap } from "../../core/vip";
 
 // ─── Roulette Layout ───────────────────────────────────
 
@@ -93,8 +94,9 @@ export async function handleRouletteCommand(interaction: ChatInputCommandInterac
     await interaction.reply({ content: `最低ベットは ◈${cfg.min_bet} からだよ。`, ephemeral: true });
     return;
   }
-  if (bet > tier.betCap) {
-    await interaction.reply({ content: `きみの星位だと ◈${tier.betCap.toLocaleString()} までだよ。`, ephemeral: true });
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
+  if (bet > betCap) {
+    await interaction.reply({ content: `きみの賭け上限は ◈${betCap.toLocaleString()}${betCap > tier.betCap ? "（💎VIP×2）" : ""} までだよ。`, ephemeral: true });
     return;
   }
 
@@ -178,7 +180,7 @@ export async function runRouletteSession(
     const cfg = getServerConfig(guildId);
     const profile = ensureUser(userId, guildId);
     const tier = getTierByKey(profile.tier);
-    const betAmount = Math.min(defaultBet, tier.betCap);
+    const betAmount = Math.min(defaultBet, effectiveBetCap(tier.betCap, userId, guildId));
 
     // Deduct
     const result = adjustBalance(userId, -betAmount, "roulette_bet", "roulette");

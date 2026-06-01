@@ -36,6 +36,7 @@ import {
 import { dialogueWin, dialogueLose, type DialogueContext } from "../../core/dialogue";
 import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
 import { broadcastBigWin } from "../../core/bigwin";
+import { effectiveBetCap } from "../../core/vip";
 
 const DIE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]; // 1..6
 
@@ -224,8 +225,9 @@ export async function playChinchiro(
     return;
   }
 
-  if (bet > tier.betCap) {
-    const msg = { content: `きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までしか賭けられないよ。`, ephemeral: true };
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
+  if (bet > betCap) {
+    const msg = { content: `きみの賭け上限は ◈${betCap.toLocaleString()}（${tier.emoji}${tier.name}${betCap > tier.betCap ? "・💎VIP×2" : ""}）までだよ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) await interaction.followUp(msg);
     else await interaction.reply(msg);
     return;
@@ -717,7 +719,7 @@ function buildResultButtons(guildId: string, userId: string, bet: number): Actio
   const tier = getTierByKey(profile.tier);
   const minB = cfg.min_bet;
   const balance = profile.balance;
-  const maxB = Math.min(tier.betCap, balance);
+  const maxB = Math.min(effectiveBetCap(tier.betCap, userId, guildId), balance);
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()

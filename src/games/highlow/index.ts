@@ -15,6 +15,7 @@ import {
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
 import { consumeWinBonus, consumeLossProtection } from "../../core/items";
+import { effectiveBetCap } from "../../core/vip";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -84,8 +85,9 @@ export async function startChohan(
     await replyText(`最低ベットは ◈${cfg.min_bet} からだよ。`);
     return;
   }
-  if (bet > tier.betCap) {
-    await replyText(`きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までだね。`);
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
+  if (bet > betCap) {
+    await replyText(`きみの賭け上限は ◈${betCap.toLocaleString()}（${tier.emoji}${tier.name}${betCap > tier.betCap ? "・💎VIP×2" : ""}）までだね。`);
     return;
   }
 

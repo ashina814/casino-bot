@@ -28,6 +28,7 @@ import {
 import { dialogueWin, dialogueLose, type DialogueContext } from "../../core/dialogue";
 import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
 import { broadcastBigWin } from "../../core/bigwin";
+import { effectiveBetCap } from "../../core/vip";
 import { WORLD } from "../../world.config";
 
 // ─── Crash Point Generation ────────────────────────────
@@ -107,8 +108,9 @@ export async function playCrash(
     await reply(`最低ベットは ◈${cfg.min_bet} からだよ。`);
     return;
   }
-  if (bet > tier.betCap) {
-    await reply(`きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までだね。`);
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
+  if (bet > betCap) {
+    await reply(`きみの賭け上限は ◈${betCap.toLocaleString()}（${tier.emoji}${tier.name}${betCap > tier.betCap ? "・💎VIP×2" : ""}）までだね。`);
     return;
   }
 
@@ -258,7 +260,7 @@ export async function playCrash(
   const minB = cfg.min_bet;
   const buildRetryRow = () => {
     const balance = getBalance(userId, guildId);
-    const maxB = Math.min(tier.betCap, balance);
+    const maxB = Math.min(betCap, balance);
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`crash_retry_${minB}_min`).setLabel(`最低 ◈${minB.toLocaleString()}`).setStyle(ButtonStyle.Secondary).setDisabled(balance < minB),
       new ButtonBuilder().setCustomId(`crash_retry_${bet}_same`).setLabel(`🎰 もう一回 ◈${bet.toLocaleString()}`).setStyle(ButtonStyle.Primary).setDisabled(balance < bet),

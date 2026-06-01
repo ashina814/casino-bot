@@ -31,6 +31,7 @@ import {
 import { db, getServerConfig, runTransaction } from "../../core/db";
 import { adjustBalance, ensureUser, getBalance, getProfile, validateBet } from "../../core/bank";
 import { getTierByKey } from "../../core/economy";
+import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 
@@ -118,7 +119,7 @@ async function openBon(interaction: ChatInputCommandInteraction): Promise<void> 
   let initial: { side: Side; amount: number } | null = null;
   if (firstSide && firstBet != null) {
     if (firstBet < cfg.min_bet) { await interaction.reply({ embeds: [errorEmbed(`最低 ${formatEther(cfg.min_bet)} からだよ。`)], ephemeral: true }); return; }
-    if (firstBet > tier.betCap) { await interaction.reply({ embeds: [errorEmbed(`きみの星位だと ${formatEther(tier.betCap)} までだよ。`)], ephemeral: true }); return; }
+    if (firstBet > effectiveBetCap(tier.betCap, userId, guildId)) { await interaction.reply({ embeds: [errorEmbed(`上限 ${formatEther(effectiveBetCap(tier.betCap, userId, guildId))} までだよ。`)], ephemeral: true }); return; }
     if (getBalance(userId, guildId) < firstBet) { await interaction.reply({ embeds: [errorEmbed("残高が足りないみたい。")], ephemeral: true }); return; }
     initial = { side: firstSide, amount: firstBet };
   }
@@ -256,11 +257,12 @@ async function submitBet(interaction: ModalSubmitInteraction, g: GameRow, side: 
   ensureUser(userId, guildId);
   const cfg = getServerConfig(guildId);
   const tier = getTierByKey(getProfile(userId, guildId).tier);
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
 
-  const v = validateBet(interaction.fields.getTextInputValue("amount"), cfg.min_bet, tier.betCap);
+  const v = validateBet(interaction.fields.getTextInputValue("amount"), cfg.min_bet, betCap);
   if (!v.ok) {
     const msg = v.reason === "TOO_SMALL" ? `最低 ${formatEther(cfg.min_bet)} からだよ。`
-      : v.reason === "TOO_LARGE" ? `きみの星位だと ${formatEther(tier.betCap)} までだよ（賭け直しは加算なので合計に注意）。`
+      : v.reason === "TOO_LARGE" ? `上限 ${formatEther(betCap)}${betCap > tier.betCap ? "（💎VIP×2）" : ""} までだよ（賭け直しは加算なので合計に注意）。`
       : "整数で額を入れてね。";
     await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
     return;
@@ -274,7 +276,7 @@ async function submitBet(interaction: ModalSubmitInteraction, g: GameRow, side: 
     if (prev && prev.side !== side) return { ok: false, reason: "WRONG_SIDE" };
     // 賭け直しは同じ面に加算。合計が上限を超えないか確認
     const newTotal = (prev?.amount ?? 0) + amount;
-    if (newTotal > tier.betCap) return { ok: false, reason: "OVER_CAP", total: newTotal };
+    if (newTotal > betCap) return { ok: false, reason: "OVER_CAP", total: newTotal };
     const debit = adjustBalance(userId, -amount, "盆: 賭け", "chohan", guildId);
     if (!debit.ok) return { ok: false, reason: "INSUFFICIENT" };
     db.prepare(
@@ -287,7 +289,7 @@ async function submitBet(interaction: ModalSubmitInteraction, g: GameRow, side: 
   if (!result.ok) {
     const msg = result.reason === "CLOSED" ? "ちょうど締め切られちゃった。"
       : result.reason === "WRONG_SIDE" ? "反対の面には張れないよ。"
-      : result.reason === "OVER_CAP" ? `合計が星位の上限 ${formatEther(tier.betCap)} を超えちゃう。`
+      : result.reason === "OVER_CAP" ? `合計が上限 ${formatEther(betCap)} を超えちゃう。`
       : result.reason === "INSUFFICIENT" ? "残高が足りないみたい。" : "賭けに失敗しちゃった。";
     await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
     return;

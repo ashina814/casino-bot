@@ -21,6 +21,7 @@ import {
 import { db, getServerConfig, runTransaction } from "../../core/db";
 import { adjustBalance, ensureUser, getBalance, getProfile } from "../../core/bank";
 import { getTierByKey } from "../../core/economy";
+import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { autoRollHand, handRank, describeHand, diceDisplay, type Hand } from "../chinchiro/index";
@@ -80,7 +81,7 @@ async function challenge(interaction: ChatInputCommandInteraction): Promise<void
   const cfg = getServerConfig(guildId);
   const tier = getTierByKey(getProfile(challengerId, guildId).tier);
   if (stake < cfg.min_bet) { await interaction.reply({ embeds: [errorEmbed(`最低 ${formatEther(cfg.min_bet)} からだよ。`)], ephemeral: true }); return; }
-  if (stake > tier.betCap) { await interaction.reply({ embeds: [errorEmbed(`きみの星位だと ${formatEther(tier.betCap)} までだよ。`)], ephemeral: true }); return; }
+  { const cap = effectiveBetCap(tier.betCap, challengerId, guildId); if (stake > cap) { await interaction.reply({ embeds: [errorEmbed(`上限 ${formatEther(cap)}${cap > tier.betCap ? "（💎VIP×2）" : ""} までだよ。`)], ephemeral: true }); return; } }
   if (getBalance(challengerId, guildId) < stake) { await interaction.reply({ embeds: [errorEmbed("自分の残高が足りないみたい。")], ephemeral: true }); return; }
 
   const duelId = Number(db.prepare(

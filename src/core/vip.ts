@@ -74,3 +74,8 @@ export function removeVip(userId: string, guildId: string): void {
 export function getVipBetCapMultiplier(userId: string, guildId: string): number {
   return isVip(userId, guildId) ? VIP_BETCAP_MULT : 1;
 }
+
+/** 星位の賭け上限に VIP 倍率を適用した「実効上限」。各ゲームの bet 検証・表示はこれを使う。 */
+export function effectiveBetCap(baseBetCap: number, userId: string, guildId: string): number {
+  return baseBetCap * getVipBetCapMultiplier(userId, guildId);
+}

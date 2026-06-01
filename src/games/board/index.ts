@@ -30,6 +30,7 @@ import {
 import { db, getServerConfig, runTransaction } from "../../core/db";
 import { adjustBalance, ensureUser, getBalance, getProfile, validateBet } from "../../core/bank";
 import { getTierByKey } from "../../core/economy";
+import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 
@@ -346,10 +347,11 @@ async function submitBet(interaction: ModalSubmitInteraction, m: MarketRow, opt:
   const profile = getProfile(userId, guildId);
   const tier = getTierByKey(profile.tier);
 
-  const v = validateBet(interaction.fields.getTextInputValue("amount"), cfg.min_bet, tier.betCap);
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
+  const v = validateBet(interaction.fields.getTextInputValue("amount"), cfg.min_bet, betCap);
   if (!v.ok) {
     const msg = v.reason === "TOO_SMALL" ? `最低 ${formatEther(cfg.min_bet)} からだよ。`
-      : v.reason === "TOO_LARGE" ? `きみの星位だと ${formatEther(tier.betCap)} までだよ。`
+      : v.reason === "TOO_LARGE" ? `上限 ${formatEther(betCap)}${betCap > tier.betCap ? "（💎VIP×2）" : ""} までだよ。`
       : "整数で額を入れてね。";
     await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
     return;

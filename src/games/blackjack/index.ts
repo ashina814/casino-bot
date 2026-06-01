@@ -14,6 +14,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { effectiveBetCap } from "../../core/vip";
 import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
@@ -126,8 +127,9 @@ export async function playBlackjack(
     await replyText(`最低ベットは ◈${cfg.min_bet} からだよ。`);
     return;
   }
-  if (bet > tier.betCap) {
-    await replyText(`きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までだね。`);
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
+  if (bet > betCap) {
+    await replyText(`きみの賭け上限は ◈${betCap.toLocaleString()}（${tier.emoji}${tier.name}${betCap > tier.betCap ? "・💎VIP×2" : ""}）までだね。`);
     return;
   }
 
@@ -447,7 +449,7 @@ function makeRetryRow(bet: number, guildId?: string, userId?: string): ActionRow
       const tier = getTierByKey(profile.tier);
       minB = cfg.min_bet;
       balance = profile.balance;
-      maxB = Math.min(tier.betCap, balance);
+      maxB = Math.min(effectiveBetCap(tier.betCap, userId, guildId), balance);
     }
   } catch { /* fallback to simple row */ }
 

@@ -22,6 +22,7 @@ import {
 } from "discord.js";
 import { db, getServerConfig, runTransaction } from "../../core/db";
 import { adjustBalance, getBalance, ensureUser, validateBet, getProfile } from "../../core/bank";
+import { effectiveBetCap } from "../../core/vip";
 import { consumeInsider } from "../../core/items";
 import { getTierByKey } from "../../core/economy";
 import { baseEmbed, COLORS, infoEmbed, errorEmbed, successEmbed } from "../../ui/embeds";
@@ -441,7 +442,7 @@ export async function handleStocksSelect(interaction: StringSelectMenuInteractio
   if (action === "buy_select") {
     const profile = getProfile(interaction.user.id, interaction.guildId!);
     const tier = getTierByKey(profile.tier);
-    const txMax = stockTxMax(tier.betCap);
+    const txMax = stockTxMax(effectiveBetCap(tier.betCap, interaction.user.id, interaction.guildId!));
     const bal = getBalance(interaction.user.id, interaction.guildId!);
     const maxShares = Math.max(0, Math.min(Math.floor(txMax / stock.price), Math.floor(bal / stock.price)));
     const modal = new ModalBuilder()
@@ -489,7 +490,7 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     // いま買える最大株数 = 所持金と1回投資上限の小さい方
     const profile = getProfile(userId, guildId);
     const tier = getTierByKey(profile.tier);
-    const txMax = stockTxMax(tier.betCap);
+    const txMax = stockTxMax(effectiveBetCap(tier.betCap, userId, guildId));
     const bal = getBalance(userId, guildId);
     const maxByTx = Math.floor(txMax / stock.price);
     const maxByBal = Math.floor(bal / stock.price);

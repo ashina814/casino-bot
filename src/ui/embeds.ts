@@ -154,7 +154,7 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string, vip = f
           activeTitle ? `🏷️ 「${activeTitle}」` : "",
           `${tier.emoji} **${tier.name}** （Lv.${profile.level}）`,
           `星の力 \`${expBar}\` ${profile.exp.toLocaleString()} / ${expNext.toLocaleString()}`,
-          `賭け上限: ◈${tier.betCap.toLocaleString()}${tierProgress}`,
+          `賭け上限: ◈${(tier.betCap * (vip ? 2 : 1)).toLocaleString()}${vip ? "（💎VIP×2）" : ""}${tierProgress}`,
         ].filter(Boolean).join("\n"),
         inline: false,
       },

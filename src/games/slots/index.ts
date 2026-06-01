@@ -28,6 +28,7 @@ import { dialogueWin, dialogueLose, dialogueFukuWeight, type DialogueContext } f
 import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
 import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { broadcastBigWin } from "../../core/bigwin";
+import { effectiveBetCap } from "../../core/vip";
 import { WORLD } from "../../world.config";
 
 // ─── Symbols & Payouts ─────────────────────────────────
@@ -129,6 +130,7 @@ export async function playSlots(
   const cfg = getServerConfig(guildId);
   const profile = ensureUser(userId, guildId);
   const tier = getTierByKey(profile.tier);
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
 
   const bet = overrideBet ?? (interaction as ChatInputCommandInteraction).options?.getInteger?.("bet") ?? cfg.min_bet;
 
@@ -142,8 +144,8 @@ export async function playSlots(
     return;
   }
 
-  if (bet > tier.betCap) {
-    const msg = { content: `きみの星位(${tier.emoji}${tier.name})だと ◈${tier.betCap.toLocaleString()} までしか賭けられないよ。`, ephemeral: true };
+  if (bet > betCap) {
+    const msg = { content: `きみの賭け上限は ◈${betCap.toLocaleString()}（${tier.emoji}${tier.name}${betCap > tier.betCap ? "・💎VIP×2" : ""}）までだよ。`, ephemeral: true };
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp(msg);
     } else {
@@ -362,7 +364,7 @@ export async function playSlots(
 
   // ── Quick-bet buttons (最低 / 前回 / 最大) + ペイアウト表 ──
   const minB = cfg.min_bet;
-  const maxB = Math.min(tier.betCap, getBalance(userId, guildId));
+  const maxB = Math.min(betCap, getBalance(userId, guildId));
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`slots_retry_${minB}_min`)
