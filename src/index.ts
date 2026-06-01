@@ -16,7 +16,7 @@ import { handleCasinoCommand, handleHomeButton, handleHomeModal } from "./ui/hom
 import { handleRankingCommand } from "./ui/ranking";
 import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStocksModal } from "./games/stocks";
 import { handleAdminCommand } from "./admin/commands";
-import { handleShoutenCommand } from "./games/shouten";
+import { handleShoutenCommand, handleShoutenButton } from "./games/shouten";
 import { handleZashikiCommand } from "./games/zashiki";
 import { handleExchangeCommand, handleExchangeApproval } from "./games/exchange";
 import { reconcileStaleExchangesOnStartup } from "./core/exchange";
@@ -177,6 +177,12 @@ async function bootstrap(): Promise<void> {
       // ── 卓を立てる (taku:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("taku:")) {
         await handleTakuButton(interaction);
+        return;
+      }
+
+      // ── 商店パネル (shouten:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("shouten:")) {
+        await handleShoutenButton(interaction);
         return;
       }
 

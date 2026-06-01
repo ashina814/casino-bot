@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuInteraction, ComponentType } from "discord.js";
+import { ChatInputCommandInteraction, ButtonInteraction, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuInteraction, ComponentType } from "discord.js";
 import { adjustBalance, ensureUser, getBalance } from "../core/bank";
 import { db, runTransaction } from "../core/db";
 import { infoEmbed, errorEmbed, successEmbed, COLORS } from "../ui/embeds";
@@ -17,7 +17,7 @@ const SHOP_ITEMS = [
   { id: "present_kimono", type: "present", name: "✨ 星織の衣（アステルへ）", cost: 100_000, desc: "アステルにプレゼントする。飛び跳ねて喜ぶ。（好感度+200）", affection: 200 },
 ];
 
-export async function handleShopCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleShopCommand(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
   ensureUser(userId, guildId);
@@ -46,7 +46,7 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
       .addOptions(options)
   );
 
-  const reply = await interaction.reply({ embeds: [embed], components: [row] });
+  const reply = await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
 
   const collector = reply.createMessageComponentCollector({
     componentType: ComponentType.StringSelect,
@@ -107,7 +107,7 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
       // 購入成功の演出
       if (item.type === "consumable") {
         await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** を手に入れたよ。\n\n`+"`/商店 使う` で装備すると、次の勝負で効くよ。")] });
+        await i.followUp({ embeds: [successEmbed(`**${item.name}** を手に入れたよ。\n\n`+"商店の **「使う」** で装備すると、次の勝負で効くよ。")], ephemeral: true });
       } else if (item.type === "present") {
         let zashikiReply = "";
         if (item.id === "present_dango") zashikiReply = "「わ、お菓子だ。ありがと、もらうね。……んむ。うん、悪くない。」";
@@ -115,10 +115,10 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
         if (item.id === "present_kimono") zashikiReply = "「これ、星織の衣……！？ こんな高価なもの、わたしに……？\n……あ、ありがと。大事に着るね。」";
         
         await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** をアステルに贈りました！\n\n${zashikiReply}`)] });
+        await i.followUp({ embeds: [successEmbed(`**${item.name}** をアステルに贈りました！\n\n${zashikiReply}`)], ephemeral: true });
       } else {
         await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** を購入しました！\n\n「毎度あり。/通行証 で確認できるよ。」`)] });
+        await i.followUp({ embeds: [successEmbed(`**${item.name}** を購入しました！\n\n「毎度あり。/通行証 で確認できるよ。」`)], ephemeral: true });
       }
     } catch (error) {
       console.error("[shop] Error:", error);

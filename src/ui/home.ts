@@ -13,6 +13,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ModalSubmitInteraction,
+  PermissionFlagsBits,
 } from "discord.js";
 import { playSlots } from "../games/slots/index";
 import { startChohan } from "../games/highlow/index";
@@ -71,9 +72,68 @@ export function getTodayLuckyGame(guildId: string): string {
 
 export const casinoCommand = new SlashCommandBuilder()
   .setName("案内")
-  .setDescription("✦ 星約の賭場 — ホーム");
+  .setDescription("✦ 星約の賭場 — ホーム")
+  .addSubcommand((sc) => sc.setName("ホーム").setDescription("✦ 自分のホーム画面を開く（残高・各ゲームへの入口）"))
+  .addSubcommand((sc) => sc.setName("設置").setDescription("📌 このチャンネルに常設の案内パネルを置く（管理者）"));
+
+// 全ゲーム/アクションへの入口ボタン（個人ホーム・常設パネル共用）
+function buildHomeRows(): ActionRowBuilder<ButtonBuilder>[] {
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("home_daily").setLabel("📅 福分け").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("home_quests").setLabel("📋 任務").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("home_profile").setLabel("👤 通行証").setStyle(ButtonStyle.Secondary),
+  );
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("home_slots").setLabel("🎰 スロット").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_chohan").setLabel("🎴 丁半").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_blackjack").setLabel("🃏 ブラックジャック").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_chinchiro").setLabel("🎲 チンチロ").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_crash").setLabel("📈 クラッシュ").setStyle(ButtonStyle.Primary),
+  );
+  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("home_roulette").setLabel("🎡 ルーレット").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_keiba").setLabel("🏇 競馬").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("home_stocks").setLabel("📈 株").setStyle(ButtonStyle.Primary),
+  );
+  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("home_history").setLabel("📒 履歴").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("home_titles").setLabel("📜 二つ名").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("home_help").setLabel("📖 ヘルプ").setStyle(ButtonStyle.Secondary),
+  );
+  return [row1, row2, row3, row4];
+}
 
 export async function handleCasinoCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  const sub = interaction.options.getSubcommand();
+  if (sub === "設置") return postHomePanel(interaction);
+  return personalHome(interaction);
+}
+
+// 常設パネル（公開・全員のボタン操作はそれぞれ ephemeral で開く）
+async function postHomePanel(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+    await interaction.reply({ content: "このコマンドは管理者だけが使えるよ。", ephemeral: true });
+    return;
+  }
+  const guildId = interaction.guildId!;
+  const luckyGame = getTodayLuckyGame(guildId);
+  const eco = getEconomyState(guildId);
+
+  const embed = baseEmbed("✦ 星約の賭場 — 案内所", COLORS.GOLD).setDescription(
+    [
+      "*「いらっしゃい、星約の賭場へ。下のボタンから、好きなところへどうぞ。」*",
+      "",
+      `🎯 本日のラッキーゲーム: **${GAME_NAMES[luckyGame] ?? luckyGame}**（配当1.2倍）`,
+      `${eco.emoji} 星気: *${eco.label}*`,
+      "",
+      "🌱 初めての方は **「📅 福分け」** から。毎日のエテルが受け取れるよ。",
+    ].join("\n"),
+  ).setFooter({ text: "ボタンの結果はあなたにだけ表示されるよ。" });
+
+  await interaction.reply({ embeds: [embed], components: buildHomeRows() });
+}
+
+async function personalHome(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
   const profile = ensureUser(userId, guildId);
@@ -112,37 +172,7 @@ export async function handleCasinoCommand(interaction: ChatInputCommandInteracti
       ].join("\n"),
     );
 
-  // Row 1 — 日常アクション（最重要、目立たせる）
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("home_daily").setLabel("📅 福分け").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("home_quests").setLabel("📋 任務").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("home_profile").setLabel("👤 通行証").setStyle(ButtonStyle.Secondary),
-  );
-
-  // Row 2 — メインゲーム（単独プレイ）
-  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("home_slots").setLabel("🎰 スロット").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_chohan").setLabel("🎴 丁半").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_blackjack").setLabel("🃏 ブラックジャック").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_chinchiro").setLabel("🎲 チンチロ").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_crash").setLabel("📈 クラッシュ").setStyle(ButtonStyle.Primary),
-  );
-
-  // Row 3 — みんなで遊ぶ + 投資
-  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("home_roulette").setLabel("🎡 ルーレット").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_keiba").setLabel("🏇 競馬").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("home_stocks").setLabel("📈 株").setStyle(ButtonStyle.Primary),
-  );
-
-  // Row 4 — 情報・参考
-  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("home_history").setLabel("📒 履歴").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("home_titles").setLabel("📜 二つ名").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("home_help").setLabel("📖 ヘルプ").setStyle(ButtonStyle.Secondary),
-  );
-
-  await interaction.reply({ embeds: [embed], components: [row1, row2, row3, row4], ephemeral: true });
+  await interaction.reply({ embeds: [embed], components: buildHomeRows(), ephemeral: true });
 }
 
 // ─── Button Handlers ───────────────────────────────────

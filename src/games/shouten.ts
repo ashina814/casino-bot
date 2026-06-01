@@ -4,6 +4,14 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  ButtonInteraction,
+  StringSelectMenuInteraction,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder,
+  ComponentType,
+  PermissionFlagsBits,
 } from "discord.js";
 import { handleShopCommand } from "./shop";
 import { handleTipCommand } from "./tip";
@@ -14,6 +22,9 @@ import { PALETTE } from "../world.config";
 export const shoutenCommand = new SlashCommandBuilder()
   .setName("商店")
   .setDescription("🛍️ アステルの商店（買い物・持ち物・心付け）")
+  .addSubcommand((sub) =>
+    sub.setName("設置").setDescription("📌 このチャンネルに常設の商店パネルを置く（管理者）")
+  )
   .addSubcommand((sub) =>
     sub.setName("購入").setDescription("🛍️ 称号・使い切り景品・アステルへの贈り物を買う")
   )
@@ -40,14 +51,88 @@ export const shoutenCommand = new SlashCommandBuilder()
 
 export async function handleShoutenCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const sub = interaction.options.getSubcommand();
+  if (sub === "設置") return postShopPanel(interaction);
   if (sub === "購入") return handleShopCommand(interaction);
   if (sub === "心付け") return handleTipCommand(interaction);
   if (sub === "持ち物") return handleInventory(interaction);
   if (sub === "使う") return handleUse(interaction);
 }
 
+// ─── 常設パネル ───────────────────────────────────────
+async function postShopPanel(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+    await interaction.reply({ content: "このコマンドは管理者だけが使えるよ。", ephemeral: true });
+    return;
+  }
+  const embed = baseEmbed("🛍️ アステルの商店", PALETTE.STARGOLD).setDescription(
+    [
+      "*「いらっしゃい。余ったエテルで、特別な品と交換できるよ。」*",
+      "",
+      "🛍️ **購入** … 称号・使い切り景品・アステルへの贈り物",
+      "🎒 **持ち物** … 手持ちと装備中の効果を見る",
+      "✨ **使う** … 使い切り景品を装備（次の勝負で発動）",
+      "",
+      "下のボタンからどうぞ。表示はあなたにだけ見えるよ。",
+    ].join("\n"),
+  );
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("shouten:buy").setLabel("購入").setStyle(ButtonStyle.Success).setEmoji("🛍️"),
+    new ButtonBuilder().setCustomId("shouten:inv").setLabel("持ち物").setStyle(ButtonStyle.Secondary).setEmoji("🎒"),
+    new ButtonBuilder().setCustomId("shouten:use").setLabel("使う").setStyle(ButtonStyle.Primary).setEmoji("✨"),
+  );
+  await interaction.reply({ embeds: [embed], components: [row] });
+}
+
+// ─── パネルのボタン ───────────────────────────────────
+export async function handleShoutenButton(interaction: ButtonInteraction): Promise<void> {
+  const [, action] = interaction.customId.split(":");
+  if (action === "buy") return handleShopCommand(interaction);
+  if (action === "inv") return handleInventory(interaction);
+  if (action === "use") return openUseSelect(interaction);
+}
+
+// 「使う」: 手持ちの使い切り景品をセレクトで選んで装備
+async function openUseSelect(interaction: ButtonInteraction): Promise<void> {
+  const userId = interaction.user.id;
+  const inv = getInventory(userId);
+  if (inv.length === 0) {
+    await interaction.reply({ embeds: [errorEmbed("装備できる景品を持ってないよ。先に「購入」で手に入れてね。")], ephemeral: true });
+    return;
+  }
+  const armed = new Set(getArmed(userId));
+  const options = inv.map((r) => {
+    const def = getConsumableDef(r.key);
+    return {
+      label: `${def?.name ?? r.key} ×${r.quantity}`,
+      value: r.key,
+      description: armed.has(r.key) ? "装備中" : (def?.desc ?? "").slice(0, 90),
+    };
+  });
+  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder().setCustomId("shouten:use_select").setPlaceholder("装備する景品を選ぶ…").addOptions(options),
+  );
+  const reply = await interaction.reply({ embeds: [baseEmbed("✨ 使う景品を選んで", PALETTE.JADE)], components: [row], ephemeral: true });
+
+  const collector = reply.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 60_000, filter: (i) => i.user.id === userId });
+  collector.on("collect", async (sel: StringSelectMenuInteraction) => {
+    await sel.deferUpdate();
+    const key = sel.values[0];
+    const def = getConsumableDef(key);
+    const res = armItem(userId, key);
+    if (!res.ok) {
+      const msg = res.reason === "NO_STOCK" ? `**${def?.name ?? key}** を持ってないよ。`
+        : res.reason === "ALREADY_ARMED" ? `**${def?.name ?? key}** はもう装備してるよ。` : "装備できなかったよ。";
+      await sel.followUp({ embeds: [errorEmbed(msg)], ephemeral: true });
+      return;
+    }
+    await reply.edit({ components: [] }).catch(() => {});
+    await sel.followUp({ embeds: [baseEmbed(`✨ ${def?.name ?? key} を装備した`, PALETTE.JADE).setDescription(`${def?.desc ?? ""}\n\n次の勝負で自動発動して消費されるよ。`)], ephemeral: true });
+  });
+  collector.on("end", async () => { try { await reply.edit({ components: [] }); } catch {} });
+}
+
 // ─── 持ち物 ───────────────────────────────────────────
-async function handleInventory(interaction: ChatInputCommandInteraction): Promise<void> {
+async function handleInventory(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
   const userId = interaction.user.id;
   const inv = getInventory(userId);
   const armed = new Set(getArmed(userId));
