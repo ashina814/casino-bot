@@ -50,7 +50,7 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
     try {
       const { addTipAffection } = require("../core/db");
       if (addTipAffection(senderId)) {
-        affectionNote = "\n\n*（座敷童がこちらを見て微笑んでいる…💖）*";
+        affectionNote = "\n\n*（アステルがこちらを見て微笑んでいる…💖）*";
       }
     } catch {}
 

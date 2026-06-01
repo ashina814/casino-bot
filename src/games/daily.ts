@@ -32,7 +32,7 @@ import type { ZashikiStageLevel } from "../core/zashikiStage";
 
 export const dailyCommand = new SlashCommandBuilder()
   .setName("福分け")
-  .setDescription("📅 座敷童から毎日の福分けを受け取る");
+  .setDescription("📅 アステルから毎日の福分けを受け取る");
 
 export async function handleDailyCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
