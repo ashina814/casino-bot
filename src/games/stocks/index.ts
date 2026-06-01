@@ -414,7 +414,7 @@ export async function handleStocksSelect(interaction: StringSelectMenuInteractio
   const stockId = interaction.values[0];
   const stock = getStock(stockId);
   if (!stock) {
-    await interaction.reply({ content: "銘柄が見つからぬ。", ephemeral: true });
+    await interaction.reply({ content: "その銘柄、見つからないや。", ephemeral: true });
     return;
   }
 
@@ -422,16 +422,19 @@ export async function handleStocksSelect(interaction: StringSelectMenuInteractio
     const profile = getProfile(interaction.user.id, interaction.guildId!);
     const tier = getTierByKey(profile.tier);
     const txMax = stockTxMax(tier.betCap);
+    const bal = getBalance(interaction.user.id, interaction.guildId!);
+    const maxShares = Math.max(0, Math.min(Math.floor(txMax / stock.price), Math.floor(bal / stock.price)));
     const modal = new ModalBuilder()
       .setCustomId(`stocks_buy_modal_${stockId}`)
       .setTitle(`${stock.name} を購入`)
       .addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(
           new TextInputBuilder()
-            .setCustomId("amount")
-            .setLabel(`投資額 (1株◈${stock.price} / 上限◈${txMax.toLocaleString()})`)
+            .setCustomId("shares")
+            .setLabel("何株買う？（空欄なら買えるだけ）")
+            .setPlaceholder(`1株 ◈${stock.price.toLocaleString()} ／ いまは最大 ${maxShares}株`)
             .setStyle(TextInputStyle.Short)
-            .setRequired(true)
+            .setRequired(false)
         )
       );
     await interaction.showModal(modal);
@@ -460,34 +463,54 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
   
   if (interaction.customId.startsWith("stocks_buy_modal_")) {
     const stockId = interaction.customId.replace("stocks_buy_modal_", "");
-    const amountStr = interaction.fields.getTextInputValue("amount");
+    const stock = getStock(stockId);
+    if (!stock) { await interaction.reply({ content: "その銘柄、見つからないや。", ephemeral: true }); return; }
 
-    // 1回投資の上限。投資は単発の賭けと性質が違うので betCap に下限(3,000)を被せる
-    // （漂着者の betCap=500 だと最安株すら買えない問題への対処）
+    // いま買える最大株数 = 所持金と1回投資上限の小さい方
     const profile = getProfile(userId, guildId);
     const tier = getTierByKey(profile.tier);
     const txMax = stockTxMax(tier.betCap);
+    const bal = getBalance(userId, guildId);
+    const maxByTx = Math.floor(txMax / stock.price);
+    const maxByBal = Math.floor(bal / stock.price);
+    const maxShares = Math.max(0, Math.min(maxByTx, maxByBal));
 
-    const validated = validateBet(amountStr.trim(), 100, txMax);
-    if (!validated.ok) {
-      const reason = validated.reason;
-      const msg =
-        reason === "TOO_LARGE"
-          ? `1回の投資額は **◈${txMax.toLocaleString()}** までじゃ（${tier.emoji}${tier.name} の上限）。`
-          : reason === "TOO_SMALL"
-            ? "投資額は **100以上** で指定してね。"
-            : "投資額は整数で指定してね。";
-      await interaction.reply({ content: msg, ephemeral: true });
+    // 株数入力（空欄なら最大株数）
+    const sharesStr = interaction.fields.getTextInputValue("shares").trim();
+    let shares: number;
+    if (sharesStr === "") {
+      shares = maxShares;
+    } else {
+      const n = Number(sharesStr);
+      if (!Number.isInteger(n) || n <= 0) {
+        await interaction.reply({ content: "株数は1以上の整数で入れてね。（空欄なら買えるだけ買うよ）", ephemeral: true });
+        return;
+      }
+      shares = n;
+    }
+
+    if (maxShares < 1) {
+      // 1株も買えない → 何が足りないかを具体的に案内
+      const limitedByTx = maxByTx < maxByBal;
+      await interaction.reply({
+        content:
+          `いまは1株も買えないみたい。\n` +
+          `**${stock.name}** は 1株 ◈${stock.price.toLocaleString()}。` +
+          (limitedByTx
+            ? `1回の投資上限が ◈${txMax.toLocaleString()} だから届かないんだ。星位が上がると上限も増えるよ。`
+            : `きみの所持金が ◈${bal.toLocaleString()} だから、もう少し貯めてからにしよ。`),
+        ephemeral: true,
+      });
       return;
     }
-    const amount = validated.value;
-
-    const stock = getStock(stockId);
-    if (!stock) return;
-
-    const shares = Math.floor(amount / stock.price);
-    if (shares < 1) {
-      await interaction.reply({ content: `◈${amount} では1株も買えぬ（1株 = ◈${stock.price.toLocaleString()}）`, ephemeral: true });
+    if (shares > maxShares) {
+      const limitedByTx = maxByTx < maxByBal;
+      await interaction.reply({
+        content:
+          `いまは最大 **${maxShares}株**（◈${(maxShares * stock.price).toLocaleString()}）まで買えるよ。\n` +
+          (limitedByTx ? `1回の投資上限 ◈${txMax.toLocaleString()} が効いてるんだ。` : `所持金 ◈${bal.toLocaleString()} の範囲だね。`),
+        ephemeral: true,
+      });
       return;
     }
 
@@ -516,13 +539,10 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
       ).run(userId, stockId, shares, stock.price, totalCost);
     } catch { /* ignore */ }
 
-    const unused = amount - totalCost;
-    const unusedLine = unused > 0 ? `\n（入力 ◈${amount.toLocaleString()} のうち ◈${unused.toLocaleString()} は端数のため未使用 — 残高に保持）` : "";
-
     await interaction.reply({
       embeds: [successEmbed(
-        `${stock.emoji} **${stock.name}** を **${shares}株** 購入！\n` +
-        `投資額: ◈${totalCost.toLocaleString()} (1株 ◈${stock.price.toLocaleString()})${unusedLine}`
+        `${stock.emoji} **${stock.name}** を **${shares}株** 買ったよ。\n` +
+        `支払い: ◈${totalCost.toLocaleString()}（1株 ◈${stock.price.toLocaleString()}）／ 残り: ◈${getBalance(userId, guildId).toLocaleString()}`
       )],
       ephemeral: true
     });

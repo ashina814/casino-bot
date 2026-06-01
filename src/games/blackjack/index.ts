@@ -258,7 +258,7 @@ export async function playBlackjack(
 
       const embed = gameResultEmbed({
         title: "🃏 ブラックジャック — 降参",
-        description: `*「降りる？ 賢い判断かもね。」*\n\n半額の ◈${refund.toLocaleString()} を返すぞ。`,
+        description: `*「降りる？ 賢い判断かもね。」*\n\n半額の ◈${refund.toLocaleString()} を返すね。`,
         result: "lose",
         userId,
         guildId,

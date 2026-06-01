@@ -24,7 +24,7 @@ function overviewEmbed(): EmbedBuilder {
   return baseEmbed("📖 賭場の歩き方", COLORS.GOLD)
     .setDescription(
       [
-        "*「初めての客人か。何が知りたい？」*",
+        "*「初めてだね。何が知りたい？」*",
         "",
         "下のメニューから知りたいカテゴリを選んでね。",
       ].join("\n"),

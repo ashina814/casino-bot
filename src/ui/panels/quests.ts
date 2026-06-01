@@ -70,12 +70,12 @@ function buildEmbed(userId: string, guildId: string, period: string): { embed: E
     ? `💎 受領可能合計: ◈${totalAvailable.toLocaleString()} — 下のボタンで受け取れる`
     : totalClaimed === quests.reduce((s, q) => s + q.reward.coins, 0)
       ? "🎉 今日の任務はすべて受領済み！"
-      : "進めて受領しよう。**当日中に受領しないと逸する**ぞ。";
+      : "進めて受領しよう。**当日中に受け取らないと消えちゃう**よ。";
 
   const embed = baseEmbed(`📋 今日の任務 — ${period}`, COLORS.GOLD)
     .setDescription(
       [
-        "*「これが今日の任務じゃ。果たして報酬を取りに来い。」*",
+        "*「これが今日の任務だよ。こなして、報酬を受け取りにきてね。」*",
         "",
         blocks.join("\n\n"),
       ].join("\n"),
@@ -168,7 +168,7 @@ export async function handleQuestButton(interaction: ButtonInteraction): Promise
   const key = interaction.customId.replace("quest_claim_", "");
   const q = quests.find((x) => x.key === key);
   if (!q) {
-    await interaction.reply({ content: "任務が見つからぬ。", ephemeral: true });
+    await interaction.reply({ content: "その任務、見つからないや。", ephemeral: true });
     return;
   }
   const r = claimQuest(userId, q, period, guildId);

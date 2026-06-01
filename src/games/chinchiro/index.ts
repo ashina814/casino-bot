@@ -245,7 +245,7 @@ export async function playChinchiro(
   // 初回 embed
   const startEmbed = baseEmbed("🎲 チンチロ", COLORS.GOLD).setDescription(
     [
-      "*「さあ…茶碗に振ってみい。」*",
+      "*「さあ、振ってみて。」*",
       "",
       "┃ ❓ ┃ ❓ ❓ ❓ ┃",
       "",
@@ -497,7 +497,7 @@ async function dealerRollPhase(
     if (isTerminal) {
       comment = "*「これで止めるとするか。」*";
     } else if (meStop) {
-      comment = `*「${(dealerHand as { score: number }).score}なら十分じゃ、止める。」*`;
+      comment = `*「${(dealerHand as { score: number }).score}なら十分かな、止めとく。」*`;
     } else if (dealerHand.type === "menashi" && remaining > 0) {
       comment = "*「メナシか…もう一度振ろう。」*";
     } else if (dealerHand.type === "me" && remaining > 0) {

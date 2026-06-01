@@ -398,7 +398,7 @@ export async function handleKeibaModalSubmit(interaction: ModalSubmitInteraction
       return;
     }
     console.error("[keiba] modal submit failed:", error);
-    await interaction.editReply("すまぬ、何か狂いが生じた。少し時を置いてからもう一度頼む。");
+    await interaction.editReply("ごめん、なんか調子が狂ったみたい。少し待ってから、もう一度試してね。");
   }
 }
 
@@ -468,7 +468,7 @@ export async function handleKeibaCancelOne(interaction: ButtonInteraction): Prom
     void refreshPanel(session);
   } catch (error) {
     console.error("[keiba] cancel_one failed:", error);
-    await interaction.editReply("取り消しに失敗じゃ。すまぬ。");
+    await interaction.editReply("取り消しに失敗しちゃった。ごめんね。");
   }
 }
 
@@ -514,7 +514,7 @@ export async function handleKeibaCancel(interaction: ButtonInteraction): Promise
     void refreshPanel(session);
   } catch (error) {
     console.error("[keiba] cancel failed:", error);
-    await interaction.editReply("取り消しに失敗じゃ。すまぬ。");
+    await interaction.editReply("取り消しに失敗しちゃった。ごめんね。");
   }
 }
 

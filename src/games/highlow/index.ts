@@ -308,7 +308,7 @@ export async function startChohan(
 function chohanPaytableEmbed(): import("discord.js").EmbedBuilder {
   return baseEmbed("📖 丁半 — ルール", COLORS.GOLD).setDescription(
     [
-      "*「丁か半か。それだけじゃ。さあ、どっちじゃ？」*",
+      "*「丁か半か。それだけ。さあ、どっち？」*",
       "",
       "**遊び方**",
       "・サイコロ2つの合計が **丁（偶数）** か **半（奇数）** かを当てる",
