@@ -106,7 +106,7 @@ ASTERIA サーバー向け「星約の賭場」カジノ Bot。第二通貨**エ
 - 識別: 通行証(profileEmbed)に「💎 VIP会員」表示（profile.ts が isVip を渡す）。
 - 奥座敷アクセス: VIPロールに対するDiscordチャンネル権限で制御（手動設定）。
 - 設定: `/管理 設定`→📢チャンネル編集 に「VIPロールID」欄を追加。
-- ⏳ **未配線: 高bet上限（VIP_BETCAP_MULT=2）**。`getVipBetCapMultiplier` は用意済みだが、betCapは12ファイル63箇所に散在するため未適用。次は betCap を集中化(helper)して VIP×2 を反映する。
+- ✅ **高bet上限 ×2 配線済**: `core/vip.effectiveBetCap(baseCap,uid,gid)` を全ゲーム(slots/chinchiro/crash/blackjack/highlow/roulette/board/chohan/sashi/saishoubu/stocks)のbet検証・表示・クイックベット・通行証に適用。VIPは賭け上限が2倍。
 - 🔴 **従業員(支配人/ディーラー)は別途・給与Gilのため為替稼働後**（VIPとは別軸）。
 
 ## 主要ファイル地図
