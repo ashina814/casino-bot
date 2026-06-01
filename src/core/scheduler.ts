@@ -29,23 +29,21 @@ export function registerSchedulers(client: Client): void {
       const { events } = updateAllPrices();
       console.log(`[scheduler] Stock prices updated. Events: ${events.length}`);
 
-      // Post events to all guilds with a stock_channel_id configured
-      if (events.length > 0) {
-        const { db } = require("../core/db");
-        const rows = db.prepare(
-          "SELECT guild_id, stock_channel_id FROM server_config WHERE stock_channel_id IS NOT NULL AND stock_channel_id != ''"
-        ).all() as Array<{ guild_id: string; stock_channel_id: string }>;
-        for (const r of rows) {
-          try {
-            const channel = await client.channels.fetch(r.stock_channel_id);
-            if (channel && channel.isTextBased()) {
-              const embed = baseEmbed("📈 株価速報", COLORS.EVENT)
-                .setDescription(events.join("\n\n"));
-              await (channel as any).send({ embeds: [embed] });
-            }
-          } catch (e) {
-            console.warn(`[scheduler] stock broadcast failed for guild ${r.guild_id}:`, e);
+      // 株速報は毎回（全銘柄サマリー）投稿。イベント（サージ/暴落）があれば末尾に強調。
+      const { buildMarketBroadcast } = require("../games/stocks/index");
+      const { db } = require("../core/db");
+      const rows = db.prepare(
+        "SELECT guild_id, stock_channel_id FROM server_config WHERE stock_channel_id IS NOT NULL AND stock_channel_id != ''"
+      ).all() as Array<{ guild_id: string; stock_channel_id: string }>;
+      const embed = buildMarketBroadcast(events);
+      for (const r of rows) {
+        try {
+          const channel = await client.channels.fetch(r.stock_channel_id);
+          if (channel && channel.isTextBased()) {
+            await (channel as any).send({ embeds: [embed] });
           }
+        } catch (e) {
+          console.warn(`[scheduler] stock broadcast failed for guild ${r.guild_id}:`, e);
         }
       }
     } catch (error) {

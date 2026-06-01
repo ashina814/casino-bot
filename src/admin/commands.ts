@@ -106,6 +106,9 @@ export const adminCommand = new SlashCommandBuilder()
       .addRoleOption((opt) =>
         opt.setName("role").setDescription("メンションするロール（任意）")
       )
+  )
+  .addSubcommand((sub) =>
+    sub.setName("株速報").setDescription("📈 株価速報を今すぐ株式市場チャンネルに投稿（テスト用）")
   );
 
 // ─── Owner Exclusion Helper ────────────────────────────
@@ -138,6 +141,29 @@ export async function handleAdminCommand(interaction: ChatInputCommandInteractio
     case "返金":  return handleRefund(interaction, guildId);
     case "調査":  return handleInspect(interaction, guildId);
     case "通知":  return handleAnnounce(interaction, guildId);
+    case "株速報": return handleStockBroadcast(interaction, guildId);
+  }
+}
+
+// ─── 📈 株速報（手動投稿・テスト用） ──────────────────────
+async function handleStockBroadcast(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const cfg = getServerConfig(guildId);
+  if (!cfg.stock_channel_id) {
+    await interaction.reply({ embeds: [errorEmbed("株 速報チャンネルが未設定だよ。`/管理 設定` → 📢 チャンネルを編集 で設定してね。")], ephemeral: true });
+    return;
+  }
+  const { buildMarketBroadcast } = require("../games/stocks/index");
+  try {
+    const channel = await interaction.client.channels.fetch(cfg.stock_channel_id);
+    if (!channel || !channel.isTextBased()) {
+      await interaction.reply({ embeds: [errorEmbed("設定されたチャンネルが見つからない/テキストチャンネルじゃないみたい。")], ephemeral: true });
+      return;
+    }
+    await (channel as any).send({ embeds: [buildMarketBroadcast([])] });
+    await interaction.reply({ content: `📈 <#${cfg.stock_channel_id}> に株価速報を投稿したよ。`, ephemeral: true });
+  } catch (e) {
+    console.error("[admin] stock broadcast failed:", e);
+    await interaction.reply({ embeds: [errorEmbed("投稿に失敗しちゃった。Botにそのチャンネルへの送信権限があるか確認してね。")], ephemeral: true });
   }
 }
 

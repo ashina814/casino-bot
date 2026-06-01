@@ -246,6 +246,26 @@ function changeEmoji(current: number, prev: number): string {
   return "➡️";
 }
 
+/** 株価速報の embed（全銘柄サマリー＋イベント）。スケジューラから3時間ごとに投稿。 */
+export function buildMarketBroadcast(events: string[] = []) {
+  const stocks = getAllStocks();
+  const lines = stocks.map((s) => {
+    const pct = s.prev_price > 0 ? (((s.price - s.prev_price) / s.prev_price) * 100).toFixed(1) : "0.0";
+    const sign = s.price >= s.prev_price ? "+" : "";
+    return `${s.emoji} **${s.name}** — ◈${s.price.toLocaleString()} ${changeEmoji(s.price, s.prev_price)} ${sign}${pct}%`;
+  });
+  return baseEmbed("📈 株価速報", COLORS.EVENT)
+    .setDescription(
+      [
+        "*「いまの相場、こんな感じ。どう動くか、見極めてね。」*",
+        "",
+        ...lines,
+        events.length > 0 ? "\n" + events.join("\n") : "",
+      ].filter(Boolean).join("\n"),
+    )
+    .setFooter({ text: "3時間ごとに更新 ・ /株 で売買" });
+}
+
 // ─── Command ───────────────────────────────────────────
 
 export const stocksCommand = new SlashCommandBuilder()
