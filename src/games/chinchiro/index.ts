@@ -75,7 +75,7 @@ export function evaluate(dice: Dice): Hand {
 }
 
 /** 役の強さを数値化（大きいほど強い）。 */
-function handRank(hand: Hand): number {
+export function handRank(hand: Hand): number {
   switch (hand.type) {
     case "pinzoro": return 1000;
     case "zorome":  return 800 + hand.value;  // 802〜806
@@ -145,7 +145,7 @@ export function compareHands(player: Hand, dealer: Hand): CompareResult {
   return { result: "dealer_win", mul: -1 };
 }
 
-function describeHand(hand: Hand): string {
+export function describeHand(hand: Hand): string {
   switch (hand.type) {
     case "pinzoro": return "🌟 **ピンゾロ**！1-1-1";
     case "zorome":  return `🎯 **ゾロ目**！${hand.value}-${hand.value}-${hand.value}`;
@@ -161,8 +161,25 @@ function isTerminalHand(hand: Hand): boolean {
   return hand.type !== "me" && hand.type !== "menashi";
 }
 
-function diceDisplay(d: Dice): string {
+export function diceDisplay(d: Dice): string {
   return `┃ ${DIE_FACES[d[0]-1]} ┃ ${DIE_FACES[d[1]-1]} ┃ ${DIE_FACES[d[2]-1]} ┃`;
+}
+
+/**
+ * アニメ無しの自動振り（胴戦略）。対人戦などで両者を同一戦略で振らせるための共有関数。
+ * 戦略: 終了役 or 目スコア≥5 で止め、目1〜4 と メナシ は再振り（最大3投）。
+ */
+export function autoRollHand(): { hand: Hand; dice: Dice } {
+  let dice: Dice = [1, 1, 1];
+  let hand: Hand = { type: "menashi" };
+  for (let rollNo = 1; rollNo <= MAX_ROLLS; rollNo += 1) {
+    dice = rollDice();
+    hand = evaluate(dice);
+    const meStop = hand.type === "me" && hand.score >= 5;
+    if (isTerminalHand(hand) || meStop) break;
+    // 目1〜4 / メナシ は残り投数があれば振り直し
+  }
+  return { hand, dice };
 }
 
 function sleep(ms: number): Promise<void> {

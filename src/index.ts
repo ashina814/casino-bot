@@ -25,6 +25,7 @@ import { handleSashiCommand, handleSashiButton, refundStaleSashiOnStartup } from
 import { handleCheerCommand } from "./games/cheer";
 import { handleTakuCommand, handleTakuButton, handleTableVoiceState, sweepStaleTempVCs } from "./games/takutate";
 import { handleChohanCommand, handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
+import { handleSaiCommand, handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
 
 // ─── Startup Cleanup ───────────────────────────────────
 
@@ -72,6 +73,11 @@ async function bootstrap(): Promise<void> {
     refundStaleChohanOnStartup();
   } catch (err) {
     console.error("[bootstrap] refundStaleChohanOnStartup failed:", err);
+  }
+  try {
+    refundStaleDuelsOnStartup();
+  } catch (err) {
+    console.error("[bootstrap] refundStaleDuelsOnStartup failed:", err);
   }
   // 為替の中断分を回収（API有効時のみ・非同期で投げっぱなし）
   reconcileStaleExchangesOnStartup().catch((err) =>
@@ -143,6 +149,8 @@ async function bootstrap(): Promise<void> {
             return await handleTakuCommand(interaction);
           case "盆":
             return await handleChohanCommand(interaction);
+          case "賽勝負":
+            return await handleSaiCommand(interaction);
         }
       }
 
@@ -179,6 +187,12 @@ async function bootstrap(): Promise<void> {
       }
       if (interaction.isModalSubmit() && interaction.customId.startsWith("bon:")) {
         await handleChohanModal(interaction);
+        return;
+      }
+
+      // ── 賽勝負 (チンチロ 1v1 / sai:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("sai:")) {
+        await handleSaiButton(interaction);
         return;
       }
 

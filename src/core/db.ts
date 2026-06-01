@@ -475,6 +475,23 @@ export function initializeDatabase(): void {
       PRIMARY KEY (game_id, user_id)
     );
 
+    -- ═══ v2: 賽勝負（1v1 チンチロ・BOT自動判定 PvP） ═══
+    -- status: pending(未承認・未徴収) → active(両者エスクロー) → settled / declined / void
+    CREATE TABLE IF NOT EXISTS dice_duels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      challenger_id TEXT NOT NULL,
+      opponent_id TEXT NOT NULL,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','active','settled','declined','void')),
+      winner_id TEXT,
+      rake INTEGER NOT NULL DEFAULT 0,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     -- ═══ v2 §7.4: 卓を立てる（複製VC） ═══
     -- パネルから生成した一時VCを追跡。最後の1人退出 or 空のまま放置で自動削除。
     CREATE TABLE IF NOT EXISTS temp_voice_channels (
