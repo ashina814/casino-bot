@@ -26,6 +26,12 @@ import { consumeInsider } from "../../core/items";
 import { getTierByKey } from "../../core/economy";
 import { baseEmbed, COLORS, infoEmbed, errorEmbed, successEmbed } from "../../ui/embeds";
 
+// 株の1回投資上限。投資は単発の賭けと別物なので、賭け上限(betCap)に下限を被せる。
+const STOCK_TX_FLOOR = 10_000;
+function stockTxMax(betCap: number): number {
+  return Math.max(betCap, STOCK_TX_FLOOR);
+}
+
 // ─── Types ─────────────────────────────────────────────
 
 type Stock = {
@@ -415,6 +421,7 @@ export async function handleStocksSelect(interaction: StringSelectMenuInteractio
   if (action === "buy_select") {
     const profile = getProfile(interaction.user.id, interaction.guildId!);
     const tier = getTierByKey(profile.tier);
+    const txMax = stockTxMax(tier.betCap);
     const modal = new ModalBuilder()
       .setCustomId(`stocks_buy_modal_${stockId}`)
       .setTitle(`${stock.name} を購入`)
@@ -422,7 +429,7 @@ export async function handleStocksSelect(interaction: StringSelectMenuInteractio
         new ActionRowBuilder<TextInputBuilder>().addComponents(
           new TextInputBuilder()
             .setCustomId("amount")
-            .setLabel(`投資額 (1株◈${stock.price} / 上限◈${tier.betCap.toLocaleString()})`)
+            .setLabel(`投資額 (1株◈${stock.price} / 上限◈${txMax.toLocaleString()})`)
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
         )
@@ -455,10 +462,11 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     const stockId = interaction.customId.replace("stocks_buy_modal_", "");
     const amountStr = interaction.fields.getTextInputValue("amount");
 
-    // tier に応じた1回投資の上限を適用（他ゲームの賭け上限と整合）
+    // 1回投資の上限。投資は単発の賭けと性質が違うので betCap に下限(10,000)を被せる
+    // （漂着者の betCap=500 だと最安株すら買えない問題への対処）
     const profile = getProfile(userId, guildId);
     const tier = getTierByKey(profile.tier);
-    const txMax = tier.betCap;
+    const txMax = stockTxMax(tier.betCap);
 
     const validated = validateBet(amountStr.trim(), 100, txMax);
     if (!validated.ok) {
