@@ -126,6 +126,20 @@ export function distributeHouseEarnings(guildId: string, absorbed: number): void
 }
 
 /**
+ * 巡りの光（救済プール）から施しを引き出す。困窮者の福分け上乗せに使う。
+ * プール残高を上限に want を引き出し、実際に引き出した額を返す（プールは減算）。
+ */
+export function drawFromReliefPool(guildId: string, want: number): number {
+  if (want <= 0) return 0;
+  const row = db.prepare("SELECT relief_pool FROM server_config WHERE guild_id = ?").get(guildId) as { relief_pool: number } | undefined;
+  const pool = row?.relief_pool ?? 0;
+  const grant = Math.min(pool, want);
+  if (grant <= 0) return 0;
+  db.prepare("UPDATE server_config SET relief_pool = relief_pool - ? WHERE guild_id = ?").run(grant, guildId);
+  return grant;
+}
+
+/**
  * 福の重みで徴収した分をプールに入れる。
  * 50% → JPプール, 50% → 底辺保護
  */
@@ -171,7 +185,7 @@ export type TierInfo = {
 };
 
 const TIERS: TierInfo[] = [
-  { key: "human",    name: "漂着者", emoji: "✦", betCap: 500 },
+  { key: "human",    name: "漂着者", emoji: "✦", betCap: 1_000 },
   { key: "half",     name: "星拾い", emoji: "✧", betCap: 2_000 },
   { key: "yokai",    name: "星約者", emoji: "✶", betCap: 10_000 },
   { key: "daiyokai", name: "星詠み", emoji: "✷", betCap: 50_000 },
@@ -191,7 +205,8 @@ export function getTierByKey(key: string): TierInfo {
 }
 
 export function expForNextLevel(level: number): number {
-  return Math.floor(100 * Math.pow(level, 1.3));
+  // 序盤の解放テンポを速めるため係数を 100→75 に緩和（段位昇格が約25%早まる）
+  return Math.floor(75 * Math.pow(level, 1.3));
 }
 
 /**

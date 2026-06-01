@@ -6,9 +6,10 @@ import { CONSUMABLES, grantItem } from "../core/items";
 
 const SHOP_ITEMS = [
   // 称号
-  { id: "title_patron", type: "title", name: "【称号】賭場のパトロン", cost: 100_000, desc: "賭場を支える太客の証。" },
-  { id: "title_gold", type: "title", name: "【称号】黄金の成金", cost: 500_000, desc: "黄金のオーラを纏う金持ちの証。" },
-  { id: "title_zashiki", type: "title", name: "【称号】アステルの寵児", cost: 1_000_000, desc: "アステルすら手なずける大富豪。" },
+  // 価格は為替OFF（Gil流入なし）でも到達可能な帯に調整。最上位=残高上限◈300,000を頂点に。
+  { id: "title_patron", type: "title", name: "【称号】賭場のパトロン", cost: 30_000, desc: "賭場を支える太客の証。" },
+  { id: "title_gold", type: "title", name: "【称号】黄金の成金", cost: 100_000, desc: "黄金のオーラを纏う金持ちの証。" },
+  { id: "title_zashiki", type: "title", name: "【称号】アステルの寵児", cost: 300_000, desc: "アステルすら手なずける大富豪。" },
   // 使い切り景品（在庫に入る。/商店 使う で装備）
   ...CONSUMABLES.map((c) => ({ id: c.key, type: "consumable" as const, name: `🎴 ${c.name}`, cost: c.price, desc: `${c.desc}（/商店 使う で装備）` })),
   // プレゼント（好感度）

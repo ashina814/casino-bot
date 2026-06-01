@@ -13,7 +13,7 @@ import {
 } from "discord.js";
 import { db } from "../core/db";
 import { adjustBalance, ensureUser } from "../core/bank";
-import { calculateDailyBonus, addExp } from "../core/economy";
+import { calculateDailyBonus, addExp, drawFromReliefPool } from "../core/economy";
 import { dialogueDaily } from "../core/dialogue";
 import { gameResultEmbed, infoEmbed, COLORS } from "../ui/embeds";
 import { getZashikiAttachment } from "../core/zashikiAsset";
@@ -86,7 +86,11 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   // ─── Calculate Daily Bonus ───────────────────────────
   const baseAmount = Math.floor(calculateDailyBonus(guildId, userId) * stageAfter.dailyMultiplier);
   const streakBonus = Math.min(Math.floor(newStreak / 7) * 50, 200);
-  let totalAmount = baseAmount + streakBonus;
+
+  // 巡りの光（救済）: 困窮者（残高 ≤ 1,000）には救済プールから施しが回る
+  const reliefBonus = profile.balance <= 1_000 ? drawFromReliefPool(guildId, 500) : 0;
+
+  let totalAmount = baseAmount + streakBonus + reliefBonus;
 
   // Apply
   adjustBalance(userId, totalAmount, "daily_bonus", "daily", guildId);
@@ -139,7 +143,8 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
     "",
     `💰 +◈${totalAmount.toLocaleString()}`,
     `  ├ 基本: ◈${baseAmount}${stageAfter.dailyMultiplier > 1.0 ? ` (覚醒ボーナス x${stageAfter.dailyMultiplier})` : ""}`,
-    streakBonus > 0 ? `  └ 連続ボーナス: +◈${streakBonus}` : "",
+    streakBonus > 0 ? `  ├ 連続ボーナス: +◈${streakBonus}` : "",
+    reliefBonus > 0 ? `  └ 🕊 巡りの光（救済）: +◈${reliefBonus.toLocaleString()}` : "",
     "",
     `🔥 連続ログイン: **${newStreak}日**`,
     `${stageAfter.emoji} 覚醒: **${stageAfter.title}**`,
