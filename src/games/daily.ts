@@ -216,5 +216,6 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
     embeds,
     files: zashiki ? [zashiki.attachment] : [],
     components: [row],
+    ephemeral: true,
   });
 }

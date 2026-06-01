@@ -4,6 +4,7 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  ButtonInteraction,
 } from "discord.js";
 import { ensureUser } from "../core/bank";
 import { db } from "../core/db";
@@ -18,9 +19,10 @@ export const profileCommand = new SlashCommandBuilder()
     opt.setName("user").setDescription("他の人の通行証を見る").setRequired(false)
   );
 
-export async function handleProfileCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleProfileCommand(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
   const guildId = interaction.guildId!;
-  const target = interaction.options.getUser("user") ?? interaction.user;
+  // ボタン（案内パネル）から呼ばれた時は options が無いので自分の通行証を出す
+  const target = (interaction.isChatInputCommand() ? interaction.options.getUser("user") : null) ?? interaction.user;
   const profile = ensureUser(target.id, guildId);
 
   // Get active title
