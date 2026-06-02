@@ -50,7 +50,11 @@ type Holding = {
   stock_id: string;
   shares: number;
   avg_cost: number;
+  bought_at: string | null;
 };
+
+/** 保有上限日数。これを過ぎたら強制売却（長期保有によるインフレ・印刷機化を防ぐ） */
+export const STOCK_HOLD_DAYS = 3;
 
 // ─── DB Init ───────────────────────────────────────────
 
@@ -71,6 +75,7 @@ export function initStockTables(): void {
       stock_id TEXT NOT NULL,
       shares INTEGER NOT NULL DEFAULT 0 CHECK(shares >= 0),
       avg_cost INTEGER NOT NULL DEFAULT 0,
+      bought_at TEXT,
       PRIMARY KEY(user_id, stock_id)
     );
 
@@ -97,6 +102,9 @@ export function initStockTables(): void {
     CREATE INDEX IF NOT EXISTS idx_stock_tx_user_time
       ON stock_transactions(user_id, created_at DESC);
   `);
+
+  // Migration: 既存DBの holdings に bought_at（強制売却の起算）を追加
+  try { db.exec("ALTER TABLE holdings ADD COLUMN bought_at TEXT"); } catch { /* exists */ }
 
   // Seed stocks if empty
   const count = db.prepare("SELECT COUNT(*) as c FROM stocks").get() as { c: number };
@@ -247,6 +255,43 @@ function changeEmoji(current: number, prev: number): string {
   return "➡️";
 }
 
+/**
+ * 保有期限（STOCK_HOLD_DAYS日）を過ぎた保有を現在価格で強制売却する。
+ * 長期保有によるインフレ（株＝印刷機化）を防ぐ。スケジューラから毎時実行。
+ * 売却益はユーザーのグローバル残高へ。本人にDM通知。
+ */
+export async function forceSellExpiredHoldings(client: import("discord.js").Client): Promise<number> {
+  const cutoff = Date.now() - STOCK_HOLD_DAYS * 86_400_000;
+  const rows = db.prepare("SELECT * FROM holdings WHERE shares > 0 AND bought_at IS NOT NULL").all() as Holding[];
+  let sold = 0;
+  for (const h of rows) {
+    if (!h.bought_at || new Date(h.bought_at).getTime() > cutoff) continue;
+    const stock = getStock(h.stock_id);
+    if (!stock) continue;
+    const revenue = h.shares * stock.price;
+    const profit = revenue - h.shares * h.avg_cost;
+    runTransaction(() => {
+      adjustBalance(h.user_id, revenue, "株: 保有期限による強制売却", "stocks");
+      db.prepare("DELETE FROM holdings WHERE user_id = ? AND stock_id = ?").run(h.user_id, h.stock_id);
+      try {
+        db.prepare(
+          "INSERT INTO stock_transactions (user_id, stock_id, action, shares, price, amount, profit_loss) VALUES (?, ?, 'sell', ?, ?, ?, ?)",
+        ).run(h.user_id, h.stock_id, h.shares, stock.price, revenue, profit);
+      } catch { /* ignore */ }
+    });
+    sold++;
+    try {
+      const user = await client.users.fetch(h.user_id);
+      const pl = profit >= 0 ? `+◈${profit.toLocaleString()}` : `-◈${Math.abs(profit).toLocaleString()}`;
+      await user.send(
+        `📈 保有期限（${STOCK_HOLD_DAYS}日）が来たので **${stock.emoji}${stock.name} ×${h.shares}株** を 1株◈${stock.price.toLocaleString()} で自動売却したよ。\n受取: **◈${revenue.toLocaleString()}**（損益 ${pl}）`,
+      ).catch(() => {});
+    } catch { /* DM拒否等は無視 */ }
+  }
+  if (sold > 0) console.log(`[stocks] force-sold ${sold} expired holding(s)`);
+  return sold;
+}
+
 /** 株価速報の embed（全銘柄サマリー＋イベント）。スケジューラから3時間ごとに投稿。 */
 export function buildMarketBroadcast(events: string[] = []) {
   const stocks = getAllStocks();
@@ -323,8 +368,20 @@ export async function renderDashboard(
       totalCost += cost;
 
       const emoji = profit >= 0 ? "📈" : "📉";
+      // 保有期限（強制売却まで）
+      let deadlineLine = "";
+      if (h.bought_at) {
+        const leftMs = new Date(h.bought_at).getTime() + STOCK_HOLD_DAYS * 86_400_000 - Date.now();
+        if (leftMs > 0) {
+          const h2 = Math.floor(leftMs / 3_600_000);
+          deadlineLine = `　　⏳ 強制売却まで 約${h2 >= 24 ? `${Math.floor(h2 / 24)}日` : `${h2}時間`}`;
+        } else {
+          deadlineLine = "　　⏳ まもなく強制売却";
+        }
+      }
       return `${stock.emoji} **${stock.name}** × ${h.shares}株\n` +
-             `　　評価: ◈${value.toLocaleString()} (${emoji} ${profit >= 0 ? "+" : ""}${pct}%)`;
+             `　　評価: ◈${value.toLocaleString()} (${emoji} ${profit >= 0 ? "+" : ""}${pct}%)` +
+             (deadlineLine ? `\n${deadlineLine}` : "");
     }).filter(l => l.length > 0);
   }
 
@@ -543,14 +600,16 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     }
 
     const existing = getHolding(userId, stockId);
-    if (existing) {
+    if (existing && existing.shares > 0) {
+      // 追加購入（ナンピン）: 期限(bought_at)は最初の購入のまま延ばさない
       const newShares = existing.shares + shares;
       const newAvg = Math.floor((existing.avg_cost * existing.shares + totalCost) / newShares);
       db.prepare("UPDATE holdings SET shares = ?, avg_cost = ? WHERE user_id = ? AND stock_id = ?")
         .run(newShares, newAvg, userId, stockId);
     } else {
-      db.prepare("INSERT INTO holdings (user_id, stock_id, shares, avg_cost) VALUES (?, ?, ?, ?)")
-        .run(userId, stockId, shares, stock.price);
+      // 新規ポジション: bought_at を今に設定（3日後に強制売却）
+      db.prepare("INSERT INTO holdings (user_id, stock_id, shares, avg_cost, bought_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, stock_id) DO UPDATE SET shares = ?, avg_cost = ?, bought_at = ?")
+        .run(userId, stockId, shares, stock.price, new Date().toISOString(), shares, stock.price, new Date().toISOString());
     }
 
     // 取引履歴に記録
@@ -563,7 +622,8 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     await interaction.reply({
       embeds: [successEmbed(
         `${stock.emoji} **${stock.name}** を **${shares}株** 買ったよ。\n` +
-        `支払い: ◈${totalCost.toLocaleString()}（1株 ◈${stock.price.toLocaleString()}）／ 残り: ◈${getBalance(userId, guildId).toLocaleString()}`
+        `支払い: ◈${totalCost.toLocaleString()}（1株 ◈${stock.price.toLocaleString()}）／ 残り: ◈${getBalance(userId, guildId).toLocaleString()}\n` +
+        `*※ 株は最初の購入から ${STOCK_HOLD_DAYS}日 で自動売却されるよ（塩漬け防止）。*`
       )],
       ephemeral: true
     });

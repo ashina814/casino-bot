@@ -51,13 +51,19 @@ export function registerSchedulers(client: Client): void {
     }
   });
 
-  // VIP: 期限切れ会員のロール剥奪（毎時0分にチェック）
+  // VIP: 期限切れ会員のロール剥奪 ＋ 株: 保有期限超過の強制売却（毎時0分）
   cron.schedule("0 * * * *", async () => {
     try {
       const { sweepExpiredVips } = require("../games/vip");
       await sweepExpiredVips(client);
     } catch (error) {
       console.error("[scheduler] Failed to sweep expired VIPs:", error);
+    }
+    try {
+      const { forceSellExpiredHoldings } = require("../games/stocks/index");
+      await forceSellExpiredHoldings(client);
+    } catch (error) {
+      console.error("[scheduler] Failed to force-sell expired holdings:", error);
     }
   });
 
