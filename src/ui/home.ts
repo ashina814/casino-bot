@@ -122,19 +122,50 @@ async function postHomePanel(interaction: ChatInputCommandInteraction): Promise<
   const luckyGame = getTodayLuckyGame(guildId);
   const eco = getEconomyState(guildId);
 
-  const embed = baseEmbed("✦ 星約の賭場 — 案内所", COLORS.GOLD).setDescription(
-    [
-      "*「いらっしゃい、星約の賭場へ。」*",
-      "",
-      `🎯 本日のラッキーゲーム: **${GAME_NAMES[luckyGame] ?? luckyGame}**（配当1.2倍）`,
-      `${eco.emoji} 星気: *${eco.label}*`,
-      "",
-      "🌱 初めての方は **「📅 福分け」** から。毎日のエテルが受け取れるよ。",
-      "",
-      "**🎲 遊ぶ場所**",
-      PLAY_GUIDE,
-    ].join("\n"),
-  ).setFooter({ text: "ボタンの結果はあなたにだけ表示されるよ。" });
+  const embed = baseEmbed("✦ 星約の賭場 — 案内所", COLORS.GOLD)
+    .setDescription(
+      [
+        "*「いらっしゃい、星約の賭場へ。ここでは運命に、ちいさな賭けを挑める。」*",
+        "通貨は **エテル（◈）**。賭けて、競って、稼いで、好きに遊んでいってね。",
+        "",
+        `🎯 本日のラッキーゲーム **${GAME_NAMES[luckyGame] ?? luckyGame}**（配当1.2倍）　|　${eco.emoji} 星気: *${eco.label}*`,
+      ].join("\n"),
+    )
+    .addFields(
+      {
+        name: "🌱 はじめての方へ（3ステップ）",
+        value: [
+          "**①** 下の **「📅 福分け」** で毎日のエテルを受け取る",
+          "**②** **🎰#遊技場** でソロのゲーム、**🀄#勝負場** で対人に挑戦",
+          "**③** 稼いだエテルで **🛍️#賭場商店** の景品を手に入れる",
+        ].join("\n"),
+        inline: false,
+      },
+      {
+        name: "🎲 遊ぶ場所",
+        value: PLAY_GUIDE,
+        inline: false,
+      },
+      {
+        name: "💎 もっと楽しむ",
+        value: [
+          "・**`/商店`** … 景品・お守り・アステルへの贈り物",
+          "・**`/vip`** … 奥座敷の会員（高bet上限×2・専用部屋）",
+          "・**`/サシ` `/丁半` `/チンチロ対戦` `/板`** … 人と賭ける",
+          "・**`/卓`** … VCの卓を立てて集まる",
+        ].join("\n"),
+        inline: false,
+      },
+      {
+        name: "📖 困ったら",
+        value: [
+          "下の **「📖 ヘルプ」** で遊び方をカテゴリ別に。",
+          "自分の残高・段位・戦績は **「👤 通行証」** か **`/案内 ホーム`** で。",
+        ].join("\n"),
+        inline: false,
+      },
+    )
+    .setFooter({ text: "ボタンを押すと、結果はあなたにだけ表示されるよ。" });
 
   await interaction.reply({ embeds: [embed], components: buildHomeRows() });
 }
