@@ -91,7 +91,7 @@ export const takuCommand = new SlashCommandBuilder()
   .setDescription("🎴 卓を立てる（用途別の一時VCを生成）")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
   .addSubcommand((sc) =>
-    sc.setName("パネル").setDescription("このチャンネルに「卓を立てる」パネルを設置（管理者）"),
+    sc.setName("設置").setDescription("このチャンネルに「卓を立てる」パネルを設置（管理者）"),
   )
   .addSubcommand((sc) =>
     sc.setName("片付け").setDescription("空になった卓VCをいま掃除する（管理者）"),
@@ -103,7 +103,7 @@ export async function handleTakuCommand(interaction: ChatInputCommandInteraction
     return;
   }
   const sub = interaction.options.getSubcommand();
-  if (sub === "パネル") return postPanel(interaction);
+  if (sub === "設置") return postPanel(interaction);
   if (sub === "片付け") return manualSweep(interaction);
 }
 

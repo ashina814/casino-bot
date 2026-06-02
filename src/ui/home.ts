@@ -82,8 +82,10 @@ function buildHomeRows(): ActionRowBuilder<ButtonBuilder>[] {
     new ButtonBuilder().setCustomId("home_daily").setLabel("📅 福分け").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId("home_quests").setLabel("📋 任務").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId("home_profile").setLabel("👤 通行証").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("home_ranking").setLabel("🏅 番付").setStyle(ButtonStyle.Secondary),
   );
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("home_zashiki").setLabel("✦ アステル").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("home_history").setLabel("📒 履歴").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("home_titles").setLabel("📜 二つ名").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("home_help").setLabel("📖 ヘルプ").setStyle(ButtonStyle.Secondary),
@@ -237,6 +239,14 @@ export async function handleHomeButton(interaction: ButtonInteraction): Promise<
   }
   if (game === "quests") {
     return showQuestsPanel(interaction);
+  }
+  if (game === "ranking") {
+    const { handleRankingCommand } = require("./ranking");
+    return handleRankingCommand(interaction as any);
+  }
+  if (game === "zashiki") {
+    const { handleStatus } = require("../games/zashiki");
+    return handleStatus(interaction as any);
   }
   if (game === "stocks") {
     return renderDashboard(interaction, interaction.user.id, interaction.guildId!);

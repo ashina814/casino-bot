@@ -55,7 +55,7 @@ export async function handleZashikiCommand(interaction: ChatInputCommandInteract
 
 // ─── Status ────────────────────────────────────────────
 
-async function handleStatus(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleStatus(interaction: ChatInputCommandInteraction | import("discord.js").ButtonInteraction): Promise<void> {
   const userId = interaction.user.id;
   const affection = getAffection(userId);
   const stage = getStage(affection);
