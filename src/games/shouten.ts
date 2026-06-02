@@ -26,7 +26,7 @@ export const shoutenCommand = new SlashCommandBuilder()
     sub.setName("設置").setDescription("📌 このチャンネルに常設の商店パネルを置く（管理者）")
   )
   .addSubcommand((sub) =>
-    sub.setName("購入").setDescription("🛍️ 称号・使い切り景品・アステルへの贈り物を買う")
+    sub.setName("購入").setDescription("🛍️ 称号・使い切り景品を買う（アステルへの贈り物は /アステル 贈り物）")
   )
   .addSubcommand((sub) =>
     sub.setName("持ち物").setDescription("🎒 手持ちの使い切り景品と装備中の効果を見る")
@@ -68,7 +68,7 @@ async function postShopPanel(interaction: ChatInputCommandInteraction): Promise<
     [
       "*「いらっしゃい。余ったエテルで、特別な品と交換できるよ。」*",
       "",
-      "🛍️ **購入** … 称号・使い切り景品・アステルへの贈り物",
+      "🛍️ **購入** … 称号・使い切り景品（アステルへの贈り物は `/アステル 贈り物`）",
       "🎒 **持ち物** … 手持ちと装備中の効果を見る",
       "✨ **使う** … 使い切り景品を装備（次の勝負で発動）",
       "",

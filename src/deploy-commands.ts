@@ -5,9 +5,7 @@ import { raceCommand } from "./games/keiba/command";
 import { stocksCommand } from "./games/stocks/index";
 import { dailyCommand } from "./games/daily";
 import { profileCommand } from "./games/profile";
-import { thanksCommand } from "./games/thanks";
 import { casinoCommand } from "./ui/home";
-import { rankingCommand } from "./ui/ranking";
 import { adminCommand } from "./admin/commands";
 import { shoutenCommand } from "./games/shouten";
 import { zashikiCommand } from "./games/zashiki";
@@ -28,12 +26,10 @@ async function deployCommands(): Promise<void> {
     stocksCommand.toJSON(),
     dailyCommand.toJSON(),
     profileCommand.toJSON(),
-    rankingCommand.toJSON(),
     casinoCommand.toJSON(),
     adminCommand.toJSON(),
     shoutenCommand.toJSON(),
     zashikiCommand.toJSON(),
-    thanksCommand.toJSON(),
     exchangeCommand.toJSON(),
     boardCommand.toJSON(),
     sashiCommand.toJSON(),

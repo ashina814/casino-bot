@@ -11,9 +11,7 @@ import { registerSchedulers } from "./core/scheduler";
 
 import { handleDailyCommand } from "./games/daily";
 import { handleProfileCommand } from "./games/profile";
-import { handleThanksCommand } from "./games/thanks";
 import { handleCasinoCommand, handleHomeButton, handleHomeModal } from "./ui/home";
-import { handleRankingCommand } from "./ui/ranking";
 import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStocksModal } from "./games/stocks";
 import { handleAdminCommand } from "./admin/commands";
 import { handleShoutenCommand, handleShoutenButton } from "./games/shouten";
@@ -126,8 +124,6 @@ async function bootstrap(): Promise<void> {
             return await handleDailyCommand(interaction);
           case "通行証":
             return await handleProfileCommand(interaction);
-          case "番付":
-            return await handleRankingCommand(interaction);
           case "案内":
             return await handleCasinoCommand(interaction);
           case "管理":
@@ -136,8 +132,6 @@ async function bootstrap(): Promise<void> {
             return await handleShoutenCommand(interaction);
           case "アステル":
             return await handleZashikiCommand(interaction);
-          case "感謝":
-            return await handleThanksCommand(interaction);
           case "両替":
             return await handleExchangeCommand(interaction);
           case "板":

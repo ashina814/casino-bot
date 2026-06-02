@@ -12,10 +12,7 @@ const SHOP_ITEMS = [
   { id: "title_zashiki", type: "title", name: "【称号】アステルの寵児", cost: 300_000, desc: "アステルすら手なずける大富豪。" },
   // 使い切り景品（在庫に入る。/商店 使う で装備）
   ...CONSUMABLES.map((c) => ({ id: c.key, type: "consumable" as const, name: `🎴 ${c.name}`, cost: c.price, desc: `${c.desc}（/商店 使う で装備）` })),
-  // プレゼント（好感度）
-  { id: "present_dango", type: "present", name: "🍡 星屑の菓子（アステルへ）", cost: 1_000, desc: "アステルにプレゼントする。少しだけ喜ぶ。（好感度+1）", affection: 1 },
-  { id: "present_sake", type: "present", name: "🍶 月光の雫（アステルへ）", cost: 10_000, desc: "アステルにプレゼントする。かなり喜ぶ。（好感度+15）", affection: 15 },
-  { id: "present_kimono", type: "present", name: "✨ 星織の衣（アステルへ）", cost: 100_000, desc: "アステルにプレゼントする。飛び跳ねて喜ぶ。（好感度+200）", affection: 200 },
+  // ※ アステルへの贈り物は /アステル 贈り物 に移設
 ];
 
 export async function handleShopCommand(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
@@ -81,16 +78,6 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
         } else if (item.type === "consumable") {
           adjustBalance(userId, -item.cost, "shop_buy");
           grantItem(userId, item.id, 1);
-        } else if (item.type === "present") {
-          adjustBalance(userId, -item.cost, "shop_present");
-          const { addAffection } = require("../core/db");
-          addAffection(userId, item.affection!);
-          
-          // 愛弟子称号の自動付与チェック
-          const { getAffection } = require("../core/db");
-          if (getAffection(userId) >= 500) {
-             db.prepare("INSERT OR IGNORE INTO titles (user_id, title_key, title_name) VALUES (?, ?, ?)").run(userId, "title_disciple", "アステルの愛弟子");
-          }
         }
 
         return { ok: true };
@@ -109,14 +96,6 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
       if (item.type === "consumable") {
         await reply.edit({ components: [] });
         await i.followUp({ embeds: [successEmbed(`**${item.name}** を手に入れたよ。\n\n`+"商店の **「使う」** で装備すると、次の勝負で効くよ。")], ephemeral: true });
-      } else if (item.type === "present") {
-        let zashikiReply = "";
-        if (item.id === "present_dango") zashikiReply = "「わ、お菓子だ。ありがと、もらうね。……んむ。うん、悪くない。」";
-        if (item.id === "present_sake") zashikiReply = "「わ、月光の雫……！ きれい。……んく。あー、五臓六腑に染みる。きみ、わかってるなあ。」";
-        if (item.id === "present_kimono") zashikiReply = "「これ、星織の衣……！？ こんな高価なもの、わたしに……？\n……あ、ありがと。大事に着るね。」";
-        
-        await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** をアステルに贈りました！\n\n${zashikiReply}`)], ephemeral: true });
       } else {
         await reply.edit({ components: [] });
         await i.followUp({ embeds: [successEmbed(`**${item.name}** を購入しました！\n\n「毎度あり。/通行証 で確認できるよ。」`)], ephemeral: true });
