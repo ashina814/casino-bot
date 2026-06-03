@@ -15,7 +15,7 @@ import { handleCasinoCommand, handleHomeButton, handleHomeModal } from "./ui/hom
 import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStocksModal } from "./games/stocks";
 import { handleAdminCommand } from "./admin/commands";
 import { handleShoutenCommand, handleShoutenButton } from "./games/shouten";
-import { handleZashikiCommand } from "./games/zashiki";
+import { handleZashikiCommand, handleAstelButton, handleAstelSelect } from "./games/zashiki";
 import { handleExchangeCommand, handleExchangeApproval } from "./games/exchange";
 import { reconcileStaleExchangesOnStartup } from "./core/exchange";
 import { handleBoardCommand, handleBoardButton, handleBoardSelect, handleBoardModal, refundStaleMarketsOnStartup } from "./games/board";
@@ -202,6 +202,16 @@ async function bootstrap(): Promise<void> {
       // ── VIP (vip:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("vip:")) {
         await handleVipButton(interaction);
+        return;
+      }
+
+      // ── アステル パネル (aste:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("aste:")) {
+        await handleAstelButton(interaction);
+        return;
+      }
+      if (interaction.isStringSelectMenu() && interaction.customId.startsWith("aste:")) {
+        await handleAstelSelect(interaction);
         return;
       }
 

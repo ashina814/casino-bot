@@ -246,8 +246,8 @@ export async function handleHomeButton(interaction: ButtonInteraction): Promise<
     return handleRankingCommand(interaction as any);
   }
   if (game === "zashiki") {
-    const { handleStatus } = require("../games/zashiki");
-    return handleStatus(interaction as any);
+    const { openAstelPanel } = require("../games/zashiki");
+    return openAstelPanel(interaction as any);
   }
   if (game === "stocks") {
     return renderDashboard(interaction, interaction.user.id, interaction.guildId!);

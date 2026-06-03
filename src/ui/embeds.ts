@@ -145,67 +145,29 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string, vip = f
     ? `\n${nextTier.emoji} あと Lv${nextTier.levelsTo} で **${nextTier.name}** に昇格（賭け上限解放）`
     : "\n✹ 最上位「北極星」に到達";
 
-  const embed = baseEmbed("✦ 星約の賭場 — 通行証", COLORS.GOLD)
+  const curStreak = profile.current_win_streak > 0
+    ? `🔥 ${profile.current_win_streak}連勝中`
+    : profile.current_lose_streak > 0 ? `💧 ${profile.current_lose_streak}連敗中` : "—";
+  const betCapEff = tier.betCap * (vip ? 2 : 1);
+
+  const embed = baseEmbed("✦ 通行証", COLORS.GOLD)
+    .setDescription(
+      [
+        vip ? "💎 **VIP会員**" : "",
+        activeTitle ? `🏷️ 「${activeTitle}」` : "",
+        `${tier.emoji} **${tier.name}**　Lv.${profile.level}　\`${expBar}\``,
+        tierProgress.replace(/^\n/, ""),
+      ].filter(Boolean).join("\n"),
+    )
     .addFields(
-      {
-        name: "👤 プレイヤー",
-        value: [
-          vip ? "💎 **VIP会員**" : "",
-          activeTitle ? `🏷️ 「${activeTitle}」` : "",
-          `${tier.emoji} **${tier.name}** （Lv.${profile.level}）`,
-          `星の力 \`${expBar}\` ${profile.exp.toLocaleString()} / ${expNext.toLocaleString()}`,
-          `賭け上限: ◈${(tier.betCap * (vip ? 2 : 1)).toLocaleString()}${vip ? "（💎VIP×2）" : ""}${tierProgress}`,
-        ].filter(Boolean).join("\n"),
-        inline: false,
-      },
-      {
-        name: "💰 資産",
-        value: `◈${profile.balance.toLocaleString()}`,
-        inline: true,
-      },
-      {
-        name: "✦ アステル",
-        value: zashikiLine,
-        inline: true,
-      },
-      {
-        name: "📈 戦績",
-        value: [
-          `勝率: **${winRate}%** （${profile.total_wins.toLocaleString()}勝 / ${profile.total_losses.toLocaleString()}敗、${totalGames.toLocaleString()}戦）`,
-          `最大勝ち: ◈${profile.biggest_win.toLocaleString()}`,
-          `最長連勝: ${profile.best_win_streak}回`,
-          `現在: ${profile.current_win_streak > 0 ? `🔥 ${profile.current_win_streak}連勝中` : profile.current_lose_streak > 0 ? `💧 ${profile.current_lose_streak}連敗中` : "（無印）"}`,
-        ].join("\n"),
-        inline: false,
-      },
-      {
-        name: "💴 累計",
-        value: [
-          `賭け額: ◈${profile.total_wagered.toLocaleString()}`,
-          `稼ぎ: ◈${profile.total_earned.toLocaleString()}`,
-        ].join("\n"),
-        inline: true,
-      },
-      {
-        name: "📅 ログイン",
-        value: `🔥 連続: ${profile.daily_streak}日`,
-        inline: true,
-      },
-    );
-
-  // 称号取得数
-  try {
-    const { db } = require("../core/db");
-    const { TITLES_CATALOG } = require("../core/titlesCatalog");
-    const row = db.prepare("SELECT COUNT(*) AS c FROM titles WHERE user_id = ?").get(profile.user_id) as { c: number };
-    embed.addFields({
-      name: "📜 二つ名",
-      value: `${row.c} / ${TITLES_CATALOG.length}`,
-      inline: true,
-    });
-  } catch { /* ignore */ }
-
-  embed.setFooter({ text: "星の力(EXP)はゲームをプレイすると貯まる。レベルが上がると段位も昇格し、賭け上限が解放される。" });
+      { name: "💰 所持金", value: `◈${profile.balance.toLocaleString()}`, inline: true },
+      { name: "🎲 賭け上限", value: `◈${betCapEff.toLocaleString()}${vip ? "（×2）" : ""}`, inline: true },
+      { name: "🔥 連続ログイン", value: `${profile.daily_streak}日`, inline: true },
+      { name: "✦ アステル", value: zashikiLine, inline: true },
+      { name: "📈 勝率", value: `${winRate}%（${profile.total_wins}勝${profile.total_losses}敗）`, inline: true },
+      { name: "🏆 自己ベスト", value: `最高 ◈${profile.biggest_win.toLocaleString()}\n最長 ${profile.best_win_streak}連勝`, inline: true },
+    )
+    .setFooter({ text: `現在: ${curStreak}　|　ゲームで星の力が貯まり、段位が上がると賭け上限が解放される` });
 
   return embed;
 }

@@ -13,6 +13,8 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   ButtonInteraction,
+  ButtonBuilder,
+  ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuInteraction,
   ActionRowBuilder,
@@ -41,42 +43,44 @@ const GIFTS = [
 
 export const zashikiCommand = new SlashCommandBuilder()
   .setName("アステル")
-  .setDescription("アステルとの関わり（状態・モード・贈り物・お礼）")
-  .addSubcommand((sub) =>
-    sub.setName("status").setDescription("星約段階・好感度を表示")
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("mode")
-      .setDescription("アステルのモードを切り替える")
-      .addStringOption((opt) =>
-        opt
-          .setName("type")
-          .setDescription("モードを選択")
-          .setRequired(true)
-          .addChoices(
-            { name: "☾ 常", value: "default" },
-            { name: "✦ 拗ね", value: "tsundere" },
-            { name: "☄ 蝕", value: "yami" },
-            { name: "◌ 前世（座敷童）", value: "zense" },
-          )
-      )
-  )
-  .addSubcommand((sub) => sub.setName("贈り物").setDescription("🎁 エテルで贈り物 → 好感度が上がる"))
-  .addSubcommand((sub) => sub.setName("お礼").setDescription("✦ アステルにお礼を言う"));
+  .setDescription("アステルとの関わり（状態・モード・贈り物・お礼）をまとめたパネル");
+
+const MODE_LABELS: Record<string, string> = {
+  default: "☾ 常", tsundere: "✦ 拗ね", yami: "☄ 蝕", zense: "◌ 前世（座敷童）",
+};
 
 // ─── Handlers ──────────────────────────────────────────
 
 export async function handleZashikiCommand(interaction: ChatInputCommandInteraction): Promise<void> {
-  const sub = interaction.options.getSubcommand();
-  if (sub === "status") return handleStatus(interaction);
-  if (sub === "mode") return handleMode(interaction);
-  if (sub === "贈り物") return handleGift(interaction);
-  if (sub === "お礼") return handleThanksCommand(interaction);
+  return openAstelPanel(interaction);
+}
+
+/** /アステル パネル（自分だけに見える）。状態サマリー＋モード/贈り物/お礼ボタン。 */
+export async function openAstelPanel(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
+  const embeds = buildStatusEmbeds(interaction.user.id);
+  const stage = getStage(getAffection(interaction.user.id));
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("aste:mode").setLabel("モード").setStyle(ButtonStyle.Secondary).setEmoji("🎭").setDisabled(stage.unlockedModes.length <= 1),
+    new ButtonBuilder().setCustomId("aste:gift").setLabel("贈り物").setStyle(ButtonStyle.Primary).setEmoji("🎁"),
+    new ButtonBuilder().setCustomId("aste:thanks").setLabel("お礼").setStyle(ButtonStyle.Secondary).setEmoji("✦"),
+  );
+  await interaction.reply({ embeds, components: [row], ephemeral: true });
+}
+
+export async function handleAstelButton(interaction: ButtonInteraction): Promise<void> {
+  const [, action] = interaction.customId.split(":");
+  if (action === "mode") return openModeSelect(interaction);
+  if (action === "gift") return handleGift(interaction);
+  if (action === "thanks") return handleThanksCommand(interaction);
+}
+
+export async function handleAstelSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const [, action] = interaction.customId.split(":");
+  if (action === "setmode") return applyMode(interaction, interaction.values[0] as ModeKey);
 }
 
 // ─── 贈り物 ────────────────────────────────────────────
-async function handleGift(interaction: ChatInputCommandInteraction): Promise<void> {
+async function handleGift(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
   ensureUser(userId, guildId);
@@ -111,10 +115,9 @@ async function handleGift(interaction: ChatInputCommandInteraction): Promise<voi
   collector.on("end", async () => { try { await reply.edit({ components: [] }); } catch {} });
 }
 
-// ─── Status ────────────────────────────────────────────
+// ─── Status（パネルの中身を組み立てる） ────────────────
 
-export async function handleStatus(interaction: ChatInputCommandInteraction | import("discord.js").ButtonInteraction): Promise<void> {
-  const userId = interaction.user.id;
+function buildStatusEmbeds(userId: string): EmbedBuilder[] {
   const affection = getAffection(userId);
   const stage = getStage(affection);
   const remaining = affectionToNextStage(affection);
@@ -187,56 +190,46 @@ export async function handleStatus(interaction: ChatInputCommandInteraction | im
     }
   } catch { /* non-critical */ }
 
-  await interaction.reply({ embeds, ephemeral: true });
+  return embeds;
 }
 
-// ─── Mode Switch ───────────────────────────────────────
+// ─── Mode Switch（パネルのボタン → セレクト） ──────────
+type ModeKey = "default" | "tsundere" | "yami" | "zense";
 
-async function handleMode(interaction: ChatInputCommandInteraction): Promise<void> {
+async function openModeSelect(interaction: ButtonInteraction): Promise<void> {
+  const stage = getStage(getAffection(interaction.user.id));
+  const current = getAffectionMode(interaction.user.id);
+  const options = (["default", "tsundere", "yami", "zense"] as ModeKey[])
+    .filter((m) => stage.unlockedModes.includes(m))
+    .map((m) => ({ label: MODE_LABELS[m], value: m, default: m === current }));
+  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder().setCustomId("aste:setmode").setPlaceholder("モードを選ぶ…").addOptions(options),
+  );
+  await interaction.reply({ embeds: [baseEmbed("🎭 モード切替", COLORS.BASE).setDescription("アステルの声色を選んでね。")], components: [row], ephemeral: true });
+}
+
+async function applyMode(interaction: StringSelectMenuInteraction, targetMode: ModeKey): Promise<void> {
   const userId = interaction.user.id;
-  const targetMode = interaction.options.getString("type", true) as "default" | "tsundere" | "yami" | "zense";
-  const affection = getAffection(userId);
-  const stage = getStage(affection);
-
+  const stage = getStage(getAffection(userId));
   if (!stage.unlockedModes.includes(targetMode)) {
-    const requirement: Record<string, string> = {
-      tsundere: "星約Lv4「煌めき」（好感度300+）",
-      yami: "星約Lv6「満天」（好感度1000+）",
-      zense: "星約Lv6「満天」（好感度1000+）",
-    };
-    await interaction.reply({
-      content: `そのモードはまだ解放されてないよ。\n必要条件: **${requirement[targetMode] ?? "不明"}**`,
-      ephemeral: true,
-    });
+    await interaction.update({ content: "そのモードはまだ解放されてないよ。", embeds: [], components: [] }).catch(() => {});
     return;
   }
-
-  const currentMode = getAffectionMode(userId);
-  if (currentMode === targetMode) {
-    await interaction.reply({ content: "もうそのモードだよ。", ephemeral: true });
+  if (getAffectionMode(userId) === targetMode) {
+    await interaction.update({ embeds: [baseEmbed("🎭 モード", COLORS.BASE).setDescription(`もう **${MODE_LABELS[targetMode]}** だよ。`)], components: [] });
     return;
   }
-
   setAffectionMode(userId, targetMode);
-
-  const dialogues: Record<string, string> = {
+  const dialogues: Record<ModeKey, string> = {
     default: "「ふう。やっと、いつもの調子に戻れる。」",
     tsundere: "「べ、べつにきみのために変えたわけじゃないからね。\n　頼まれたから、しょうがなく。」",
     yami: "「……ふふ。この貌がお好み？\n　いいよ。わたしのぜんぶ、見せてあげる。\n　……どこにも、逃がさないけどね。」",
     zense: "「……あれ。なんだか、懐かしい喋り方が出てくるのう。\n　ふふ、これが前世のわたし……『座敷童』じゃ。\n　久方ぶりじゃな、客人。」",
   };
-
-  const modeLabels: Record<string, string> = {
-    default: "☾ 常", tsundere: "✦ 拗ね", yami: "☄ 蝕", zense: "◌ 前世（座敷童）",
-  };
-  const modeColor: Record<string, number> = {
-    default: 0x0b1026, tsundere: 0x3a6ea5, yami: 0x2c003e, zense: 0xc0392b,
-  };
-
+  const modeColor: Record<ModeKey, number> = { default: 0x0b1026, tsundere: 0x3a6ea5, yami: 0x2c003e, zense: 0xc0392b };
   const embed = new EmbedBuilder()
-    .setColor(modeColor[targetMode] ?? 0x0b1026)
-    .setTitle(`${modeLabels[targetMode]} — モード切替`)
-    .setDescription(`*${dialogues[targetMode]}*\n\nモードを **${modeLabels[targetMode]}** に変更した。`);
-
-  await interaction.reply({ embeds: [embed] });
+    .setColor(modeColor[targetMode])
+    .setTitle(`${MODE_LABELS[targetMode]} — モード切替`)
+    .setDescription(`*${dialogues[targetMode]}*\n\nモードを **${MODE_LABELS[targetMode]}** に変更したよ。`);
+  await interaction.update({ embeds: [embed], components: [] });
 }
