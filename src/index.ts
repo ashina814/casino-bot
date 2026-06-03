@@ -19,11 +19,12 @@ import { handleZashikiCommand, handleAstelButton, handleAstelSelect } from "./ga
 import { handleExchangeCommand, handleExchangeApproval } from "./games/exchange";
 import { reconcileStaleExchangesOnStartup } from "./core/exchange";
 import { handleBoardCommand, handleBoardButton, handleBoardSelect, handleBoardModal, refundStaleMarketsOnStartup } from "./games/board";
-import { handleSashiCommand, handleSashiButton, refundStaleSashiOnStartup } from "./games/sashi";
+import { handleSashiButton, refundStaleSashiOnStartup } from "./games/sashi";
 import { handleTipCommand } from "./games/tip";
 import { handleTakuCommand, handleTakuButton, handleTableVoiceState, sweepStaleTempVCs } from "./games/takutate";
-import { handleChohanCommand, handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
-import { handleSaiCommand, handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
+import { handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
+import { handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
+import { handleShoubuCommand } from "./games/shoubu";
 import { handleVipCommand, handleVipButton } from "./games/vip";
 
 // ─── Startup Cleanup ───────────────────────────────────
@@ -134,16 +135,12 @@ async function bootstrap(): Promise<void> {
             return await handleExchangeCommand(interaction);
           case "板":
             return await handleBoardCommand(interaction);
-          case "サシ":
-            return await handleSashiCommand(interaction);
+          case "勝負":
+            return await handleShoubuCommand(interaction);
           case "心付け":
             return await handleTipCommand(interaction);
           case "卓":
             return await handleTakuCommand(interaction);
-          case "丁半":
-            return await handleChohanCommand(interaction);
-          case "チンチロ対戦":
-            return await handleSaiCommand(interaction);
           case "vip":
             return await handleVipCommand(interaction);
         }

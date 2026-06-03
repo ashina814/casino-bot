@@ -66,7 +66,7 @@ export async function handleSashiCommand(interaction: ChatInputCommandInteractio
   if (interaction.options.getSubcommand() === "申込み") return challenge(interaction);
 }
 
-async function challenge(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function challenge(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) { await interaction.reply({ content: "サーバー内でのみ使えるよ。", ephemeral: true }); return; }
 

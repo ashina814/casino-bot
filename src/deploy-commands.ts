@@ -10,11 +10,9 @@ import { shoutenCommand } from "./games/shouten";
 import { zashikiCommand } from "./games/zashiki";
 import { exchangeCommand } from "./games/exchange";
 import { boardCommand } from "./games/board";
-import { sashiCommand } from "./games/sashi";
+import { shoubuCommand } from "./games/shoubu";
 import { tipCommand } from "./games/tip";
 import { takuCommand } from "./games/takutate";
-import { chohanCommand } from "./games/chohan";
-import { saiCommand } from "./games/saishoubu";
 import { vipCommand } from "./games/vip";
 
 async function deployCommands(): Promise<void> {
@@ -30,11 +28,9 @@ async function deployCommands(): Promise<void> {
     zashikiCommand.toJSON(),
     exchangeCommand.toJSON(),
     boardCommand.toJSON(),
-    sashiCommand.toJSON(),
+    shoubuCommand.toJSON(),
     tipCommand.toJSON(),
     takuCommand.toJSON(),
-    chohanCommand.toJSON(),
-    saiCommand.toJSON(),
     vipCommand.toJSON(),
   ];
   if (config.guildId) {

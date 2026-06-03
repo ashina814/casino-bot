@@ -102,7 +102,7 @@ export async function handleChohanCommand(interaction: ChatInputCommandInteracti
   if (interaction.options.getSubcommand() === "立てる") return openBon(interaction);
 }
 
-async function openBon(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function openBon(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) { await interaction.reply({ content: "サーバー内でのみ使えるよ。", ephemeral: true }); return; }
 

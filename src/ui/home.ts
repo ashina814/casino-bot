@@ -154,7 +154,7 @@ async function postHomePanel(interaction: ChatInputCommandInteraction): Promise<
           "・**`/商店`** … 景品・お守り・称号",
           "・**`/アステル`** … 状態・モード・贈り物・お礼",
           "・**`/vip`** … 奥座敷の会員（高bet上限×2・専用部屋）",
-          "・**`/サシ` `/丁半` `/チンチロ対戦` `/板`** … 人と賭ける",
+          "・**`/勝負`**（丁半・チンチロ・サシ）・**`/板`** … 人と賭ける",
           "・**`/卓`** … VCの卓を立てて集まる",
         ].join("\n"),
         inline: false,
