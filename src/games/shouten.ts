@@ -10,7 +10,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   StringSelectMenuBuilder,
-  ComponentType,
   PermissionFlagsBits,
 } from "discord.js";
 import { handleShopCommand } from "./shop";
@@ -101,24 +100,25 @@ async function openUseSelect(interaction: ButtonInteraction): Promise<void> {
   const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder().setCustomId("shouten:use_select").setPlaceholder("装備する景品を選ぶ…").addOptions(options),
   );
-  const reply = await interaction.reply({ embeds: [baseEmbed("✨ 使う景品を選んで", PALETTE.JADE)], components: [row], ephemeral: true });
+  await interaction.reply({ embeds: [baseEmbed("✨ 使う景品を選んで", PALETTE.JADE)], components: [row], ephemeral: true });
+}
 
-  const collector = reply.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 60_000, filter: (i) => i.user.id === userId });
-  collector.on("collect", async (sel: StringSelectMenuInteraction) => {
-    await sel.deferUpdate();
-    const key = sel.values[0];
-    const def = getConsumableDef(key);
-    const res = armItem(userId, key);
-    if (!res.ok) {
-      const msg = res.reason === "NO_STOCK" ? `**${def?.name ?? key}** を持ってないよ。`
-        : res.reason === "ALREADY_ARMED" ? `**${def?.name ?? key}** はもう装備してるよ。` : "装備できなかったよ。";
-      await sel.followUp({ embeds: [errorEmbed(msg)], ephemeral: true });
-      return;
-    }
-    await reply.edit({ components: [] }).catch(() => {});
-    await sel.followUp({ embeds: [baseEmbed(`✨ ${def?.name ?? key} を装備した`, PALETTE.JADE).setDescription(`${def?.desc ?? ""}\n\n次の勝負で自動発動して消費されるよ。`)], ephemeral: true });
-  });
-  collector.on("end", async () => { try { await reply.edit({ components: [] }); } catch {} });
+/** 商店パネルのセレクト（グローバル処理） */
+export async function handleShoutenSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const [, action] = interaction.customId.split(":");
+  if (action !== "use_select") return;
+  const userId = interaction.user.id;
+  const key = interaction.values[0];
+  const def = getConsumableDef(key);
+  const res = armItem(userId, key);
+  if (!res.ok) {
+    const msg = res.reason === "NO_STOCK" ? `**${def?.name ?? key}** を持ってないよ。`
+      : res.reason === "ALREADY_ARMED" ? `**${def?.name ?? key}** はもう装備してるよ。` : "装備できなかったよ。";
+    await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
+    return;
+  }
+  await interaction.update({ components: [] }).catch(() => {});
+  await interaction.followUp({ embeds: [baseEmbed(`✨ ${def?.name ?? key} を装備した`, PALETTE.JADE).setDescription(`${def?.desc ?? ""}\n\n次の勝負で自動発動して消費されるよ。`)], ephemeral: true });
 }
 
 // ─── 持ち物 ───────────────────────────────────────────

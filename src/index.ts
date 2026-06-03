@@ -14,7 +14,8 @@ import { handleProfileCommand } from "./games/profile";
 import { handleCasinoCommand, handleHomeButton, handleHomeModal } from "./ui/home";
 import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStocksModal } from "./games/stocks";
 import { handleAdminCommand } from "./admin/commands";
-import { handleShoutenCommand, handleShoutenButton } from "./games/shouten";
+import { handleShoutenCommand, handleShoutenButton, handleShoutenSelect } from "./games/shouten";
+import { handleShopSelect } from "./games/shop";
 import { handleZashikiCommand, handleAstelButton, handleAstelSelect } from "./games/zashiki";
 import { handleExchangeCommand, handleExchangeApproval } from "./games/exchange";
 import { reconcileStaleExchangesOnStartup } from "./core/exchange";
@@ -175,6 +176,14 @@ async function bootstrap(): Promise<void> {
       // ── 商店パネル (shouten:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("shouten:")) {
         await handleShoutenButton(interaction);
+        return;
+      }
+      if (interaction.isStringSelectMenu() && interaction.customId.startsWith("shouten:")) {
+        await handleShoutenSelect(interaction);
+        return;
+      }
+      if (interaction.isStringSelectMenu() && interaction.customId === "shop_select") {
+        await handleShopSelect(interaction);
         return;
       }
 

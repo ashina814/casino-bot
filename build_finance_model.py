@@ -3,7 +3,7 @@
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.formatting.rule import ColorScaleRule
+from openpyxl.formatting.rule import ColorScaleRule, CellIsRule
 
 FONT = "Meiryo"
 BLUE = "0000FF"      # 入力（手で変える値）
@@ -142,7 +142,7 @@ section(ws, row, "Gil 流入②：給与（役職ロール・重複可・固定�
 row = add_table(ws, row, "給与_役職", [
     ("役職", "モーセの十戒", 150000, 1, "固定", False, True),
     ("役職", "天銀官", 70000, 1, "固定", False, True),
-    ("優遇", "星導官", 0, 2, "完全歩合制=基本給0。全収入は面接歩合(上限12万)", False, True),
+    ("優遇", "星導官", 0, 6, "完全歩合(基本給0)。理想6人=統括1+従者3-5+見習0-2・各上限12万", False, True),
     ("優遇", "審星官・特級", 90000, 1, "顔役優遇:80000→90000 ＋評価歩合", False, True),
     ("優遇", "審星官・Ⅰ級", 60000, 1, "顔役優遇:50000→60000", False, True),
     ("優遇", "審星官・Ⅱ級", 40000, 2, "顔役優遇:30000→40000", False, True),
@@ -168,36 +168,39 @@ row = add_table(ws, row, "給与_運営", [
 
 section(ws, row, "Gil 流入④：給与以外（Gill運用・額/頻度は要Gill or 我々が最適化）"); row += 1
 row = add_table(ws, row, "Gil流入_その他", [
-    ("流入", "日記報酬", 5000, 30, "継続/レベルで逓増。支給額×件数", True, True),
-    ("流入", "招待報酬", 15000, 5, "ポイント制(女↑男↓)→蓄積換金・優遇↑", True, True),
-    ("流入", "ランク報酬", 15000, 6, "10Lvごとに逓増するマイルストーン", True, True),
-    ("流入", "ブースト達成", 20000, 3, "支給額×月間達成件数", True, True),
-    ("流入", "VC在席報酬", 100, 2000, "会話必須VC限定→農耕無。提案↑50→100Gil/h×総在席h", True, True),
+    ("流入", "日記報酬", 5000, 20, "刻:30日5万/100日10万/200日15万/300日20万/365日30万+ロール", True, True),
+    ("流入", "招待報酬", 10000, 5, "刻:5人5万/10人10万/+10万per10人/100人100万+ロール+Secret", True, True),
+    ("流入", "ランク報酬", 15000, 6, "10Lvごと逓増マイルストーン", True, True),
+    ("流入", "サバブ達成", 40000, 3, "刻:3〜5万×回数(仮4万)", True, True),
+    ("流入", "VC在席報酬", 100, 2000, "刻:裁量で任せ→100Gil/h。会話VC限定", True, True),
     ("変動", "審星官 評価歩合", 1500, 40, "見習500〜特級2500×枚数。実作業=ノーキャップ＋監視", True, True),
-    ("変動", "星導官 面接歩合", 3000, 10, "完全歩合=星導官の全収入。3000×回数・○月上限120,000", True, True),
+    ("変動", "星導官 歩合(面接+個別)", 3000, 10, "完全歩合・全収入。面接3000×回＋個別対応1000×件・上限12万", True, True),
     ("変動", "星賭官 勝ち歩合", 500, 100, "500×勝ち。○月キャップ50k＋最低ベット閾値(農耕防止)", True, True),
-    ("不定期", "イベント・公式配布", 100000, 5, "仮上限=月50万(派手運用)。後で財務モデル見て調整", True, True),
+    ("不定期", "イベント・公式配布", 200000, 5, "仮上限=月100万に増額(ステージ等のsink原資)", True, True),
 ])
 
 section(ws, row, "Gil シンク：ショップ（手動運用・価格は我々が決める）"); row += 1
 row = add_table(ws, row, "Gilシンク_ショップ", [
-    # A. 反復課金（小〜中・主力シンク）
-    ("反復", "名前変更", 30000, 5, "反復・既存", False, True),
-    ("反復", "カラーネーム(期間色)", 20000, 6, "追加・反復", False, True),
-    ("反復", "鯖スタンプ追加", 15000, 8, "追加・反復", False, True),
-    ("反復", "一時ブースト(XP/福分け)", 25000, 6, "追加・期間制", False, True),
-    # B. 通行証＝サブスク（継続課金・格差ゲート／数量=継続購読者数）
-    ("サブスク", "荒野通行証", 80000, 6, "サブスク継続課金・高額ゲート。数量=購読者数", False, True),
-    ("サブスク", "監獄通行証", 80000, 4, "サブスク継続課金。数量=購読者数", False, True),
-    ("サブスク", "ステージ利用者証", 50000, 3, "サブスク継続課金。数量=購読者数", False, True),
-    # C. 高額・ステータス（大・希少シンク）
-    ("高額", "18禁コンテンツロール", 50000, 2, "提案↓:80k→50k", False, True),
-    ("高額", "黄金ネーム/名前飾り", 100000, 2, "追加(A/E/F景品連動)", False, True),
-    ("高額", "Sub垢導入", 150000, 2, "提案150k", False, True),
-    ("高額", "限定カスタムロール", 2000000, 2, "提案2,000,000=鯨シンク。役職持ちが購入→販売数非ゼロ", False, True),
-    # D. 部屋立て代金（GILL徴収・従量シンク・価格は我々が提案）
-    ("部屋代金", "宿代(2人個室VC・立て時)", 8000, 15, "提案↑5k→8k(派手運用)。GILL実装済", False, True),
-    ("部屋代金", "ゲーム部屋 立て代金", 8000, 12, "GILL実装済/価格未定。従量シンク", False, True),
+    # A. 反復課金（小〜中）
+    ("反復", "名前変更(2回目以降)", 100000, 2, "初回無料/2回目以降10万。ぽんぽん防止", False, True),
+    ("反復", "カラーネーム(期間色)", 20000, 6, "反復", False, True),
+    ("反復", "鯖スタンプ追加", 15000, 8, "反復", False, True),
+    ("反復", "一時ブースト(XP/福分け)", 25000, 6, "期間制", False, True),
+    # B. サブスク（継続課金）
+    ("サブスク", "荒野通行証", 80000, 6, "月サブスク・格差ゲート。数量=購読者数", False, True),
+    ("サブスク", "監獄通行証", 80000, 4, "月サブスク。数量=購読者数", False, True),
+    ("サブスク", "18禁コンテンツロール", 5000, 10, "刻案:普及狙いでサブスク5千/月(買切なら5万)", False, True),
+    ("サブスク", "Sub垢 維持費", 50000, 2, "刻決定:Sub垢の月維持費5万", False, True),
+    # C. 高額・ステータス
+    ("高額", "ステージ利用者証", 300000, 1, "刻:最低30万。大型sink→イベント上限の原資", False, True),
+    ("高額", "Sub垢 導入", 300000, 2, "刻決定:導入30万(維持費は別行)", False, True),
+    ("高額", "シクレ宿(価格仮)", 50000, 2, "要・刻確認(中身次第)。仮5万/回", False, True),
+    # D. 鯨シンク
+    ("鯨", "限定カスタムロール", 2000000, 2, "刻:非グラデ前提で〇。グラデ可なら上位価格", False, True),
+    # E. 部屋立て代金（従量・GILL徴収）
+    ("部屋代金", "宿代(2人個室)", 8000, 15, "刻:問題無し", False, True),
+    ("部屋代金", "ゲーム部屋(GO後)", 8000, 12, "刻:プレオープン無料/GO後8千", False, True),
+    ("部屋代金", "ゲーム部屋サブスク", 30000, 3, "刻案:ヘビーユーザー向け立て放題", False, True),
 ])
 
 # ── 為替レバー（単独セル群） ──
@@ -588,6 +591,70 @@ for t in ["非役職カジュアル: 素ベース×1.5前後（軽く触るだ�
           "非役職アクティブ: 素ベース×2.5〜3（日記+招待+昇格で“頑張れば報われる”床）",
           "役職持ちとは更に差 → 格差はそこそこ維持（やりがい＋上を目指す動機）",
           "全faucetは消滅シンク前提＝派手に出してOK。Gil mint総額は前提シートで監視"]:
+    ws.cell(row=r, column=1, value="・" + t).font = f(size=9, color=NOTE); r += 1
+
+# ════════════════════════════════════════════════════════════
+# Sheet 9: 定員プラン（各役職を何人雇えるか）
+# ════════════════════════════════════════════════════════════
+ws = wb.create_sheet("定員プラン")
+ws.sheet_view.showGridLines = False
+title(ws, "A1", "定員プラン — 各役職を何人雇えるか（予算 vs シンク）")
+ws["A2"] = "青字=入力。役職の定員を変えると残予算が動く。月給/歩合/身分給は前提シートと連動。"
+ws["A2"].font = f(italic=True, color=NOTE)
+ws.column_dimensions["A"].width = 26
+for c in "BCD":
+    ws.column_dimensions[c].width = 15
+
+ka_sub = ranges["給与_階級"][1] + 1   # 階級小計行
+otf = ranges["Gil流入_その他"][0]      # その他先頭(日記)
+yk = ranges["給与_役職"][0]            # 役職先頭(モーセ)
+
+# 予算ブロック
+ws["A4"] = "給与予算 / 月（シンク連動）"; ws["A4"].font = f(bold=True)
+b4 = ws["B4"]; b4.value = 2500000; b4.font = f(color=BLUE); b4.number_format = GIL
+b4.fill = PatternFill("solid", fgColor=YELLOW)
+ws["C4"] = "堅い1.3M〜現状2.5M〜カジノ後4M"; ws["C4"].font = f(size=9, color=NOTE)
+ws["A5"] = "− 身分給（会員数で決まる固定費）"; ws["A5"].font = f()
+b5 = ws["B5"]; b5.value = f"='{P}'!E{ka_sub}"; b5.font = f(color=GREEN); b5.number_format = GIL
+ws["A6"] = "＝ 役職に回せる予算"; ws["A6"].font = f(bold=True)
+b6 = ws["B6"]; b6.value = "=B4-B5"; b6.font = f(bold=True); b6.number_format = GIL
+b6.fill = PatternFill("solid", fgColor=SEC_FILL)
+
+# 役職テーブル
+roles = ["モーセの十戒", "天銀官", "星導官", "審星官・特級", "審星官・Ⅰ級", "審星官・Ⅱ級",
+         "審星官・Ⅲ級", "審星官・見習い", "星祭官", "印章官", "星商官", "幻戯官",
+         "失星官", "贖罪官", "星賭官", "18禁"]
+defcount = [1, 1, 6, 1, 1, 2, 2, 3, 1, 1, 1, 1, 1, 1, 1, 0]
+hr = 8
+header_row(ws, hr, ["役職", "月給/人", "定員(計画)", "月額"])
+r = hr + 1; first = r
+for i, role in enumerate(roles):
+    ws.cell(row=r, column=1, value=role).font = f()
+    pc = ws.cell(row=r, column=2, value=f"='{P}'!C{yk + i}"); pc.font = f(color=GREEN); pc.number_format = GIL
+    dc = ws.cell(row=r, column=3, value=defcount[i]); dc.font = f(color=BLUE); dc.number_format = '#,##0'
+    mc = ws.cell(row=r, column=4, value=f"=B{r}*C{r}"); mc.font = f(); mc.number_format = GIL
+    for col in range(1, 5):
+        ws.cell(row=r, column=col).border = border
+    r += 1
+last = r - 1
+ws.cell(row=r, column=1, value="※星導官=完全歩合(基本給0)。定員を増やしても固定費0・働いた分のみ上限12万/人").font = f(size=9, color=NOTE)
+r += 1
+ws.cell(row=r, column=1, value="役職コスト 計").font = f(bold=True)
+cc = ws.cell(row=r, column=4, value=f"=SUM(D{first}:D{last})"); cc.font = f(bold=True); cc.number_format = GIL
+cost_row = r; r += 1
+ws.cell(row=r, column=1, value="＋歩合（評価+星導+星賭）").font = f()
+bc = ws.cell(row=r, column=4, value=f"='{P}'!E{otf+5}+'{P}'!E{otf+6}+'{P}'!E{otf+7}"); bc.font = f(color=GREEN); bc.number_format = GIL
+buai_row = r; r += 1
+ws.cell(row=r, column=1, value="残予算（役職予算−コスト−歩合）").font = f(bold=True)
+rm = ws.cell(row=r, column=4, value=f"=B6-D{cost_row}-D{buai_row}"); rm.font = f(bold=True); rm.number_format = GIL
+rem_row = r
+ws.conditional_formatting.add(f"D{rem_row}", CellIsRule(operator="lessThan", formula=["0"], fill=PatternFill("solid", fgColor="F8696B")))
+ws.conditional_formatting.add(f"D{rem_row}", CellIsRule(operator="greaterThanOrEqual", formula=["0"], fill=PatternFill("solid", fgColor="C6EFCE")))
+r += 2
+ws.cell(row=r, column=1, value="■ 読み方").font = f(bold=True, color="1F3864"); r += 1
+for t in ["身分給(会員数)が先に予算を食う → 役職は“その残り”で雇う",
+          "残予算マイナス＝シンク不足。カジノ接続 or サブスク増 or 会員増で枠が開く",
+          "星導官は完全歩合＝定員を増やしても固定費は増えない（働いた分のみ）"]:
     ws.cell(row=r, column=1, value="・" + t).font = f(size=9, color=NOTE); r += 1
 
 # 並び順

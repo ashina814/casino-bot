@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, ButtonInteraction, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuInteraction, ComponentType } from "discord.js";
+import { ChatInputCommandInteraction, ButtonInteraction, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuInteraction } from "discord.js";
 import { adjustBalance, ensureUser, getBalance } from "../core/bank";
 import { db, runTransaction } from "../core/db";
 import { infoEmbed, errorEmbed, successEmbed, COLORS } from "../ui/embeds";
@@ -39,74 +39,49 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
 
   const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
-      .setCustomId(`shop_select_${userId}`)
+      .setCustomId("shop_select")
       .setPlaceholder("購入する品を選択...")
       .addOptions(options)
   );
 
-  const reply = await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+}
 
-  const collector = reply.createMessageComponentCollector({
-    componentType: ComponentType.StringSelect,
-    time: 60_000,
-    filter: (i) => i.user.id === userId,
-  });
+/** 商店セレクト（グローバル処理・コレクター不使用で堅牢に） */
+export async function handleShopSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
+  const itemId = interaction.values[0];
+  const item = SHOP_ITEMS.find((x) => x.id === itemId);
+  if (!item) { await interaction.reply({ embeds: [errorEmbed("その品は見つからないや。")], ephemeral: true }); return; }
 
-  collector.on("collect", async (i: StringSelectMenuInteraction) => {
-    const itemId = i.values[0];
-    const item = SHOP_ITEMS.find((x) => x.id === itemId)!;
+  const result = runTransaction<{ ok: boolean; reason?: string }>(() => {
+    const currentBalance = (db.prepare("SELECT balance FROM users WHERE user_id = ?").get(userId) as { balance: number } | undefined)?.balance ?? 0;
+    if (currentBalance < item.cost) return { ok: false, reason: "INSUFFICIENT_FUNDS" };
 
-    await i.deferUpdate();
-
-    try {
-      const result = runTransaction(() => {
-        // 残高チェック
-        const currentBalance = (db.prepare("SELECT balance FROM users WHERE user_id = ?").get(userId) as { balance: number }).balance;
-        if (currentBalance < item.cost) {
-          return { ok: false, reason: "INSUFFICIENT_FUNDS" };
-        }
-
-        if (item.type === "title") {
-          // すでに持っているかチェック
-          const hasTitle = db.prepare("SELECT 1 FROM titles WHERE user_id = ? AND title_key = ?").get(userId, item.id);
-          if (hasTitle) {
-            return { ok: false, reason: "ALREADY_OWNED" };
-          }
-          // 購入処理
-          adjustBalance(userId, -item.cost, "shop_buy");
-          db.prepare("INSERT INTO titles (user_id, title_key, title_name) VALUES (?, ?, ?)").run(userId, item.id, item.name.replace("【称号】", ""));
-        } else if (item.type === "consumable") {
-          adjustBalance(userId, -item.cost, "shop_buy");
-          grantItem(userId, item.id, 1);
-        }
-
-        return { ok: true };
-      });
-
-      if (!result.ok) {
-        if (result.reason === "INSUFFICIENT_FUNDS") {
-          await i.followUp({ embeds: [errorEmbed("エテルが足りないよ。冷やかしなら、また今度ね。")], ephemeral: true });
-        } else if (result.reason === "ALREADY_OWNED") {
-          await i.followUp({ embeds: [errorEmbed("それはもう持ってるよ。")], ephemeral: true });
-        }
-        return;
-      }
-
-      // 購入成功の演出
-      if (item.type === "consumable") {
-        await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** を手に入れたよ。\n\n`+"商店の **「使う」** で装備すると、次の勝負で効くよ。")], ephemeral: true });
-      } else {
-        await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** を購入しました！\n\n「毎度あり。/通行証 で確認できるよ。」`)], ephemeral: true });
-      }
-    } catch (error) {
-      console.error("[shop] Error:", error);
-      await i.followUp({ embeds: [errorEmbed("処理に失敗しちゃった。")], ephemeral: true });
+    if (item.type === "title") {
+      const hasTitle = db.prepare("SELECT 1 FROM titles WHERE user_id = ? AND title_key = ?").get(userId, item.id);
+      if (hasTitle) return { ok: false, reason: "ALREADY_OWNED" };
+      adjustBalance(userId, -item.cost, "shop_buy", undefined, guildId);
+      db.prepare("INSERT INTO titles (user_id, title_key, title_name) VALUES (?, ?, ?)").run(userId, item.id, item.name.replace("【称号】", ""));
+    } else if (item.type === "consumable") {
+      adjustBalance(userId, -item.cost, "shop_buy", undefined, guildId);
+      grantItem(userId, item.id, 1);
     }
+    return { ok: true };
   });
 
-  collector.on("end", async () => {
-    try { await reply.edit({ components: [] }); } catch {}
-  });
+  if (!result.ok) {
+    const msg = result.reason === "INSUFFICIENT_FUNDS" ? "エテルが足りないよ。冷やかしなら、また今度ね。"
+      : result.reason === "ALREADY_OWNED" ? "それはもう持ってるよ。" : "処理に失敗しちゃった。";
+    await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
+    return;
+  }
+
+  const text = item.type === "consumable"
+    ? `**${item.name}** を手に入れたよ。\n\n商店の **「使う」** で装備すると、次の勝負で効くよ。`
+    : `**${item.name}** を購入しました！\n\n「毎度あり。/通行証 で確認できるよ。」`;
+  // 元のセレクトを消費済みにする（任意・失敗は無視）
+  await interaction.update({ components: [] }).catch(() => {});
+  await interaction.followUp({ embeds: [successEmbed(text)], ephemeral: true });
 }

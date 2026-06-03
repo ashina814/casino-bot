@@ -18,7 +18,6 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuInteraction,
   ActionRowBuilder,
-  ComponentType,
   EmbedBuilder,
 } from "discord.js";
 import {
@@ -77,6 +76,28 @@ export async function handleAstelButton(interaction: ButtonInteraction): Promise
 export async function handleAstelSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   const [, action] = interaction.customId.split(":");
   if (action === "setmode") return applyMode(interaction, interaction.values[0] as ModeKey);
+  if (action === "gift_select") return processGift(interaction);
+}
+
+/** 贈り物の購入処理（グローバル処理・コレクター不使用） */
+async function processGift(interaction: StringSelectMenuInteraction): Promise<void> {
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
+  const gift = GIFTS.find((g) => g.id === interaction.values[0]);
+  if (!gift) { await interaction.reply({ embeds: [errorEmbed("その贈り物は見つからないや。")], ephemeral: true }); return; }
+  const res = runTransaction<{ ok: boolean }>(() => {
+    const bal = (db.prepare("SELECT balance FROM users WHERE user_id = ?").get(userId) as { balance: number } | undefined)?.balance ?? 0;
+    if (bal < gift.cost) return { ok: false };
+    adjustBalance(userId, -gift.cost, "アステルへの贈り物", "gift", guildId);
+    addAffection(userId, gift.affection);
+    if (getAffection(userId) >= 500) {
+      db.prepare("INSERT OR IGNORE INTO titles (user_id, title_key, title_name) VALUES (?, ?, ?)").run(userId, "title_disciple", "アステルの愛弟子");
+    }
+    return { ok: true };
+  });
+  if (!res.ok) { await interaction.reply({ embeds: [errorEmbed("エテルが足りないみたい。")], ephemeral: true }); return; }
+  await interaction.update({ components: [] }).catch(() => {});
+  await interaction.followUp({ embeds: [successEmbed(`**${gift.name}** を贈ったよ。\n\n*「${gift.reply}」*\n\n（好感度 +${gift.affection}）`)], ephemeral: true });
 }
 
 // ─── 贈り物 ────────────────────────────────────────────
@@ -88,31 +109,10 @@ async function handleGift(interaction: ChatInputCommandInteraction | ButtonInter
   const embed = infoEmbed("🎁 アステルへの贈り物", "*「わたしに……？ ……ふふ、なに？ 開けていい？」*\n\n下から選んでね。喜ぶと好感度が上がるよ。", COLORS.GOLD)
     .addFields({ name: `所持金: ${formatEther(getBalance(userId, guildId))}`, value: GIFTS.map((g) => `${g.name} — ${formatEther(g.cost)}（好感度+${g.affection}）`).join("\n") });
   const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder().setCustomId(`gift_select_${userId}`).setPlaceholder("贈り物を選ぶ…")
+    new StringSelectMenuBuilder().setCustomId("aste:gift_select").setPlaceholder("贈り物を選ぶ…")
       .addOptions(GIFTS.map((g) => ({ label: `${g.name}（${formatEther(g.cost)}）`, value: g.id, description: `好感度+${g.affection}` }))),
   );
-  const reply = await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-
-  const collector = reply.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 60_000, filter: (i) => i.user.id === userId });
-  collector.on("collect", async (sel: StringSelectMenuInteraction) => {
-    await sel.deferUpdate();
-    const gift = GIFTS.find((g) => g.id === sel.values[0]);
-    if (!gift) return;
-    const res = runTransaction<{ ok: boolean }>(() => {
-      const bal = (db.prepare("SELECT balance FROM users WHERE user_id = ?").get(userId) as { balance: number }).balance;
-      if (bal < gift.cost) return { ok: false };
-      adjustBalance(userId, -gift.cost, "アステルへの贈り物", "gift", guildId);
-      addAffection(userId, gift.affection);
-      if (getAffection(userId) >= 500) {
-        db.prepare("INSERT OR IGNORE INTO titles (user_id, title_key, title_name) VALUES (?, ?, ?)").run(userId, "title_disciple", "アステルの愛弟子");
-      }
-      return { ok: true };
-    });
-    if (!res.ok) { await sel.followUp({ embeds: [errorEmbed("エテルが足りないみたい。")], ephemeral: true }); return; }
-    await reply.edit({ components: [] }).catch(() => {});
-    await sel.followUp({ embeds: [successEmbed(`**${gift.name}** を贈ったよ。\n\n*「${gift.reply}」*\n\n（好感度 +${gift.affection}）`)], ephemeral: true });
-  });
-  collector.on("end", async () => { try { await reply.edit({ components: [] }); } catch {} });
+  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
 }
 
 // ─── Status（パネルの中身を組み立てる） ────────────────
