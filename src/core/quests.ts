@@ -61,7 +61,7 @@ const DAILY_QUESTS: QuestDef[] = [
   // EASY
   { key: "play_any_1",   kind: "daily", difficulty: "easy", title: "賭場に顔を出す",       description: "何でも 1 回プレイする",                 metric: { kind: "play_count" },                  target: 1,    reward: { coins: 300,  exp: 5 } },
   { key: "play_any_3",   kind: "daily", difficulty: "easy", title: "今日も常連",            description: "何でも 3 回プレイする",                 metric: { kind: "play_count" },                  target: 3,    reward: { coins: 500,  exp: 5 } },
-  { key: "claim_daily",  kind: "daily", difficulty: "easy", title: "福分けを受け取る",     description: "`/福分け` を受け取る",                  metric: { kind: "daily_claim" },                 target: 1,    reward: { coins: 300,  exp: 5 } },
+  { key: "claim_daily",  kind: "daily", difficulty: "easy", title: "福分けを受け取る",     description: "案内の📅福分けボタンから受け取る",      metric: { kind: "daily_claim" },                 target: 1,    reward: { coins: 300,  exp: 5 } },
 
   // NORMAL
   { key: "win_3",        kind: "daily", difficulty: "normal", title: "三勝の手応え",        description: "何かのゲームで 3 勝する",              metric: { kind: "win_count" },                   target: 3,    reward: { coins: 700,  exp: 10 } },

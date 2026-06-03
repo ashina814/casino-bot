@@ -14,7 +14,6 @@ import {
   PermissionFlagsBits,
 } from "discord.js";
 import { handleShopCommand } from "./shop";
-import { handleTipCommand } from "./tip";
 import { CONSUMABLES, getConsumableDef, getInventory, getArmed, armItem } from "../core/items";
 import { baseEmbed, errorEmbed } from "../ui/embeds";
 import { PALETTE } from "../world.config";
@@ -39,21 +38,12 @@ export const shoutenCommand = new SlashCommandBuilder()
         opt.setName("アイテム").setDescription("装備するアイテム").setRequired(true)
           .addChoices(...CONSUMABLES.map((c) => ({ name: c.name, value: c.key })))
       )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("心付け")
-      .setDescription("💸 他のプレイヤーにエテルを送る（心づけ）")
-      .addUserOption((opt) => opt.setName("user").setDescription("送金先").setRequired(true))
-      .addIntegerOption((opt) => opt.setName("amount").setDescription("送る金額").setRequired(true).setMinValue(100))
-      .addStringOption((opt) => opt.setName("message").setDescription("メッセージ（任意）").setRequired(false))
   );
 
 export async function handleShoutenCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const sub = interaction.options.getSubcommand();
   if (sub === "設置") return postShopPanel(interaction);
   if (sub === "購入") return handleShopCommand(interaction);
-  if (sub === "心付け") return handleTipCommand(interaction);
   if (sub === "持ち物") return handleInventory(interaction);
   if (sub === "使う") return handleUse(interaction);
 }

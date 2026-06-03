@@ -1,7 +1,14 @@
-import { ChatInputCommandInteraction } from "discord.js";
+import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
 import { adjustBalance, ensureUser } from "../core/bank";
 import { runTransaction } from "../core/db";
 import { infoEmbed, errorEmbed, successEmbed, COLORS } from "../ui/embeds";
+
+export const tipCommand = new SlashCommandBuilder()
+  .setName("心付け")
+  .setDescription("💸 他のプレイヤーにエテルを贈る")
+  .addUserOption((o) => o.setName("user").setDescription("贈る相手").setRequired(true))
+  .addIntegerOption((o) => o.setName("amount").setDescription("贈る額").setRequired(true).setMinValue(100))
+  .addStringOption((o) => o.setName("message").setDescription("メッセージ（任意）").setRequired(false));
 
 export async function handleTipCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const targetUser = interaction.options.getUser("user", true);

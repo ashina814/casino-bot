@@ -20,7 +20,7 @@ import { handleExchangeCommand, handleExchangeApproval } from "./games/exchange"
 import { reconcileStaleExchangesOnStartup } from "./core/exchange";
 import { handleBoardCommand, handleBoardButton, handleBoardSelect, handleBoardModal, refundStaleMarketsOnStartup } from "./games/board";
 import { handleSashiCommand, handleSashiButton, refundStaleSashiOnStartup } from "./games/sashi";
-import { handleCheerCommand } from "./games/cheer";
+import { handleTipCommand } from "./games/tip";
 import { handleTakuCommand, handleTakuButton, handleTableVoiceState, sweepStaleTempVCs } from "./games/takutate";
 import { handleChohanCommand, handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
 import { handleSaiCommand, handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
@@ -120,8 +120,6 @@ async function bootstrap(): Promise<void> {
             return await handleRaceCommand(interaction);
           case "株":
             return await handleStocksCommand(interaction);
-          case "福分け":
-            return await handleDailyCommand(interaction);
           case "通行証":
             return await handleProfileCommand(interaction);
           case "案内":
@@ -138,8 +136,8 @@ async function bootstrap(): Promise<void> {
             return await handleBoardCommand(interaction);
           case "サシ":
             return await handleSashiCommand(interaction);
-          case "囃子":
-            return await handleCheerCommand(interaction);
+          case "心付け":
+            return await handleTipCommand(interaction);
           case "卓":
             return await handleTakuCommand(interaction);
           case "丁半":

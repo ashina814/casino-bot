@@ -3,7 +3,6 @@ import { config } from "./config";
 import { asobuCommand } from "./games/asobu";
 import { raceCommand } from "./games/keiba/command";
 import { stocksCommand } from "./games/stocks/index";
-import { dailyCommand } from "./games/daily";
 import { profileCommand } from "./games/profile";
 import { casinoCommand } from "./ui/home";
 import { adminCommand } from "./admin/commands";
@@ -12,7 +11,7 @@ import { zashikiCommand } from "./games/zashiki";
 import { exchangeCommand } from "./games/exchange";
 import { boardCommand } from "./games/board";
 import { sashiCommand } from "./games/sashi";
-import { cheerCommand } from "./games/cheer";
+import { tipCommand } from "./games/tip";
 import { takuCommand } from "./games/takutate";
 import { chohanCommand } from "./games/chohan";
 import { saiCommand } from "./games/saishoubu";
@@ -24,7 +23,6 @@ async function deployCommands(): Promise<void> {
     asobuCommand.toJSON(),
     raceCommand.toJSON(),
     stocksCommand.toJSON(),
-    dailyCommand.toJSON(),
     profileCommand.toJSON(),
     casinoCommand.toJSON(),
     adminCommand.toJSON(),
@@ -33,7 +31,7 @@ async function deployCommands(): Promise<void> {
     exchangeCommand.toJSON(),
     boardCommand.toJSON(),
     sashiCommand.toJSON(),
-    cheerCommand.toJSON(),
+    tipCommand.toJSON(),
     takuCommand.toJSON(),
     chohanCommand.toJSON(),
     saiCommand.toJSON(),

@@ -172,7 +172,7 @@ function buildStatusEmbeds(userId: string): EmbedBuilder[] {
         inline: false,
       },
     )
-    .setFooter({ text: "毎日 /福分け で好感度が上がる" });
+    .setFooter({ text: "毎日 福分け（案内パネル）で好感度が上がる" });
 
   // 特別ユーザーへのメタフィクション・メッセージ（本人だけ見える ephemeral 環境）
   const embeds: EmbedBuilder[] = [embed];
