@@ -62,7 +62,7 @@ export async function openAstelPanel(interaction: ChatInputCommandInteraction | 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("aste:mode").setLabel("モード").setStyle(ButtonStyle.Secondary).setEmoji("🎭").setDisabled(stage.unlockedModes.length <= 1),
     new ButtonBuilder().setCustomId("aste:gift").setLabel("贈り物").setStyle(ButtonStyle.Primary).setEmoji("🎁"),
-    new ButtonBuilder().setCustomId("aste:thanks").setLabel("お礼").setStyle(ButtonStyle.Secondary).setEmoji("✦"),
+    new ButtonBuilder().setCustomId("aste:thanks").setLabel("お礼").setStyle(ButtonStyle.Secondary).setEmoji("🙏"),
   );
   await interaction.reply({ embeds, components: [row], ephemeral: true });
 }

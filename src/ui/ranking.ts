@@ -133,12 +133,14 @@ export async function handleRankingCommand(interaction: ChatInputCommandInteract
   const reply = await interaction.reply({
     embeds: [buildEmbed("balance")],
     components: [row1, row2],
+    ephemeral: true,
     fetchReply: true,
   });
 
   const collector = reply.createMessageComponentCollector({
     componentType: ComponentType.Button,
     time: 60_000,
+    filter: (i: ButtonInteraction) => i.user.id === interaction.user.id,
   });
 
   collector.on("collect", async (btn: ButtonInteraction) => {
