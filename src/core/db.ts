@@ -100,6 +100,8 @@ export type ServerConfig = {
   vip_role_id: string | null;
   /** 賭場運営ロール: 異議・トラブル通知でメンションするロール。/管理 本体はオーナーのみ。 */
   admin_role_id: string | null;
+  /** 通貨ログのライブフィード送信先（adjustBalance のたびに1行流れる）。未設定なら無効。 */
+  tx_feed_channel_id: string | null;
 };
 
 export type Title = {
@@ -611,6 +613,8 @@ export function initializeDatabase(): void {
     "ALTER TABLE temp_voice_channels ADD COLUMN settle_count INTEGER NOT NULL DEFAULT 0",
     // 板: 精算/無効化された時刻（スレッド自動削除の起点）
     "ALTER TABLE betting_markets ADD COLUMN settled_at TEXT",
+    // 通貨ログのライブフィード送信先
+    "ALTER TABLE server_config ADD COLUMN tx_feed_channel_id TEXT",
   ];
   for (const sql of v2MigrationCols) {
     try { db.exec(sql); } catch { /* column exists */ }
@@ -659,7 +663,7 @@ export function updateServerConfig(guildId: string, updates: Partial<Omit<Server
     "games_enabled", "lucky_game", "lucky_game_date",
     "exchange_rate_offset", "board_fee",
     "exchange_threshold", "exchange_approval_channel_id",
-    "vip_role_id", "admin_role_id",
+    "vip_role_id", "admin_role_id", "tx_feed_channel_id",
   ] as const;
 
   for (const key of allowed) {

@@ -406,6 +406,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
         `遊戯場: ${cfg.casino_channel_id ? `<#${cfg.casino_channel_id}>` : "*未設定*"}`,
         `大勝ち速報: ${cfg.jackpot_channel_id ? `<#${cfg.jackpot_channel_id}>` : "*未設定*"}`,
         `株 速報: ${cfg.stock_channel_id ? `<#${cfg.stock_channel_id}>` : "*未設定*"}`,
+        `通貨ログ: ${cfg.tx_feed_channel_id ? `<#${cfg.tx_feed_channel_id}>` : "*未設定*"}`,
       ].join("\n"),
       inline: true,
     },
@@ -414,6 +415,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("admin_economy").setLabel("💰 経済を編集").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("admin_channels").setLabel("📢 チャンネルを編集").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("admin_logs").setLabel("📒 ログ設定").setStyle(ButtonStyle.Secondary),
   );
 
   const reply = await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
@@ -491,6 +493,23 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
           admin_role_id: m.fields.getTextInputValue("admin_role") || null,
         });
         await m.reply({ embeds: [successEmbed("チャンネル/ロール設定を更新しました。")], ephemeral: true });
+      } catch { /* timeout */ }
+    } else if (btn.customId === "admin_logs") {
+      const modal = new ModalBuilder()
+        .setCustomId("admin_logs_modal")
+        .setTitle("📒 ログ設定")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("tx_feed_channel").setLabel("通貨ログ送信先チャンネルID（空欄で無効）").setStyle(TextInputStyle.Short).setValue(cfg.tx_feed_channel_id ?? "").setRequired(false),
+          ),
+        );
+      await btn.showModal(modal);
+      try {
+        const m = await btn.awaitModalSubmit({ time: 60_000 });
+        updateServerConfig(guildId, {
+          tx_feed_channel_id: m.fields.getTextInputValue("tx_feed_channel") || null,
+        });
+        await m.reply({ embeds: [successEmbed("ログ設定を更新しました。次回の取引から反映されるよ。")], ephemeral: true });
       } catch { /* timeout */ }
     }
   });

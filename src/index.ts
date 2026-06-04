@@ -28,6 +28,58 @@ import { handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
 import { handleShoubuCommand } from "./games/shoubu";
 import { handleVipCommand, handleVipButton } from "./games/vip";
 import { bootDecisionPanels, handleDecisionButton } from "./games/decisionPanel";
+import { setTxFeedHandler, type TxEvent } from "./core/txfeed";
+
+// ─── Transaction Feed Posting ──────────────────────────
+// adjustBalance のたびに該当 guild の tx_feed_channel_id に1行流す。
+// 取引が連続する時の rate-limit 回避のため、guild ごとに 1.5秒バッファでまとめ送りする。
+const feedBuffers = new Map<string, { lines: string[]; flushAt: NodeJS.Timeout | null; channelId: string }>();
+const FEED_FLUSH_MS = 1500;
+const FEED_MAX_LINES_PER_MSG = 10;
+
+function fmtTxLine(e: TxEvent): string {
+  const ts = new Date().toISOString().slice(11, 19);
+  const sign = e.amount >= 0 ? "+" : "";
+  const game = e.game ? `[${e.game}]` : "";
+  return `\`${ts}\` <@${e.userId}> ${sign}◈${e.amount.toLocaleString()} ${game} ${e.reason}`;
+}
+
+async function postTxFeedLine(client: import("discord.js").Client, e: TxEvent): Promise<void> {
+  if (!e.guildId) return;
+  let cfg;
+  try {
+    cfg = db.prepare("SELECT tx_feed_channel_id FROM server_config WHERE guild_id = ?").get(e.guildId) as { tx_feed_channel_id: string | null } | undefined;
+  } catch { return; }
+  const channelId = cfg?.tx_feed_channel_id;
+  if (!channelId) return;
+
+  const buf = feedBuffers.get(e.guildId) ?? { lines: [], flushAt: null, channelId };
+  buf.channelId = channelId;
+  buf.lines.push(fmtTxLine(e));
+  feedBuffers.set(e.guildId, buf);
+
+  if (!buf.flushAt) {
+    buf.flushAt = setTimeout(() => { void flushTxFeed(client, e.guildId!); }, FEED_FLUSH_MS);
+  }
+}
+
+async function flushTxFeed(client: import("discord.js").Client, guildId: string): Promise<void> {
+  const buf = feedBuffers.get(guildId);
+  if (!buf || buf.lines.length === 0) return;
+  buf.flushAt = null;
+  const lines = buf.lines.splice(0, buf.lines.length);
+
+  try {
+    const channel = await client.channels.fetch(buf.channelId).catch(() => null);
+    if (!channel || !channel.isTextBased()) return;
+    for (let i = 0; i < lines.length; i += FEED_MAX_LINES_PER_MSG) {
+      const chunk = lines.slice(i, i + FEED_MAX_LINES_PER_MSG).join("\n");
+      await (channel as any).send({ content: chunk, allowedMentions: { parse: [] } }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn("[txfeed] flush failed:", err);
+  }
+}
 
 // ─── Startup Cleanup ───────────────────────────────────
 
@@ -115,6 +167,8 @@ async function bootstrap(): Promise<void> {
     } catch (err) {
       console.error("[bootstrap] bootSashiTimeouts failed:", err);
     }
+    // 通貨ログのライブフィード（adjustBalance 毎にチャットへ1行）
+    setTxFeedHandler((e: TxEvent) => { void postTxFeedLine(client, e); });
   });
 
   // 卓を立てる: 最後の1人が抜けたVCを自動削除

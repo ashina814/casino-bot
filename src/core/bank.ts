@@ -1,4 +1,5 @@
 import { db, getServerConfig, runTransaction, UserProfile } from "./db";
+import { emitTxEvent } from "./txfeed";
 
 // ─── Types ─────────────────────────────────────────────
 
@@ -96,6 +97,7 @@ export function adjustBalance(userId: string, amount: number, reason: string, ga
 
     db.prepare("UPDATE users SET balance = ? WHERE user_id = ?").run(newBalance, userId);
     db.prepare("INSERT INTO transaction_logs (user_id, amount, reason, game) VALUES (?, ?, ?, ?)").run(userId, normalizedAmount, reason, game ?? null);
+    emitTxEvent({ userId, amount: normalizedAmount, reason, game: game ?? null, guildId: guildId ?? null, currency: "currency2" });
 
     if (overflow > 0 && guildId) {
       const half = Math.floor(overflow / 2);
@@ -107,6 +109,7 @@ export function adjustBalance(userId: string, amount: number, reason: string, ga
         WHERE guild_id = ?
       `).run(half, rest, guildId);
       db.prepare("INSERT INTO transaction_logs (user_id, amount, reason, game) VALUES (?, ?, ?, ?)").run(userId, -overflow, `${reason}_cap_奉納`, game ?? null);
+      emitTxEvent({ userId, amount: -overflow, reason: `${reason}_cap_奉納`, game: game ?? null, guildId, currency: "currency2" });
     }
 
     // Easter-egg checks (silent: titles awarded, visible in /案内 → 二つ名)
