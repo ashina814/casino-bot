@@ -140,6 +140,14 @@ export const adminCommand = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub.setName("卓掃除").setDescription("🧹 空いてる紐付きVC（卓）をいま即掃除する")
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("板掃除")
+      .setDescription("🧹 長期放置された進行中議題をまとめて無効化＋全員返金")
+      .addIntegerOption((opt) =>
+        opt.setName("古さ").setDescription("これより古い議題を対象（日数・既定 7）").setRequired(false).setMinValue(1).setMaxValue(180)
+      )
   );
 
 // ─── Admin Role Mention Helper ─────────────────────────
@@ -189,6 +197,7 @@ export async function handleAdminCommand(interaction: ChatInputCommandInteractio
     case "板一覧": return handleBoardList(interaction, guildId);
     case "板取消": return handleBoardCancel(interaction, guildId);
     case "卓掃除": return handleVCSweep(interaction, guildId);
+    case "板掃除": return handleBoardSweep(interaction, guildId);
   }
 }
 
@@ -806,4 +815,63 @@ async function handleVCSweep(interaction: import("discord.js").ChatInputCommandI
     console.error("[admin] vc sweep failed:", err);
     await interaction.editReply({ embeds: [errorEmbed("掃除中にエラーが出たよ。")] });
   }
+}
+
+// ─── 🧹 板掃除（長期放置議題の一括 void） ─────────────
+
+async function handleBoardSweep(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const days = interaction.options.getInteger("古さ") ?? 7;
+  await interaction.deferReply({ ephemeral: true });
+
+  // 対象 = 進行中（open/closed/reported/disputed）かつ created_at が days日より古い
+  const cutoffSql = `datetime('now', '-${days} days')`;
+  const stale = db.prepare(
+    `SELECT id, creator_id, title, status, channel_id, message_id
+     FROM betting_markets
+     WHERE guild_id = ?
+       AND status IN ('open','closed','reported','disputed')
+       AND created_at < ${cutoffSql}`,
+  ).all(guildId) as Array<{ id: number; creator_id: string; title: string; status: string; channel_id: string | null; message_id: string | null }>;
+
+  if (stale.length === 0) {
+    await interaction.editReply({ embeds: [infoEmbed("🧹 板掃除", `${days}日より古い進行中議題は無いよ。`, COLORS.GOLD)] });
+    return;
+  }
+
+  let totalRefunds = 0;
+  let totalAmount = 0;
+
+  for (const m of stale) {
+    const bets = db.prepare("SELECT user_id, amount FROM market_bets WHERE market_id = ?").all(m.id) as Array<{ user_id: string; amount: number }>;
+    runTransaction(() => {
+      for (const b of bets) {
+        adjustBalance(b.user_id, b.amount, `板掃除(管理者・${days}日超): 返金`, "board", guildId);
+        totalRefunds += 1;
+        totalAmount += b.amount;
+      }
+      db.prepare("UPDATE betting_markets SET status = 'void' WHERE id = ?").run(m.id);
+    });
+
+    // 元メッセージ書き換え（あれば）
+    if (m.channel_id && m.message_id) {
+      try {
+        const ch = await interaction.client.channels.fetch(m.channel_id).catch(() => null);
+        if (ch && "messages" in ch) {
+          const msg = await (ch as any).messages.fetch(m.message_id).catch(() => null);
+          if (msg) {
+            await msg.edit({
+              content: "",
+              embeds: [baseEmbed(`📋 議題 #${m.id} — 掃除`, COLORS.LOSE).setDescription(`${days}日以上動きが無いため管理者が無効化したよ。\n賭けてた人には全額返金済み。`)],
+              components: [],
+            }).catch(() => {});
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  const lines = stale.map((m) => `\`#${m.id}\` **${m.title}** (${m.status})`);
+  await interaction.editReply({
+    embeds: [successEmbed(`🧹 **${stale.length}件** の議題を掃除したよ。\n返金: **${totalRefunds}件** / 計 ◈${totalAmount.toLocaleString()}\n\n${lines.join("\n")}`)],
+  });
 }
