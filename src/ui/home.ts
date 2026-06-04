@@ -95,17 +95,17 @@ function buildHomeRows(): ActionRowBuilder<ButtonBuilder>[] {
 
 // 「どこで遊ぶか」の案内（クリックで飛べるチャンネルリンク）
 // ⚠️ ASTERIA サーバー固定のチャンネルID。他ギルドではリンク切れになる（将来 /管理 登録式に汎用化したい）。
+// 卓は /サシ /板 から派生するので独立チャンネル不要 → ASTERIA_CH からも削除。
 const ASTERIA_CH = {
   asobi: "1509579411521802363", // 遊技場（フォーラム・ソロ）
-  toba: "1509579303564738591",  // 賭場（板/雑談/対人）
+  toba: "1511333213510045806",  // 賭場（板/雑談/対人）
   keiba: "1509579499929342130", // 競馬場
   kabu: "1509579561552318484",  // 株式市場
-  taku: "1509579794789044254",  // 卓を立てる
 } as const;
 const PLAY_GUIDE = [
   `🎰 ソロで遊ぶ → <#${ASTERIA_CH.asobi}>（スロット/ブラックジャック/チンチロ/丁半/ハイロー/ルーレット）`,
   `🀄 対人で遊ぶ → <#${ASTERIA_CH.toba}>（丁半/チンチロ対戦/サシ/板）`,
-  `🐎 競馬 → <#${ASTERIA_CH.keiba}>　📈 株 → <#${ASTERIA_CH.kabu}>　🔧 卓 → <#${ASTERIA_CH.taku}>`,
+  `🐎 競馬 → <#${ASTERIA_CH.keiba}>　📈 株 → <#${ASTERIA_CH.kabu}>`,
 ].join("\n");
 
 export async function handleCasinoCommand(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -154,8 +154,9 @@ async function postHomePanel(interaction: ChatInputCommandInteraction): Promise<
           "・**`/商店`** … 景品・お守り・称号",
           "・**`/アステル`** … 状態・モード・贈り物・お礼",
           "・**`/vip`** … 奥座敷の会員（高bet上限×2・専用部屋）",
-          "・**`/勝負`**（丁半・チンチロ・サシ）・**`/板`** … 人と賭ける",
-          "・**`/卓`** … VCの卓を立てて集まる",
+          "・**`/勝負`** … 人と賭ける（丁半 / チンチロ / サシ / 板）",
+          "・**`/心付け`** … 気持ちを贈る（1日1回・◈500まで）",
+          "*（勝負と一緒にVCを立てたい時は、サシ/板 のボタンからどうぞ）*",
         ].join("\n"),
         inline: false,
       },

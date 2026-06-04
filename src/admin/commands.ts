@@ -24,7 +24,7 @@ import {
   ComponentType,
   EmbedBuilder,
 } from "discord.js";
-import { db, getServerConfig, updateServerConfig } from "../core/db";
+import { db, getServerConfig, updateServerConfig, runTransaction } from "../core/db";
 import { adjustBalance, ensureUser } from "../core/bank";
 import { getEconomyState } from "../core/economy";
 import { infoEmbed, errorEmbed, successEmbed, baseEmbed, COLORS } from "../ui/embeds";
@@ -109,7 +109,49 @@ export const adminCommand = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub.setName("株速報").setDescription("📈 株価速報を今すぐ株式市場チャンネルに投稿（テスト用）")
+  )
+  .addSubcommand((sub) =>
+    sub.setName("サシ一覧").setDescription("⚔️ 進行中のサシ勝負を一覧")
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("サシ取消")
+      .setDescription("⚔️ サシ勝負を強制的に無効化し、両者へ返金する")
+      .addIntegerOption((opt) =>
+        opt.setName("id").setDescription("対象の match ID").setRequired(true).setMinValue(1)
+      )
+      .addStringOption((opt) =>
+        opt.setName("reason").setDescription("取消理由").setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub.setName("板一覧").setDescription("📋 進行中の議題を一覧")
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("板取消")
+      .setDescription("📋 議題を強制的に無効化し、賭けた全員へ返金する")
+      .addIntegerOption((opt) =>
+        opt.setName("id").setDescription("対象の market ID").setRequired(true).setMinValue(1)
+      )
+      .addStringOption((opt) =>
+        opt.setName("reason").setDescription("取消理由").setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub.setName("卓掃除").setDescription("🧹 空いてる紐付きVC（卓）をいま即掃除する")
   );
+
+// ─── Admin Role Mention Helper ─────────────────────────
+/**
+ * 運営ロールメンション文字列を返す。未設定なら空文字。
+ * 異議・トラブル通知時に content 先頭に差し込んで使う:
+ *   await msg.send(`${mentionAdminRole(guildId)} 異議が出たよ...`)
+ */
+export function mentionAdminRole(guildId: string): string {
+  const cfg = getServerConfig(guildId);
+  return cfg.admin_role_id ? `<@&${cfg.admin_role_id}>` : "";
+}
 
 // ─── Owner Exclusion Helper ────────────────────────────
 
@@ -142,6 +184,11 @@ export async function handleAdminCommand(interaction: ChatInputCommandInteractio
     case "調査":  return handleInspect(interaction, guildId);
     case "通知":  return handleAnnounce(interaction, guildId);
     case "株速報": return handleStockBroadcast(interaction, guildId);
+    case "サシ一覧": return handleSashiList(interaction, guildId);
+    case "サシ取消": return handleSashiCancel(interaction, guildId);
+    case "板一覧": return handleBoardList(interaction, guildId);
+    case "板取消": return handleBoardCancel(interaction, guildId);
+    case "卓掃除": return handleVCSweep(interaction, guildId);
   }
 }
 
@@ -390,7 +437,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     } else if (btn.customId === "admin_channels") {
       const modal = new ModalBuilder()
         .setCustomId("admin_channels_modal")
-        .setTitle("📢 チャンネル設定")
+        .setTitle("📢 チャンネル / ロール設定")
         .addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
             new TextInputBuilder().setCustomId("casino_channel").setLabel("遊戯場チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.casino_channel_id ?? "").setRequired(false),
@@ -404,6 +451,9 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
           new ActionRowBuilder<TextInputBuilder>().addComponents(
             new TextInputBuilder().setCustomId("vip_role").setLabel("VIPロールID（奥座敷）").setStyle(TextInputStyle.Short).setValue(cfg.vip_role_id ?? "").setRequired(false),
           ),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("admin_role").setLabel("運営ロールID（異議・通知のメンション先）").setStyle(TextInputStyle.Short).setValue(cfg.admin_role_id ?? "").setRequired(false),
+          ),
         );
 
       await btn.showModal(modal);
@@ -414,8 +464,9 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
           jackpot_channel_id: m.fields.getTextInputValue("jackpot_channel") || null,
           stock_channel_id: m.fields.getTextInputValue("stock_channel") || null,
           vip_role_id: m.fields.getTextInputValue("vip_role") || null,
+          admin_role_id: m.fields.getTextInputValue("admin_role") || null,
         });
-        await m.reply({ embeds: [successEmbed("チャンネル設定を更新しました。")], ephemeral: true });
+        await m.reply({ embeds: [successEmbed("チャンネル/ロール設定を更新しました。")], ephemeral: true });
       } catch { /* timeout */ }
     }
   });
@@ -567,4 +618,192 @@ async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId:
     embeds: [successEmbed("アナウンスを送信しました。")],
     ephemeral: true,
   });
+}
+
+// ─── ⚔️ サシ救済 ─────────────────────────────────────
+
+type SashiAdminRow = {
+  id: number;
+  guild_id: string;
+  challenger_id: string;
+  opponent_id: string;
+  title: string | null;
+  stake: number;
+  status: string;
+  reported_winner_id: string | null;
+  channel_id: string | null;
+  message_id: string | null;
+  created_at: string;
+};
+
+async function handleSashiList(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const rows = db.prepare(
+    `SELECT id, challenger_id, opponent_id, stake, status, title, created_at
+     FROM pvp_matches
+     WHERE guild_id = ? AND status IN ('pending','active','reported','disputed')
+     ORDER BY id DESC LIMIT 25`,
+  ).all(guildId) as Array<Pick<SashiAdminRow, "id" | "challenger_id" | "opponent_id" | "stake" | "status" | "title" | "created_at">>;
+
+  if (rows.length === 0) {
+    await interaction.reply({ embeds: [infoEmbed("⚔️ サシ", "進行中のサシは無いよ。", COLORS.GOLD)], ephemeral: true });
+    return;
+  }
+
+  const statusLabel: Record<string, string> = { pending: "申込中", active: "勝負中", reported: "承認待ち", disputed: "異議・裁定待ち" };
+  const lines = rows.map((r) => {
+    const ts = r.created_at.slice(5, 16).replace("T", " ");
+    return `\`#${r.id}\` ${statusLabel[r.status] ?? r.status} — <@${r.challenger_id}> vs <@${r.opponent_id}> / ◈${r.stake.toLocaleString()} (${ts})`;
+  });
+  await interaction.reply({
+    embeds: [baseEmbed(`⚔️ サシ — 進行中 ${rows.length}件`, COLORS.GOLD).setDescription(lines.join("\n"))],
+    ephemeral: true,
+  });
+}
+
+async function handleSashiCancel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const matchId = interaction.options.getInteger("id", true);
+  const reason = interaction.options.getString("reason", true);
+
+  const m = db.prepare("SELECT * FROM pvp_matches WHERE id = ? AND guild_id = ?").get(matchId, guildId) as SashiAdminRow | undefined;
+  if (!m) {
+    await interaction.reply({ embeds: [errorEmbed(`match #${matchId} が見つからないよ。`)], ephemeral: true });
+    return;
+  }
+  if (m.status === "settled" || m.status === "void" || m.status === "declined") {
+    await interaction.reply({ embeds: [errorEmbed(`match #${matchId} は既に終了（${m.status}）。取り消せないよ。`)], ephemeral: true });
+    return;
+  }
+
+  // 返金: active/reported/disputed は両者に stake 返却。pending は未徴収。
+  const refunded = m.status !== "pending";
+  runTransaction(() => {
+    if (refunded) {
+      adjustBalance(m.challenger_id, m.stake, `サシ取消(管理者): ${reason}`, "sashi", m.guild_id);
+      adjustBalance(m.opponent_id, m.stake, `サシ取消(管理者): ${reason}`, "sashi", m.guild_id);
+    }
+    db.prepare("UPDATE pvp_matches SET status = 'void' WHERE id = ?").run(matchId);
+  });
+
+  // 元メッセージ書き換え
+  if (m.channel_id && m.message_id) {
+    try {
+      const ch = await interaction.client.channels.fetch(m.channel_id).catch(() => null);
+      if (ch && "messages" in ch) {
+        const msg = await (ch as any).messages.fetch(m.message_id).catch(() => null);
+        if (msg) {
+          await msg.edit({
+            content: "",
+            embeds: [baseEmbed(`⚔️ サシ #${matchId} — 取消（管理者）`, COLORS.LOSE).setDescription(`管理者により無効化されたよ。\n**理由**: ${reason}${refunded ? "\n両者に賭け金を返金したよ。" : ""}`)],
+            components: [],
+          }).catch(() => {});
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  await interaction.reply({
+    embeds: [successEmbed(`match #${matchId} を取り消したよ。${refunded ? "両者に ◈" + m.stake.toLocaleString() + " ずつ返金。" : "（未徴収のため返金なし）"}`)],
+    ephemeral: true,
+  });
+}
+
+// ─── 📋 板救済 ────────────────────────────────────────
+
+type BoardAdminRow = {
+  id: number;
+  guild_id: string;
+  creator_id: string;
+  title: string;
+  status: string;
+  channel_id: string | null;
+  message_id: string | null;
+  thread_id: string | null;
+  created_at: string;
+};
+
+type BoardBetAdminRow = { user_id: string; amount: number };
+
+async function handleBoardList(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const rows = db.prepare(
+    `SELECT id, creator_id, title, status, created_at
+     FROM betting_markets
+     WHERE guild_id = ? AND status IN ('open','closed','reported','disputed')
+     ORDER BY id DESC LIMIT 25`,
+  ).all(guildId) as Array<Pick<BoardAdminRow, "id" | "creator_id" | "title" | "status" | "created_at">>;
+
+  if (rows.length === 0) {
+    await interaction.reply({ embeds: [infoEmbed("📋 板", "進行中の議題は無いよ。", COLORS.GOLD)], ephemeral: true });
+    return;
+  }
+
+  const statusLabel: Record<string, string> = { open: "受付中", closed: "締切", reported: "承認待ち", disputed: "異議・裁定待ち" };
+  const lines = rows.map((r) => {
+    const ts = r.created_at.slice(5, 16).replace("T", " ");
+    return `\`#${r.id}\` ${statusLabel[r.status] ?? r.status} — **${r.title}** / 立てた人: <@${r.creator_id}> (${ts})`;
+  });
+  await interaction.reply({
+    embeds: [baseEmbed(`📋 板 — 進行中 ${rows.length}件`, COLORS.GOLD).setDescription(lines.join("\n"))],
+    ephemeral: true,
+  });
+}
+
+async function handleBoardCancel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const marketId = interaction.options.getInteger("id", true);
+  const reason = interaction.options.getString("reason", true);
+
+  const m = db.prepare("SELECT * FROM betting_markets WHERE id = ? AND guild_id = ?").get(marketId, guildId) as BoardAdminRow | undefined;
+  if (!m) {
+    await interaction.reply({ embeds: [errorEmbed(`market #${marketId} が見つからないよ。`)], ephemeral: true });
+    return;
+  }
+  if (m.status === "settled" || m.status === "void") {
+    await interaction.reply({ embeds: [errorEmbed(`market #${marketId} は既に終了（${m.status}）。取り消せないよ。`)], ephemeral: true });
+    return;
+  }
+
+  // 賭けた全員へ返金
+  const bets = db.prepare("SELECT user_id, amount FROM market_bets WHERE market_id = ?").all(marketId) as BoardBetAdminRow[];
+  const refunded = bets.length;
+  runTransaction(() => {
+    for (const b of bets) {
+      adjustBalance(b.user_id, b.amount, `板取消(管理者): ${reason}`, "board", m.guild_id);
+    }
+    db.prepare("UPDATE betting_markets SET status = 'void' WHERE id = ?").run(marketId);
+  });
+
+  // 元メッセージ書き換え
+  if (m.channel_id && m.message_id) {
+    try {
+      const ch = await interaction.client.channels.fetch(m.channel_id).catch(() => null);
+      if (ch && "messages" in ch) {
+        const msg = await (ch as any).messages.fetch(m.message_id).catch(() => null);
+        if (msg) {
+          await msg.edit({
+            content: "",
+            embeds: [baseEmbed(`📋 議題 #${marketId} — 取消（管理者）`, COLORS.LOSE).setDescription(`管理者により無効化されたよ。\n**理由**: ${reason}\n賭けた **${refunded}人** に全額返金したよ。`)],
+            components: [],
+          }).catch(() => {});
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  await interaction.reply({
+    embeds: [successEmbed(`市場 #${marketId} を取り消したよ。${refunded}人に全額返金。`)],
+    ephemeral: true,
+  });
+}
+
+// ─── 🧹 卓掃除（紐付きVCの即時 sweep） ─────────────
+
+async function handleVCSweep(interaction: import("discord.js").ChatInputCommandInteraction, _guildId: string): Promise<void> {
+  const { sweepStaleTempVCs } = require("../games/takutate");
+  await interaction.deferReply({ ephemeral: true });
+  try {
+    const n = await sweepStaleTempVCs(interaction.client, 0);
+    await interaction.editReply({ embeds: [successEmbed(`🧹 空いてた卓を **${n}** 個 片付けたよ。`)] });
+  } catch (err) {
+    console.error("[admin] vc sweep failed:", err);
+    await interaction.editReply({ embeds: [errorEmbed("掃除中にエラーが出たよ。")] });
+  }
 }

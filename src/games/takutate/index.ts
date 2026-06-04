@@ -25,35 +25,13 @@ import {
   type CategoryChannel,
 } from "discord.js";
 import { db } from "../../core/db";
+import { adjustBalance, getBalance } from "../../core/bank";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
-import { PALETTE } from "../../world.config";
+import { PALETTE, WORLD, formatEther } from "../../world.config";
 
-// ─── 卓の種類定義 ─────────────────────────────────────
-// userLimit 0 = 無制限
-type TableType = {
-  key: string;
-  label: string;       // ボタン表示
-  emoji: string;
-  vcName: string;      // 生成VC名（{name} は立てた人の表示名に置換）
-  userLimit: number;
-  style: ButtonStyle;
-};
-
-const TABLE_TYPES: TableType[] = [
-  { key: "sashi",   label: "サシ勝負卓 (2人)", emoji: "⚔️", vcName: "⚔️ サシの間・{name}",   userLimit: 2, style: ButtonStyle.Danger },
-  { key: "mahjong", label: "麻雀卓 (4人)",     emoji: "🀄", vcName: "🀄 四人の卓・{name}",   userLimit: 4, style: ButtonStyle.Primary },
-  { key: "versus",  label: "対戦卓 (可変)",     emoji: "🎮", vcName: "🎮 対戦の間・{name}",   userLimit: 0, style: ButtonStyle.Primary },
-  { key: "watch",   label: "観戦卓",            emoji: "👀", vcName: "👀 観戦の間・{name}",   userLimit: 0, style: ButtonStyle.Secondary },
-  { key: "chat",    label: "雑談卓",            emoji: "💬", vcName: "💬 語らいの間・{name}", userLimit: 0, style: ButtonStyle.Secondary },
-];
-
-function getType(key: string): TableType | undefined {
-  return TABLE_TYPES.find((t) => t.key === key);
-}
-
-// ─── 連打防止（プロセス内） ───────────────────────────
-const COOLDOWN_MS = 30_000;
-const lastCreate = new Map<string, number>();
+// 紐付きVC のデポジット: 立てるとき◈X 預け、勝負が 1回でも成立すれば返却、
+// 一度も成立せず VC が消えたら JP没収。雑談VC化の心理障壁＋経済的ペナルティ。
+const VC_DEPOSIT = 500;
 
 // ─── DB ヘルパ ────────────────────────────────────────
 type TempVCRow = {
@@ -62,12 +40,81 @@ type TempVCRow = {
   owner_id: string;
   table_type: string;
   created_at: string;
+  deposit_holder?: string | null;
+  deposit_amount?: number;
+  settle_count?: number;
 };
 
-function trackVC(channelId: string, guildId: string, ownerId: string, type: string): void {
+function trackVC(
+  channelId: string,
+  guildId: string,
+  ownerId: string,
+  type: string,
+  linkType: string | null = null,
+  linkId: string | null = null,
+  depositHolder: string | null = null,
+  depositAmount = 0,
+): void {
   db.prepare(
-    "INSERT OR REPLACE INTO temp_voice_channels (channel_id, guild_id, owner_id, table_type) VALUES (?, ?, ?, ?)",
-  ).run(channelId, guildId, ownerId, type);
+    `INSERT OR REPLACE INTO temp_voice_channels
+       (channel_id, guild_id, owner_id, table_type, link_type, link_id, deposit_holder, deposit_amount, settle_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+  ).run(channelId, guildId, ownerId, type, linkType, linkId, depositHolder, depositAmount);
+}
+
+/** 紐付き勝負の精算が走ったら呼ぶ（デポジット返却条件をクリア）。idempotent。 */
+export function markLinkedVCSettled(linkType: string, linkId: string): void {
+  db.prepare(
+    "UPDATE temp_voice_channels SET settle_count = settle_count + 1 WHERE link_type = ? AND link_id = ?",
+  ).run(linkType, linkId);
+}
+
+/**
+ * デポジット精算（VC が閉じられる直前に呼ぶ）。
+ *  settle_count > 0 → 返却
+ *  settle_count = 0 → JP没収
+ * 二重精算を防ぐため deposit_amount を 0 に書き戻す。
+ */
+function resolveDepositOnClose(channelId: string): void {
+  const row = db.prepare(
+    "SELECT deposit_holder, deposit_amount, settle_count, guild_id FROM temp_voice_channels WHERE channel_id = ?",
+  ).get(channelId) as { deposit_holder: string | null; deposit_amount: number; settle_count: number; guild_id: string } | undefined;
+  if (!row || !row.deposit_holder || row.deposit_amount <= 0) return;
+
+  if (row.settle_count > 0) {
+    adjustBalance(row.deposit_holder, row.deposit_amount, "卓: デポジット返却", "takutate", row.guild_id);
+  } else {
+    // 一度も settle せず消える卓 → 没収して JP へ
+    db.prepare("UPDATE server_config SET jackpot_pool = jackpot_pool + ? WHERE guild_id = ?")
+      .run(row.deposit_amount, row.guild_id);
+  }
+  db.prepare("UPDATE temp_voice_channels SET deposit_amount = 0 WHERE channel_id = ?").run(channelId);
+}
+
+/** 紐付きVC（linkType×linkId）が既に立っているか調べる。 */
+export function findLinkedVC(linkType: string, linkId: string): { channel_id: string; guild_id: string } | null {
+  const r = db.prepare(
+    "SELECT channel_id, guild_id FROM temp_voice_channels WHERE link_type = ? AND link_id = ?",
+  ).get(linkType, linkId) as { channel_id: string; guild_id: string } | undefined;
+  return r ?? null;
+}
+
+/** 紐付きVCを link_id で差し替える（再戦時に立て主の紐付け先を新勝負IDへ更新）。 */
+export function updateLinkedVCLinkId(channelId: string, newLinkId: string): void {
+  db.prepare("UPDATE temp_voice_channels SET link_id = ? WHERE channel_id = ?").run(newLinkId, channelId);
+}
+
+/** 紐付きVCを即削除（やめる/期限切れで呼ぶ）。デポジット精算してから消す。 */
+export async function deleteLinkedVC(client: Client, channelId: string, reason = "decisionPanel: 解散"): Promise<void> {
+  try {
+    resolveDepositOnClose(channelId);
+    const ch = await client.channels.fetch(channelId).catch(() => null);
+    if (ch && ch.type === ChannelType.GuildVoice) {
+      await (ch as VoiceChannel).delete(reason).catch(() => {});
+    }
+  } finally {
+    untrackVC(channelId);
+  }
 }
 
 function untrackVC(channelId: string): void {
@@ -78,153 +125,133 @@ function isTrackedVC(channelId: string): boolean {
   return !!db.prepare("SELECT 1 FROM temp_voice_channels WHERE channel_id = ?").get(channelId);
 }
 
-function countOwnerVCs(ownerId: string, guildId: string): number {
-  const row = db.prepare(
-    "SELECT COUNT(*) AS c FROM temp_voice_channels WHERE owner_id = ? AND guild_id = ?",
-  ).get(ownerId, guildId) as { c: number };
-  return row.c;
-}
+// 方針: 卓は **賭けから派生してしか立たない**（/勝負 サシ /勝負 板 のボタンから生成）。
+// /卓 コマンドそのものを廃止。自動 sweep（scheduler）と最後の1人退出での自動削除に任せる。
 
-// ─── コマンド ─────────────────────────────────────────
-export const takuCommand = new SlashCommandBuilder()
-  .setName("卓")
-  .setDescription("🎴 卓を立てる（用途別の一時VCを生成）")
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
-  .addSubcommand((sc) =>
-    sc.setName("設置").setDescription("このチャンネルに「卓を立てる」パネルを設置（管理者）"),
-  )
-  .addSubcommand((sc) =>
-    sc.setName("片付け").setDescription("空になった卓VCをいま掃除する（管理者）"),
-  );
-
-export async function handleTakuCommand(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guildId) {
-    await interaction.reply({ content: "サーバー内でのみ使えるよ。", ephemeral: true });
-    return;
-  }
-  const sub = interaction.options.getSubcommand();
-  if (sub === "設置") return postPanel(interaction);
-  if (sub === "片付け") return manualSweep(interaction);
-}
-
-async function postPanel(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
-    await interaction.reply({ embeds: [errorEmbed("このコマンドは管理者だけが使えるよ。")], ephemeral: true });
-    return;
-  }
-
-  const embed = baseEmbed("🎴 卓を立てる", PALETTE.STARGOLD).setDescription(
-    [
-      "*「どの卓をお立てになる？」*",
-      "",
-      "用途を選ぶと、専用のVC（卓）が立つよ。",
-      "**最後のひとりが抜けると、卓はそっと片付けるね。**",
-      "",
-      "⚔️ サシ勝負卓 … 2人用の決闘の間",
-      "🀄 麻雀卓 … 4人用",
-      "🎮 対戦卓 … GF/Apex など、人数自由",
-      "👀 観戦卓 … 眺めるための席",
-      "💬 雑談卓 … ただ語らうための間",
-    ].join("\n"),
-  );
-
-  // 5ボタン → 1行に収まる（max 5/row）
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    ...TABLE_TYPES.map((t) =>
-      new ButtonBuilder().setCustomId(`taku:create:${t.key}`).setLabel(t.label).setEmoji(t.emoji).setStyle(t.style),
-    ),
-  );
-
-  await interaction.reply({ embeds: [embed], components: [row] });
-}
-
-// ─── ボタン: 卓生成 ───────────────────────────────────
+// ─── 旧パネルの遺存ボタン処理（古いパネルを残してる人向けの案内のみ） ───
 export async function handleTakuButton(interaction: ButtonInteraction): Promise<void> {
-  const [, action, typeKey] = interaction.customId.split(":");
-  if (action !== "create") return;
-  await createTable(interaction, typeKey);
+  // 旧 /卓 設置 パネルは廃止済み。残骸を押された場合は案内だけ返す。
+  await interaction.reply({
+    embeds: [errorEmbed("卓は勝負から立てるようになったよ。`/勝負 サシ` か `/勝負 板 立てる` の中の「卓を立てる」ボタンから生成してね。")],
+    ephemeral: true,
+  });
 }
 
-async function createTable(interaction: ButtonInteraction, typeKey: string): Promise<void> {
-  const type = getType(typeKey);
-  const guild = interaction.guild;
-  if (!type || !guild) {
-    await interaction.reply({ embeds: [errorEmbed("その卓は立てられないみたい。")], ephemeral: true });
-    return;
-  }
+// ─── 紐付きVC（賭けから派生する卓） ──────────────────
+/**
+ * サシ・板など、特定の勝負に紐付くVCを立てる低レベル関数。
+ * 呼び出し側（sashi/board ボタン処理）で勝負レコードの存在と参加者を
+ * 検証してから渡す前提。
+ *
+ * opts.userLimit … 0=無制限
+ * opts.allowedUserIds … null=パネルchの権限を継承（公開）, 配列=その人だけ入れる（プライベート）
+ * opts.vcName … 省略時は linkType ごとの既定名
+ */
+export type LinkedTableOpts = {
+  linkType: "sashi" | "board" | string;
+  linkId: string;
+  userLimit?: number;
+  allowedUserIds?: string[] | null;
+  vcName?: string;
+};
 
-  // Bot 権限チェック
+export async function createLinkedTable(interaction: ButtonInteraction, opts: LinkedTableOpts): Promise<VoiceChannel | null> {
+  const guild = interaction.guild;
+  if (!guild) {
+    await interaction.reply({ embeds: [errorEmbed("サーバー内でのみ使えるよ。")], ephemeral: true });
+    return null;
+  }
   const me = guild.members.me;
   if (!me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
     await interaction.reply({
       embeds: [errorEmbed("VCを立てる権限（チャンネルの管理）がわたしに無いみたい。サーバー管理者に頼んでね。")],
       ephemeral: true,
     });
-    return;
+    return null;
   }
 
+  // 既に紐付き卓があれば再生成しない
+  const existing = findLinkedVC(opts.linkType, opts.linkId);
+  if (existing) {
+    await interaction.reply({
+      embeds: [baseEmbed("🎴 もう立ってるよ", PALETTE.JADE).setDescription(`この勝負の卓は <#${existing.channel_id}> にあるよ。`)],
+      ephemeral: true,
+    });
+    return null;
+  }
+
+  // デポジット事前チェック
   const userId = interaction.user.id;
-
-  // 連打防止
-  const now = Date.now();
-  const last = lastCreate.get(userId) ?? 0;
-  const remain = COOLDOWN_MS - (now - last);
-  if (remain > 0) {
+  if (getBalance(userId, guild.id) < VC_DEPOSIT) {
     await interaction.reply({
-      embeds: [errorEmbed(`続けては立てられないよ。あと ${Math.ceil(remain / 1000)} 秒待ってね。`)],
+      embeds: [errorEmbed(`卓を立てるには **${formatEther(VC_DEPOSIT)}** のデポジットが要るよ。残高が足りないみたい。\n*勝負を1回でもすれば返却するから、雑談用に立てるとそのまま消えるよ。*`)],
       ephemeral: true,
     });
-    return;
+    return null;
   }
 
-  // 1人あたり同時2卓まで（放置乱立を防ぐ）
-  if (countOwnerVCs(userId, guild.id) >= 2) {
-    await interaction.reply({
-      embeds: [errorEmbed("きみが立てた卓がもう2つあるよ。使い終わった卓を片付けてからにしてね。")],
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // 設置先カテゴリ = パネルが置かれたチャンネルの親カテゴリ
+  // パネルchの親カテゴリに置く
   const panelChannel = interaction.channel;
   const parent: CategoryChannel | null =
     panelChannel && "parent" in panelChannel ? (panelChannel.parent as CategoryChannel | null) : null;
 
-  // 入室権限はパネルを置いたテキストチャンネルに追従させる。
-  // そのテキストチャンネルの上書きをコピーすれば「このチャンネルを見られる人＝卓に入れる人」になる。
-  // （ViewChannel が許可された者だけがVCを見て入れる／拒否された者は入れない）
-  const overwrites =
-    panelChannel && "permissionOverwrites" in panelChannel
-      ? panelChannel.permissionOverwrites.cache.map((o) => ({
-          id: o.id,
-          type: o.type,
-          allow: o.allow.bitfield,
-          deny: o.deny.bitfield,
-        }))
-      : undefined;
+  // 入室権限
+  let overwrites: { id: string; type: number; allow: bigint; deny: bigint }[] | undefined;
+  if (opts.allowedUserIds && opts.allowedUserIds.length > 0) {
+    // プライベート: 指定ユーザーだけ Connect/View 許可、@everyone は拒否
+    const Connect = PermissionFlagsBits.Connect;
+    const View = PermissionFlagsBits.ViewChannel;
+    overwrites = [
+      { id: guild.roles.everyone.id, type: 0, allow: 0n, deny: View | Connect },
+      ...opts.allowedUserIds.map((uid) => ({ id: uid, type: 1, allow: View | Connect, deny: 0n })),
+    ];
+  } else if (panelChannel && "permissionOverwrites" in panelChannel) {
+    // 公開（パネルchの権限継承）
+    overwrites = panelChannel.permissionOverwrites.cache.map((o) => ({
+      id: o.id,
+      type: o.type,
+      allow: o.allow.bitfield,
+      deny: o.deny.bitfield,
+    }));
+  }
 
-  lastCreate.set(userId, now);
+  const labelByType: Record<string, { emoji: string; name: string }> = {
+    sashi: { emoji: "⚔️", name: "サシの卓" },
+    board: { emoji: "📋", name: "議題の卓" },
+    chohan: { emoji: "🎴", name: "丁半の卓" },
+    saishoubu: { emoji: "🎲", name: "賽勝負の卓" },
+  };
+  const tag = labelByType[opts.linkType] ?? { emoji: "🎴", name: "勝負の卓" };
+  const vcName = (opts.vcName ?? `${tag.emoji} ${tag.name}・${interaction.user.displayName}`).slice(0, 100);
+
+  // デポジット徴収（VC作成前。作成失敗したら返金する）
+  const debit = adjustBalance(userId, -VC_DEPOSIT, "卓: デポジット預け", "takutate", guild.id);
+  if (!debit.ok) {
+    await interaction.reply({ embeds: [errorEmbed("デポジットの引き落としに失敗しちゃった。残高を確かめて。")], ephemeral: true });
+    return null;
+  }
 
   let vc: VoiceChannel;
   try {
     vc = await guild.channels.create({
-      name: type.vcName.replace("{name}", interaction.user.displayName).slice(0, 100),
+      name: vcName,
       type: ChannelType.GuildVoice,
       parent: parent ?? undefined,
-      userLimit: type.userLimit,
+      userLimit: opts.userLimit ?? 0,
       permissionOverwrites: overwrites,
-      reason: `卓を立てる: ${interaction.user.tag} (${type.label})`,
+      reason: `卓を立てる(紐付): ${interaction.user.tag} (${opts.linkType}:${opts.linkId})`,
     });
   } catch (err) {
-    console.error("[taku] VC create failed:", err);
-    await interaction.reply({ embeds: [errorEmbed("卓を立てるのに失敗しちゃった。もう一度試してみて。")], ephemeral: true });
-    return;
+    console.error("[taku] linked VC create failed:", err);
+    // 作成失敗 → デポジット返金
+    adjustBalance(userId, VC_DEPOSIT, "卓: VC作成失敗・デポジット返金", "takutate", guild.id);
+    await interaction.reply({ embeds: [errorEmbed("卓を立てるのに失敗しちゃった。預けた分は返したよ。")], ephemeral: true });
+    return null;
   }
 
-  trackVC(vc.id, guild.id, userId, type.key);
+  trackVC(vc.id, guild.id, userId, opts.linkType, opts.linkType, opts.linkId, userId, VC_DEPOSIT);
 
-  // 立てた人が既にVCにいれば、新しい卓へ移動してあげる
+  // 立てた人が既にVCにいれば移動してあげる
   let moved = false;
   const member = await guild.members.fetch(userId).catch(() => null);
   if (member?.voice.channelId && me.permissions.has(PermissionFlagsBits.MoveMembers)) {
@@ -233,17 +260,19 @@ async function createTable(interaction: ButtonInteraction, typeKey: string): Pro
 
   await interaction.reply({
     embeds: [
-      baseEmbed(`${type.emoji} 卓を立てたよ`, PALETTE.JADE).setDescription(
+      baseEmbed(`${tag.emoji} 卓を立てたよ`, PALETTE.JADE).setDescription(
         [
           `<#${vc.id}> を用意したよ。${moved ? "きみはもう座ってる。" : "VCに入って始めてね。"}`,
-          type.userLimit > 0 ? `定員: **${type.userLimit}人**` : "定員: なし",
+          (opts.userLimit ?? 0) > 0 ? `定員: **${opts.userLimit}人**` : "定員: なし",
+          `デポジット: **${formatEther(VC_DEPOSIT)}**（勝負が1回でも成立すれば返却。雑談だけで終わると ${WORLD.POOL_JACKPOT} へ）`,
           "",
-          "*最後のひとりが抜けたら、わたしが片付けておくね。*",
+          "*勝負が終わったあと、続けるかどうか選ぶよ。何もしないと卓は片付けるね。*",
         ].join("\n"),
       ),
     ],
     ephemeral: true,
   });
+  return vc;
 }
 
 // ─── VoiceState: 最後の1人退出で自動削除 ─────────────
@@ -256,11 +285,13 @@ export async function handleTableVoiceState(oldState: VoiceState, newState: Voic
   const channel = oldState.guild.channels.cache.get(leftChannelId)
     ?? (await oldState.guild.channels.fetch(leftChannelId).catch(() => null));
   if (!channel || channel.type !== ChannelType.GuildVoice) {
+    resolveDepositOnClose(leftChannelId);
     untrackVC(leftChannelId);
     return;
   }
   if ((channel as VoiceChannel).members.size > 0) return;
 
+  resolveDepositOnClose(leftChannelId);
   await (channel as VoiceChannel).delete("卓を立てる: 最後の利用者が退出").catch(() => {});
   untrackVC(leftChannelId);
 }
@@ -280,6 +311,7 @@ export async function sweepStaleTempVCs(client: Client, graceMs = 0): Promise<nu
     try {
       const channel = await client.channels.fetch(r.channel_id).catch(() => null);
       if (!channel || channel.type !== ChannelType.GuildVoice) {
+        resolveDepositOnClose(r.channel_id);
         untrackVC(r.channel_id);
         removed++;
         continue;
@@ -291,6 +323,7 @@ export async function sweepStaleTempVCs(client: Client, graceMs = 0): Promise<nu
       const ageMs = Date.now() - new Date(r.created_at + "Z").getTime();
       if (graceMs > 0 && ageMs < graceMs) continue;
 
+      resolveDepositOnClose(r.channel_id);
       await vc.delete("卓を立てる: 空き卓の掃除").catch(() => {});
       untrackVC(r.channel_id);
       removed++;
@@ -302,7 +335,9 @@ export async function sweepStaleTempVCs(client: Client, graceMs = 0): Promise<nu
   return removed;
 }
 
-async function manualSweep(interaction: ChatInputCommandInteraction): Promise<void> {
+// 旧 /卓 片付け の手動 sweep は廃止（scheduler の定期 sweep + VoiceState フックで十分）。
+// 必要なら sweepStaleTempVCs を /管理 から呼べる薄いラッパを後から足す。
+async function _manualSweep_DEPRECATED(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
     await interaction.reply({ embeds: [errorEmbed("このコマンドは管理者だけが使えるよ。")], ephemeral: true });
     return;

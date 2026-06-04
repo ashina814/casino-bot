@@ -33,6 +33,8 @@ import { getTierByKey } from "../../core/economy";
 import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
+import { createLinkedTable, findLinkedVC } from "../takutate/index";
+import { mentionAdminRole } from "../../admin/commands";
 
 // ─── 定数 ─────────────────────────────────────────────
 const MAX_OPTIONS = 4;
@@ -162,6 +164,49 @@ async function createMarket(interaction: ChatInputCommandInteraction): Promise<v
   }
 }
 
+// ─── 再戦立て（decisionPanel から呼ばれる） ───────────
+/**
+ * 続行成立時に、同条件で新議題を立てる。立て主から手数料を再徴収。
+ * @returns 新 market ID（文字列）。残高不足等で失敗したら null。
+ */
+export async function restartBoard(client: Client, oldMarketId: number, vcId: string | null, _guildId: string): Promise<string | null> {
+  const old = getMarket(oldMarketId);
+  if (!old) return null;
+  const cfg = getServerConfig(old.guild_id);
+  const fee = cfg.board_fee ?? 500;
+
+  // 手数料を再徴収（不足なら中止）
+  if (getBalance(old.creator_id, old.guild_id) < fee) return null;
+
+  const result = runTransaction<{ ok: boolean; newId?: number }>(() => {
+    const debit = adjustBalance(old.creator_id, -fee, "板: 再戦・議題立て手数料", "board", old.guild_id);
+    if (!debit.ok) return { ok: false };
+    const res = db.prepare(
+      `INSERT INTO betting_markets (guild_id, creator_id, title, options, payout_mode, deadline, channel_id, fee)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(old.guild_id, old.creator_id, old.title, old.options, old.payout_mode, null, vcId ?? old.channel_id, fee);
+    return { ok: true, newId: Number(res.lastInsertRowid) };
+  });
+  if (!result.ok || !result.newId) return null;
+  const newId = result.newId;
+
+  // VC のテキストチャットに新パネルを投下
+  const target = vcId ?? old.channel_id;
+  if (target) {
+    try {
+      const ch = await client.channels.fetch(target).catch(() => null);
+      if (ch && "send" in ch) {
+        const panel = renderPanel(newId);
+        const msg = await (ch as any).send(panel);
+        db.prepare("UPDATE betting_markets SET message_id = ?, channel_id = ? WHERE id = ?").run(msg.id, target, newId);
+      }
+    } catch (err) {
+      console.warn("[board] restart announce failed:", err);
+    }
+  }
+  return String(newId);
+}
+
 async function listMarkets(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const rows = db.prepare(
@@ -169,7 +214,7 @@ async function listMarkets(interaction: ChatInputCommandInteraction): Promise<vo
   ).all(guildId) as Array<{ id: number; title: string; status: string; payout_mode: string }>;
 
   if (rows.length === 0) {
-    await interaction.reply({ embeds: [baseEmbed(`📋 ${WORLD.GAME_BOARD}`, PALETTE.NIGHT).setDescription("いま進行中の議題はないよ。`/板 立てる` で始めてみて。")], ephemeral: true });
+    await interaction.reply({ embeds: [baseEmbed(`📋 ${WORLD.GAME_BOARD}`, PALETTE.NIGHT).setDescription("いま進行中の議題はないよ。`/勝負 板 立てる` で始めてみて。")], ephemeral: true });
     return;
   }
   const statusLabel: Record<string, string> = { open: "受付中", closed: "締切", reported: "結果報告中", disputed: "異議・裁定待ち" };
@@ -236,6 +281,7 @@ function renderPanel(marketId: number): { embeds: EmbedBuilder[]; components: Ac
     rows.push(betRow as ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>);
     const ctlRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`plate:close:${m.id}`).setLabel("締切る").setStyle(ButtonStyle.Secondary).setEmoji("🔒"),
+      new ButtonBuilder().setCustomId(`plate:linkvc:${m.id}`).setLabel("この議題用の卓を立てる").setStyle(ButtonStyle.Secondary).setEmoji("📋"),
     );
     rows.push(ctlRow as ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>);
   } else if (m.status === "closed") {
@@ -303,7 +349,32 @@ export async function handleBoardButton(interaction: ButtonInteraction): Promise
     case "approve": return doApprove(interaction, m);
     case "dispute": return doDispute(interaction, m);
     case "admin_void": return adminVoid(interaction, m);
+    case "linkvc": return boardLinkVc(interaction, m);
   }
+}
+
+// ─── 紐付きVC生成（[この議題用の卓を立てる]） ──────
+async function boardLinkVc(interaction: ButtonInteraction, m: MarketRow): Promise<void> {
+  if (m.status !== "open" && m.status !== "closed" && m.status !== "reported") {
+    await interaction.reply({ content: "もう精算済の議題だよ。", ephemeral: true });
+    return;
+  }
+  const existing = findLinkedVC("board", String(m.id));
+  if (existing) {
+    await interaction.reply({
+      embeds: [baseEmbed("📋 もう立ってるよ", PALETTE.JADE).setDescription(`卓は <#${existing.channel_id}> にあるよ。`)],
+      ephemeral: true,
+    });
+    return;
+  }
+  // 議題は公開市場。卓も公開（パネルchの権限を継承）。
+  await createLinkedTable(interaction, {
+    linkType: "board",
+    linkId: String(m.id),
+    userLimit: 0,
+    allowedUserIds: null,
+    vcName: `📋 議題の卓 #${m.id}`,
+  });
 }
 
 export async function handleBoardSelect(interaction: StringSelectMenuInteraction): Promise<void> {
@@ -465,9 +536,10 @@ async function doDispute(interaction: ButtonInteraction, m: MarketRow): Promise<
   db.prepare("INSERT INTO market_approvals (market_id, user_id, vote) VALUES (?, ?, 'dispute') ON CONFLICT(market_id, user_id) DO UPDATE SET vote='dispute'").run(m.id, interaction.user.id);
   db.prepare("UPDATE betting_markets SET status = 'disputed' WHERE id = ?").run(m.id);
   clearTimer(m.id);
-  await interaction.reply({ content: "異議を受け付けたよ。管理者の裁定を待ってね。", ephemeral: true });
+  await interaction.reply({ content: "異議を受け付けたよ。運営の裁定を待ってね。", ephemeral: true });
   await refreshPanel(interaction.client, m.id);
-  await postToThread(interaction.client, m, "⚖️ 異議が出たよ。管理者が裁定します。");
+  const mention = mentionAdminRole(m.guild_id);
+  await postToThread(interaction.client, m, `${mention ? mention + " " : ""}⚖️ 議題 #${m.id} に異議が出たよ。運営の裁定をお願い。`);
 }
 
 async function finalizeIfNoDispute(client: Client, marketId: number): Promise<void> {
@@ -526,6 +598,15 @@ async function settleMarket(client: Client, marketId: number): Promise<void> {
   } else {
     const lines = payouts.map((p) => `<@${p.userId}> +${formatEther(p.amount)}`).join("\n");
     await postToThread(client, m, `🎉 精算完了！ 勝ちは【${options[resultOpt]}】\n${lines || "（配当なし）"}`);
+  }
+
+  // 紐付きVCがあれば 続行/やめる パネルを投下（参加者=賭けた全員）
+  try {
+    const bettorIds = Array.from(new Set(bets.map((b) => b.user_id)));
+    const { postDecisionPanel } = require("../decisionPanel");
+    await postDecisionPanel(client, m.guild_id, "board", String(m.id), m.creator_id, bettorIds);
+  } catch (err) {
+    console.warn("[board] decisionPanel post failed:", err);
   }
 }
 

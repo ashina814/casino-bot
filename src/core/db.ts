@@ -98,6 +98,8 @@ export type ServerConfig = {
   exchange_approval_channel_id: string | null;
   /** v2 VIP: 入場権購入で付与するVIPロールのID（未設定ならロール付与スキップ） */
   vip_role_id: string | null;
+  /** 賭場運営ロール: 異議・トラブル通知でメンションするロール。/管理 本体はオーナーのみ。 */
+  admin_role_id: string | null;
 };
 
 export type Title = {
@@ -594,10 +596,45 @@ export function initializeDatabase(): void {
     "ALTER TABLE server_config ADD COLUMN exchange_threshold INTEGER NOT NULL DEFAULT 50000",
     "ALTER TABLE server_config ADD COLUMN exchange_approval_channel_id TEXT",
     "ALTER TABLE server_config ADD COLUMN vip_role_id TEXT",
+    // /心付け 1日1回 CD（折衷化）。null = まだ今日渡してない。
+    "ALTER TABLE users ADD COLUMN last_tip_date TEXT",
+    // takutate 紐付きVC（賭けと連動する卓）の追跡用。null = 直接立てた卓（既存）。
+    "ALTER TABLE temp_voice_channels ADD COLUMN link_type TEXT",
+    "ALTER TABLE temp_voice_channels ADD COLUMN link_id TEXT",
+    // サシ: 報告時刻（自動確定タイムアウトの起点）
+    "ALTER TABLE pvp_matches ADD COLUMN reported_at TEXT",
+    // 賭場運営ロール（メンション通知用・/管理 本体とは別軸）
+    "ALTER TABLE server_config ADD COLUMN admin_role_id TEXT",
+    // 紐付きVC のデポジット（◈500預け・1回でも勝負成立なら返却、無ければJP没収）
+    "ALTER TABLE temp_voice_channels ADD COLUMN deposit_holder TEXT",
+    "ALTER TABLE temp_voice_channels ADD COLUMN deposit_amount INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE temp_voice_channels ADD COLUMN settle_count INTEGER NOT NULL DEFAULT 0",
   ];
   for (const sql of v2MigrationCols) {
     try { db.exec(sql); } catch { /* column exists */ }
   }
+
+  // ─── decisionPanel: 勝負終了後の 続行/やめる パネル ───
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS decision_panels (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id      TEXT NOT NULL,
+      channel_id      TEXT NOT NULL,
+      guild_id        TEXT NOT NULL,
+      vc_id           TEXT,
+      link_type       TEXT NOT NULL,
+      link_id         TEXT NOT NULL,
+      host_id         TEXT NOT NULL,
+      participant_ids TEXT NOT NULL DEFAULT '[]',
+      deadline_at     TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'open',
+      votes_continue  TEXT NOT NULL DEFAULT '[]',
+      votes_stop      TEXT NOT NULL DEFAULT '[]',
+      warned          INTEGER NOT NULL DEFAULT 0,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_panels_status ON decision_panels (status, deadline_at)`);
 }
 
 // ─── Server Config Helpers ─────────────────────────────
@@ -620,6 +657,7 @@ export function updateServerConfig(guildId: string, updates: Partial<Omit<Server
     "games_enabled", "lucky_game", "lucky_game_date",
     "exchange_rate_offset", "board_fee",
     "exchange_threshold", "exchange_approval_channel_id",
+    "vip_role_id", "admin_role_id",
   ] as const;
 
   for (const key of allowed) {

@@ -210,6 +210,61 @@ async function settle(
 
   const embed = baseEmbed(`🎲 チンチロ対戦 #${d.id} — 決着`, winnerId ? PALETTE.JADE : PALETTE.NIGHT).setDescription(lines);
   await announce(client, d, { embeds: [embed] });
+
+  // 紐付きVCがあれば 続行/やめる パネルを投下
+  try {
+    const { postDecisionPanel } = require("../decisionPanel");
+    await postDecisionPanel(client, d.guild_id, "saishoubu", String(d.id), d.challenger_id, [d.challenger_id, d.opponent_id]);
+  } catch (err) {
+    console.warn("[saishoubu] decisionPanel post failed:", err);
+  }
+}
+
+// ─── 再戦立て（decisionPanel から呼ばれる） ───────────
+/**
+ * 続行成立時に同条件で新しいチンチロ対戦を回す。
+ * 両者は decisionPanel で合意済みなので accept ボタン省略、
+ * いきなりエスクロー → 自動振り → 精算まで一気に通す。
+ */
+export async function restartDuel(client: Client, oldDuelId: number, vcId: string | null, _guildId: string): Promise<string | null> {
+  const old = getDuel(oldDuelId);
+  if (!old) return null;
+
+  const inserted = runTransaction<{ ok: boolean; newId?: number; reason?: string }>(() => {
+    const dc = adjustBalance(old.challenger_id, -old.stake, "賽勝負: 再戦エスクロー", "saishoubu", old.guild_id);
+    if (!dc.ok) return { ok: false, reason: "CHALLENGER_FUNDS" };
+    const dop = adjustBalance(old.opponent_id, -old.stake, "賽勝負: 再戦エスクロー", "saishoubu", old.guild_id);
+    if (!dop.ok) {
+      adjustBalance(old.challenger_id, old.stake, "賽勝負: 再戦失敗・返金", "saishoubu", old.guild_id);
+      return { ok: false, reason: "OPPONENT_FUNDS" };
+    }
+    const res = db.prepare(
+      "INSERT INTO dice_duels (guild_id, challenger_id, opponent_id, stake, channel_id, status) VALUES (?, ?, ?, ?, ?, 'active')",
+    ).run(old.guild_id, old.challenger_id, old.opponent_id, old.stake, vcId ?? old.channel_id);
+    return { ok: true, newId: Number(res.lastInsertRowid) };
+  });
+  if (!inserted.ok || !inserted.newId) return null;
+  const newId = inserted.newId;
+
+  // 自動振り（accept と同じロジック）
+  let cHand: Hand = { type: "menashi" }, cDice: [number, number, number] = [1, 1, 1];
+  let oHand: Hand = { type: "menashi" }, oDice: [number, number, number] = [1, 1, 1];
+  let round = 0;
+  let winnerId: string | null = null;
+  while (round < MAX_TIE_ROUNDS) {
+    round += 1;
+    const c = autoRollHand(); cHand = c.hand; cDice = c.dice;
+    const o = autoRollHand(); oHand = o.hand; oDice = o.dice;
+    const cr = handRank(cHand), or = handRank(oHand);
+    if (cr > or) { winnerId = old.challenger_id; break; }
+    if (or > cr) { winnerId = old.opponent_id; break; }
+  }
+
+  // 新規 duel の channel_id を VC に差し替えてから精算
+  db.prepare("UPDATE dice_duels SET channel_id = ? WHERE id = ?").run(vcId ?? old.channel_id, newId);
+  await settle(client, newId, winnerId, { cHand, cDice, oHand, oDice, round });
+
+  return String(newId);
 }
 
 async function announce(client: Client, d: DuelRow, payload: any): Promise<void> {

@@ -377,6 +377,47 @@ async function roll(client: Client, gameId: number): Promise<void> {
     winLines || "（勝者なし）",
     payouts.rake > 0 ? `*場代 ${formatEther(payouts.rake)} を ${WORLD.POOL_JACKPOT} に納めた。*` : "",
   ].filter(Boolean).join("\n"));
+
+  // 紐付きVCがあれば 続行/やめる パネルを投下（参加者=賭けた全員）
+  try {
+    const bettorIds = Array.from(new Set(bets.map((b) => b.user_id)));
+    const { postDecisionPanel } = require("../decisionPanel");
+    await postDecisionPanel(client, g.guild_id, "chohan", String(g.id), g.host_id, bettorIds);
+  } catch (err) {
+    console.warn("[chohan] decisionPanel post failed:", err);
+  }
+}
+
+// ─── 再戦立て（decisionPanel から呼ばれる） ───────────
+/**
+ * 続行成立時に、同じ立て主で新しい盆を立てる。手数料なし、初期賭けなし。
+ * @returns 新 game ID（文字列）。失敗したら null。
+ */
+export async function restartChohan(client: Client, oldGameId: number, vcId: string | null, _guildId: string): Promise<string | null> {
+  const old = getGame(oldGameId);
+  if (!old) return null;
+
+  const newId = runTransaction<number>(() => {
+    const res = db.prepare(
+      "INSERT INTO chohan_games (guild_id, host_id, deadline, channel_id) VALUES (?, ?, ?, ?)",
+    ).run(old.guild_id, old.host_id, null, vcId ?? old.channel_id);
+    return Number(res.lastInsertRowid);
+  });
+
+  const target = vcId ?? old.channel_id;
+  if (target) {
+    try {
+      const ch = await client.channels.fetch(target).catch(() => null);
+      if (ch && "send" in ch) {
+        const panel = renderPanel(newId);
+        const msg = await (ch as any).send(panel);
+        db.prepare("UPDATE chohan_games SET message_id = ?, channel_id = ? WHERE id = ?").run(msg.id, target, newId);
+      }
+    } catch (err) {
+      console.warn("[chohan] restart announce failed:", err);
+    }
+  }
+  return String(newId);
 }
 
 // ─── 起動時返金 ───────────────────────────────────────

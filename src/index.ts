@@ -20,13 +20,14 @@ import { handleZashikiCommand, handleAstelButton, handleAstelSelect } from "./ga
 import { handleExchangeCommand, handleExchangeApproval } from "./games/exchange";
 import { reconcileStaleExchangesOnStartup } from "./core/exchange";
 import { handleBoardCommand, handleBoardButton, handleBoardSelect, handleBoardModal, refundStaleMarketsOnStartup } from "./games/board";
-import { handleSashiButton, refundStaleSashiOnStartup } from "./games/sashi";
+import { handleSashiButton, refundStaleSashiOnStartup, bootSashiTimeouts } from "./games/sashi";
 import { handleTipCommand } from "./games/tip";
-import { handleTakuCommand, handleTakuButton, handleTableVoiceState, sweepStaleTempVCs } from "./games/takutate";
+import { handleTakuButton, handleTableVoiceState, sweepStaleTempVCs } from "./games/takutate";
 import { handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
 import { handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
 import { handleShoubuCommand } from "./games/shoubu";
 import { handleVipCommand, handleVipButton } from "./games/vip";
+import { bootDecisionPanels, handleDecisionButton } from "./games/decisionPanel";
 
 // ─── Startup Cleanup ───────────────────────────────────
 
@@ -102,6 +103,18 @@ async function bootstrap(): Promise<void> {
     sweepStaleTempVCs(client, 0).catch((err) =>
       console.error("[bootstrap] sweepStaleTempVCs failed:", err),
     );
+    // 続行/やめる パネルの再開・期限切れの掃除・tick 開始
+    try {
+      bootDecisionPanels(client);
+    } catch (err) {
+      console.error("[bootstrap] bootDecisionPanels failed:", err);
+    }
+    // サシ: 報告フェーズ10分 / アクティブ6時間 の自動タイムアウト
+    try {
+      bootSashiTimeouts(client);
+    } catch (err) {
+      console.error("[bootstrap] bootSashiTimeouts failed:", err);
+    }
   });
 
   // 卓を立てる: 最後の1人が抜けたVCを自動削除
@@ -134,14 +147,10 @@ async function bootstrap(): Promise<void> {
             return await handleZashikiCommand(interaction);
           case "両替":
             return await handleExchangeCommand(interaction);
-          case "板":
-            return await handleBoardCommand(interaction);
           case "勝負":
             return await handleShoubuCommand(interaction);
           case "心付け":
             return await handleTipCommand(interaction);
-          case "卓":
-            return await handleTakuCommand(interaction);
           case "vip":
             return await handleVipCommand(interaction);
         }
@@ -200,6 +209,12 @@ async function bootstrap(): Promise<void> {
       // ── 賽勝負 (チンチロ 1v1 / sai:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("sai:")) {
         await handleSaiButton(interaction);
+        return;
+      }
+
+      // ── 続行/やめる パネル (decision:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("decision:")) {
+        await handleDecisionButton(interaction);
         return;
       }
 

@@ -1,18 +1,19 @@
 /**
  * /勝負 — 対人ゲームの統合入口
  * ─────────────────────────────────────────────────────────
- * 丁半（多人数）・チンチロ対戦（1v1）・サシ（1v1エスクロー）を1コマンドに集約。
- * 各サブコマンドは既存ゲームの内部関数（openBon / saiChallenge / sashiChallenge）へ委譲。
- * ※ 板（公開市場）は別種なので /板 のまま独立。
+ * 丁半（多人数）・チンチロ対戦（1v1）・サシ（1v1エスクロー）・板（公開市場）を1コマンドに集約。
+ * 各サブコマンドは既存ゲームの内部関数へ委譲（実装本体は移動しない）。
+ *   板だけは「立てる / 一覧」と2階層あるので subcommandGroup として組む。
  */
 import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
 import { openBon } from "../chohan";
 import { challenge as saiChallenge } from "../saishoubu";
 import { challenge as sashiChallenge } from "../sashi";
+import { handleBoardCommand } from "../board";
 
 export const shoubuCommand = new SlashCommandBuilder()
   .setName("勝負")
-  .setDescription("⚔️ 人と賭ける（丁半・チンチロ対戦・サシ）")
+  .setDescription("⚔️ 人と賭ける（丁半・チンチロ対戦・サシ・板）")
   .addSubcommand((sc) =>
     sc
       .setName("丁半")
@@ -38,9 +39,32 @@ export const shoubuCommand = new SlashCommandBuilder()
       .addUserOption((o) => o.setName("相手").setDescription("対戦相手").setRequired(true))
       .addIntegerOption((o) => o.setName("額").setDescription("賭け金（両者同額）").setRequired(true).setMinValue(1))
       .addStringOption((o) => o.setName("内容").setDescription("勝負の内容（GF/麻雀など）").setRequired(false).setMaxLength(80)),
+  )
+  .addSubcommandGroup((g) =>
+    g
+      .setName("板")
+      .setDescription("📋 何でも賭けられる公開市場")
+      .addSubcommand((sc) =>
+        sc
+          .setName("立てる")
+          .setDescription("新しい議題を立てる")
+          .addStringOption((o) => o.setName("議題").setDescription("何に賭ける？").setRequired(true).setMaxLength(120))
+          .addStringOption((o) => o.setName("選択肢").setDescription("カンマ/読点区切りで 2〜4個").setRequired(true).setMaxLength(200))
+          .addStringOption((o) =>
+            o.setName("方式").setDescription("配分方式").setRequired(false)
+              .addChoices(
+                { name: "パリミュ（賭け額に比例して山分け）", value: "parimutuel" },
+                { name: "総取り（的中者で均等に山分け）", value: "winner_take_all" },
+              ),
+          )
+          .addIntegerOption((o) => o.setName("締切分").setDescription("自動締切までの分数（任意・1〜180）").setRequired(false).setMinValue(1).setMaxValue(180)),
+      )
+      .addSubcommand((sc) => sc.setName("一覧").setDescription("進行中の議題を表示")),
   );
 
 export async function handleShoubuCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+  const group = interaction.options.getSubcommandGroup(false);
+  if (group === "板") return handleBoardCommand(interaction);
   switch (interaction.options.getSubcommand()) {
     case "丁半": return openBon(interaction);
     case "チンチロ": return saiChallenge(interaction);
