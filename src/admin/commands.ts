@@ -148,6 +148,20 @@ export const adminCommand = new SlashCommandBuilder()
       .addIntegerOption((opt) =>
         opt.setName("古さ").setDescription("これより古い議題を対象（日数・既定 7）").setRequired(false).setMinValue(1).setMaxValue(180)
       )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("通貨ログ")
+      .setDescription("📒 エテル取引ログを出力（直近N日・任意ユーザー/絞り込み）")
+      .addIntegerOption((opt) =>
+        opt.setName("日数").setDescription("対象期間（既定 1日・最大 30）").setRequired(false).setMinValue(1).setMaxValue(30)
+      )
+      .addUserOption((opt) =>
+        opt.setName("user").setDescription("特定ユーザーで絞り込み（任意）").setRequired(false)
+      )
+      .addStringOption((opt) =>
+        opt.setName("絞り込み").setDescription("reason に含まれる文字列で絞り込み（任意・例: 心付け）").setRequired(false).setMaxLength(60)
+      )
   );
 
 // ─── Admin Role Mention Helper ─────────────────────────
@@ -198,6 +212,7 @@ export async function handleAdminCommand(interaction: ChatInputCommandInteractio
     case "板取消": return handleBoardCancel(interaction, guildId);
     case "卓掃除": return handleVCSweep(interaction, guildId);
     case "板掃除": return handleBoardSweep(interaction, guildId);
+    case "通貨ログ": return handleTxLog(interaction, guildId);
   }
 }
 
@@ -874,4 +889,81 @@ async function handleBoardSweep(interaction: ChatInputCommandInteraction, guildI
   await interaction.editReply({
     embeds: [successEmbed(`🧹 **${stale.length}件** の議題を掃除したよ。\n返金: **${totalRefunds}件** / 計 ◈${totalAmount.toLocaleString()}\n\n${lines.join("\n")}`)],
   });
+}
+
+// ─── 📒 通貨ログ ─────────────────────────────────────
+
+async function handleTxLog(interaction: ChatInputCommandInteraction, _guildId: string): Promise<void> {
+  const days = interaction.options.getInteger("日数") ?? 1;
+  const targetUser = interaction.options.getUser("user");
+  const filter = (interaction.options.getString("絞り込み") ?? "").trim();
+
+  await interaction.deferReply({ ephemeral: true });
+
+  // 条件構築
+  const where: string[] = [`created_at >= datetime('now', '-${days} days')`];
+  const params: any[] = [];
+  if (targetUser) {
+    where.push("user_id = ?");
+    params.push(targetUser.id);
+  }
+  if (filter) {
+    where.push("reason LIKE ?");
+    params.push(`%${filter}%`);
+  }
+  const whereSql = where.length ? "WHERE " + where.join(" AND ") : "";
+
+  type TxRow = { id: number; user_id: string; amount: number; reason: string; game: string | null; currency: string; created_at: string };
+  const rows = db.prepare(
+    `SELECT id, user_id, amount, reason, game, currency, created_at
+     FROM transaction_logs ${whereSql}
+     ORDER BY id DESC`,
+  ).all(...params) as TxRow[];
+
+  if (rows.length === 0) {
+    await interaction.editReply({ embeds: [infoEmbed("📒 通貨ログ", "対象期間内に取引が無いよ。", COLORS.GOLD)] });
+    return;
+  }
+
+  // 集計
+  let totalIn = 0, totalOut = 0;
+  for (const r of rows) {
+    if (r.amount >= 0) totalIn += r.amount;
+    else totalOut += -r.amount;
+  }
+  const net = totalIn - totalOut;
+
+  const targetLabel = targetUser ? `<@${targetUser.id}>` : "全ユーザー";
+  const filterLabel = filter ? `\nフィルタ: \`${filter}\`` : "";
+  const summary = [
+    `**対象**: ${targetLabel}　|　**期間**: 直近 ${days}日　|　**件数**: ${rows.length}`,
+    `**流入合計**: ◈${totalIn.toLocaleString()}　/　**流出合計**: ◈${totalOut.toLocaleString()}`,
+    `**純増減**: ${net >= 0 ? "+" : ""}◈${net.toLocaleString()}${filterLabel}`,
+  ].join("\n");
+
+  // テキスト行（直近20件）
+  const LINE_MAX = 20;
+  const head = rows.slice(0, LINE_MAX);
+  const lines = head.map((r) => {
+    const ts = r.created_at.slice(5, 16).replace("T", " ");
+    const sign = r.amount >= 0 ? "+" : "";
+    const game = r.game ? `[${r.game}]` : "";
+    return `\`${ts}\` ${sign}◈${r.amount.toLocaleString().padStart(8)} <@${r.user_id}> ${game} ${r.reason}`;
+  }).join("\n");
+
+  const embed = baseEmbed("📒 通貨ログ", COLORS.MAIN)
+    .setDescription([summary, "", lines || "*(表示行なし)*"].join("\n"))
+    .setFooter({ text: rows.length > LINE_MAX ? `…他 ${rows.length - LINE_MAX}件は添付ファイルを見て` : "全件表示" });
+
+  // 全件は CSV っぽい TSV で添付
+  let files: { attachment: Buffer; name: string }[] | undefined;
+  if (rows.length > LINE_MAX) {
+    const tsv = [
+      "id\tcreated_at\tuser_id\tamount\tcurrency\tgame\treason",
+      ...rows.map((r) => `${r.id}\t${r.created_at}\t${r.user_id}\t${r.amount}\t${r.currency}\t${r.game ?? ""}\t${r.reason}`),
+    ].join("\n");
+    files = [{ attachment: Buffer.from(tsv, "utf-8"), name: `tx_log_${days}d_${Date.now()}.tsv` }];
+  }
+
+  await interaction.editReply({ embeds: [embed], ...(files ? { files } : {}) });
 }
