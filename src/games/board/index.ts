@@ -568,7 +568,7 @@ async function settleMarket(client: Client, marketId: number): Promise<void> {
       for (const b of bets) {
         adjustBalance(b.user_id, b.amount, "板: 的中者なし返金", "board", m.guild_id);
       }
-      db.prepare("UPDATE betting_markets SET status = 'void' WHERE id = ?").run(marketId);
+      db.prepare("UPDATE betting_markets SET status = 'void', settled_at = datetime('now') WHERE id = ?").run(marketId);
       return out;
     }
 
@@ -587,7 +587,7 @@ async function settleMarket(client: Client, marketId: number): Promise<void> {
         out.push({ userId: w.user_id, amount: per });
       }
     }
-    db.prepare("UPDATE betting_markets SET status = 'settled' WHERE id = ?").run(marketId);
+    db.prepare("UPDATE betting_markets SET status = 'settled', settled_at = datetime('now') WHERE id = ?").run(marketId);
     return out;
   });
 
@@ -624,7 +624,7 @@ async function adminVoid(interaction: ButtonInteraction, m: MarketRow): Promise<
   if (m.status !== "disputed") { await interaction.reply({ content: "裁定待ちの議題じゃないよ。", ephemeral: true }); return; }
   runTransaction(() => {
     for (const b of getBets(m.id)) adjustBalance(b.user_id, b.amount, "板: 裁定により無効・返金", "board", m.guild_id);
-    db.prepare("UPDATE betting_markets SET status = 'void' WHERE id = ?").run(m.id);
+    db.prepare("UPDATE betting_markets SET status = 'void', settled_at = datetime('now') WHERE id = ?").run(m.id);
   });
   await interaction.reply({ content: "無効にして全額返金したよ。", ephemeral: true });
   await refreshPanel(interaction.client, m.id);
@@ -643,8 +643,39 @@ export function refundStaleMarketsOnStartup(): void {
       for (const b of getBets(id)) {
         adjustBalance(b.user_id, b.amount, "板: 再起動による返金", "board", m.guild_id);
       }
-      db.prepare("UPDATE betting_markets SET status = 'void' WHERE id = ?").run(id);
+      db.prepare("UPDATE betting_markets SET status = 'void', settled_at = datetime('now') WHERE id = ?").run(id);
     }
   });
   console.log(`[bootstrap] refunded ${stale.length} stale betting market(s)`);
+}
+
+// ─── 終わった議題のスレッド掃除（精算/無効化から N時間経過で削除） ──
+const THREAD_TTL_MS = 24 * 60 * 60_000;
+
+export async function sweepClosedBoardThreads(client: Client): Promise<number> {
+  // 精算/無効化された板で thread_id が残ってるやつを対象
+  const rows = db.prepare(
+    `SELECT id, thread_id, settled_at FROM betting_markets
+     WHERE status IN ('settled','void') AND thread_id IS NOT NULL AND settled_at IS NOT NULL`,
+  ).all() as Array<{ id: number; thread_id: string; settled_at: string }>;
+  if (rows.length === 0) return 0;
+
+  let removed = 0;
+  const now = Date.now();
+  for (const r of rows) {
+    const elapsed = now - new Date(r.settled_at + "Z").getTime();
+    if (elapsed < THREAD_TTL_MS) continue;
+    try {
+      const ch = await client.channels.fetch(r.thread_id).catch(() => null);
+      if (ch && ch.isThread()) {
+        await ch.delete("板: 精算から24h経過").catch(() => {});
+      }
+    } catch (e) {
+      console.warn(`[board] thread sweep fetch failed for ${r.thread_id}:`, e);
+    }
+    db.prepare("UPDATE betting_markets SET thread_id = NULL WHERE id = ?").run(r.id);
+    removed++;
+  }
+  if (removed > 0) console.log(`[board] swept ${removed} closed thread(s)`);
+  return removed;
 }

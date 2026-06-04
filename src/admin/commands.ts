@@ -777,7 +777,7 @@ async function handleBoardCancel(interaction: ChatInputCommandInteraction, guild
     for (const b of bets) {
       adjustBalance(b.user_id, b.amount, `板取消(管理者): ${reason}`, "board", m.guild_id);
     }
-    db.prepare("UPDATE betting_markets SET status = 'void' WHERE id = ?").run(marketId);
+    db.prepare("UPDATE betting_markets SET status = 'void', settled_at = datetime('now') WHERE id = ?").run(marketId);
   });
 
   // 元メッセージ書き換え
@@ -849,7 +849,7 @@ async function handleBoardSweep(interaction: ChatInputCommandInteraction, guildI
         totalRefunds += 1;
         totalAmount += b.amount;
       }
-      db.prepare("UPDATE betting_markets SET status = 'void' WHERE id = ?").run(m.id);
+      db.prepare("UPDATE betting_markets SET status = 'void', settled_at = datetime('now') WHERE id = ?").run(m.id);
     });
 
     // 元メッセージ書き換え（あれば）

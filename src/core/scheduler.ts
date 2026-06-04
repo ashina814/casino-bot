@@ -77,6 +77,16 @@ export function registerSchedulers(client: Client): void {
     }
   });
 
+  // 板: 精算/無効化から 24h 経った議題スレッドを削除（1時間ごと）
+  cron.schedule("15 * * * *", async () => {
+    try {
+      const { sweepClosedBoardThreads } = require("../games/board");
+      await sweepClosedBoardThreads(client);
+    } catch (error) {
+      console.error("[scheduler] Failed to sweep closed board threads:", error);
+    }
+  });
+
   // ゾンビセッション（5分以上経過した排他ロック）の定期クリーンアップ
   cron.schedule("*/5 * * * *", () => {
     try {

@@ -609,6 +609,8 @@ export function initializeDatabase(): void {
     "ALTER TABLE temp_voice_channels ADD COLUMN deposit_holder TEXT",
     "ALTER TABLE temp_voice_channels ADD COLUMN deposit_amount INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE temp_voice_channels ADD COLUMN settle_count INTEGER NOT NULL DEFAULT 0",
+    // 板: 精算/無効化された時刻（スレッド自動削除の起点）
+    "ALTER TABLE betting_markets ADD COLUMN settled_at TEXT",
   ];
   for (const sql of v2MigrationCols) {
     try { db.exec(sql); } catch { /* column exists */ }
