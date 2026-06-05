@@ -9,7 +9,6 @@
  * 互いの手は **全公開** — 心理戦は「相手の手を見て自分の決断」が肝
  */
 import {
-  SlashCommandBuilder,
   ChatInputCommandInteraction,
   ButtonInteraction,
   ActionRowBuilder,
@@ -60,17 +59,8 @@ function isParticipant(d: DuelRow, userId: string): boolean {
   return userId === d.challenger_id || userId === d.opponent_id;
 }
 
-// ─── Command ─────────────────────────────────────────
-export const bjDuelCommand = new SlashCommandBuilder()
-  .setName("BJ対戦")
-  .setDescription("🃏 ブラックジャック対人戦 — 2人で21に近づけて勝負")
-  .addSubcommand((sc) =>
-    sc
-      .setName("申込み")
-      .setDescription("相手にブラックジャック対戦を申し込む")
-      .addUserOption((o) => o.setName("相手").setDescription("対戦相手").setRequired(true))
-      .addIntegerOption((o) => o.setName("額").setDescription("賭け金（両者同額・勝者総取り）").setRequired(true).setMinValue(1)),
-  );
+// Note: /勝負 BJ サブコマンド経由でのみ呼ばれるので、独立した SlashCommandBuilder は持たない。
+// （元々ここにあった bjDuelCommand は Discord 名規則違反「BJ対戦」で評価失敗するため削除）
 
 export async function handleBjDuelCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   if (interaction.options.getSubcommand() === "申込み") return challenge(interaction);
