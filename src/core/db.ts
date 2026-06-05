@@ -619,6 +619,29 @@ export function initializeDatabase(): void {
     "ALTER TABLE users ADD COLUMN nagareboshi_date TEXT",
     "ALTER TABLE users ADD COLUMN nagareboshi_count INTEGER NOT NULL DEFAULT 0",
   ];
+
+  // ─── BJ 対人戦テーブル ───
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bj_duels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      challenger_id TEXT NOT NULL,
+      opponent_id TEXT NOT NULL,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','active','settled','declined','void')),
+      challenger_hand TEXT NOT NULL DEFAULT '[]',
+      opponent_hand TEXT NOT NULL DEFAULT '[]',
+      challenger_done INTEGER NOT NULL DEFAULT 0,
+      opponent_done INTEGER NOT NULL DEFAULT 0,
+      turn TEXT NOT NULL DEFAULT 'challenger' CHECK(turn IN ('challenger','opponent')),
+      winner_id TEXT,
+      rake INTEGER NOT NULL DEFAULT 0,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
   for (const sql of v2MigrationCols) {
     try { db.exec(sql); } catch { /* column exists */ }
   }

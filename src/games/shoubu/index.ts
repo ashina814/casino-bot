@@ -10,6 +10,7 @@ import { openBon } from "../chohan";
 import { challenge as saiChallenge } from "../saishoubu";
 import { challenge as sashiChallenge } from "../sashi";
 import { handleBoardCommand } from "../board";
+import { challenge as bjdChallenge } from "../bjduel";
 
 export const shoubuCommand = new SlashCommandBuilder()
   .setName("勝負")
@@ -40,6 +41,13 @@ export const shoubuCommand = new SlashCommandBuilder()
       .addIntegerOption((o) => o.setName("額").setDescription("賭け金（両者同額）").setRequired(true).setMinValue(1))
       .addStringOption((o) => o.setName("内容").setDescription("勝負の内容（GF/麻雀など）").setRequired(false).setMaxLength(80)),
   )
+  .addSubcommand((sc) =>
+    sc
+      .setName("BJ")
+      .setDescription("🃏 ブラックジャック対人戦 — 2人で21に近づける（手は全公開）")
+      .addUserOption((o) => o.setName("相手").setDescription("対戦相手").setRequired(true))
+      .addIntegerOption((o) => o.setName("額").setDescription("賭け金（両者同額・勝者総取り）").setRequired(true).setMinValue(1)),
+  )
   .addSubcommandGroup((g) =>
     g
       .setName("板")
@@ -69,5 +77,6 @@ export async function handleShoubuCommand(interaction: ChatInputCommandInteracti
     case "丁半": return openBon(interaction);
     case "チンチロ": return saiChallenge(interaction);
     case "サシ": return sashiChallenge(interaction);
+    case "BJ": return bjdChallenge(interaction);
   }
 }

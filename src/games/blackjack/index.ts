@@ -32,9 +32,9 @@ import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
 
 const SUITS = ["☀陽", "☽月", "✦暁", "✧宵", "☄彗", "🪐環", "✶煌", "◑蝕"] as const;
 
-type Card = { display: string; value: number };
+export type Card = { display: string; value: number };
 
-function createDeck(): Card[] {
+export function createDeck(): Card[] {
   const deck: Card[] = [];
   for (const suit of SUITS) {
     // 2-10, J(10), Q(10), K(10), A(11/1)
@@ -58,7 +58,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function handValue(hand: Card[]): number {
+export function handValue(hand: Card[]): number {
   let total = hand.reduce((s, c) => s + c.value, 0);
   let aces = hand.filter((c) => c.display.endsWith("A")).length;
   while (total > 21 && aces > 0) {
@@ -68,11 +68,11 @@ function handValue(hand: Card[]): number {
   return total;
 }
 
-function handDisplay(hand: Card[]): string {
+export function handDisplay(hand: Card[]): string {
   return hand.map((c) => c.display).join(" ");
 }
 
-function isBlackjack(hand: Card[]): boolean {
+export function isBlackjack(hand: Card[]): boolean {
   return hand.length === 2 && handValue(hand) === 21;
 }
 

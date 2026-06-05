@@ -25,6 +25,7 @@ import { handleTipCommand } from "./games/tip";
 import { handleTakuButton, handleTableVoiceState, sweepStaleTempVCs, refundAllVCDepositsOnStartup } from "./games/takutate";
 import { handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
 import { handleSaiButton, refundStaleDuelsOnStartup, bootSaiTimeouts } from "./games/saishoubu";
+import { handleBjDuelButton, refundStaleBjDuelsOnStartup, bootBjDuelTimeouts } from "./games/bjduel";
 import { handleShoubuCommand } from "./games/shoubu";
 import { handleVipCommand, handleVipButton } from "./games/vip";
 import { handleNagareCommand } from "./games/nagareboshi";
@@ -140,6 +141,11 @@ async function bootstrap(): Promise<void> {
   } catch (err) {
     console.error("[bootstrap] refundStaleDuelsOnStartup failed:", err);
   }
+  try {
+    refundStaleBjDuelsOnStartup();
+  } catch (err) {
+    console.error("[bootstrap] refundStaleBjDuelsOnStartup failed:", err);
+  }
   // 為替の中断分を回収（API有効時のみ・非同期で投げっぱなし）
   reconcileStaleExchangesOnStartup().catch((err) =>
     console.error("[bootstrap] reconcileStaleExchangesOnStartup failed:", err),
@@ -179,6 +185,12 @@ async function bootstrap(): Promise<void> {
       bootSaiTimeouts(client);
     } catch (err) {
       console.error("[bootstrap] bootSaiTimeouts failed:", err);
+    }
+    // BJ 対人戦: pending 1時間 / active 6時間 の自動タイムアウト
+    try {
+      bootBjDuelTimeouts(client);
+    } catch (err) {
+      console.error("[bootstrap] bootBjDuelTimeouts failed:", err);
     }
     // 通貨ログのライブフィード（adjustBalance 毎にチャットへ1行）
     setTxFeedHandler((e: TxEvent) => { void postTxFeedLine(client, e); });
@@ -278,6 +290,12 @@ async function bootstrap(): Promise<void> {
       // ── 賽勝負 (チンチロ 1v1 / sai:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("sai:")) {
         await handleSaiButton(interaction);
+        return;
+      }
+
+      // ── BJ対戦 (bjd:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("bjd:")) {
+        await handleBjDuelButton(interaction);
         return;
       }
 
