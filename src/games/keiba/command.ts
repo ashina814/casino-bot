@@ -61,7 +61,8 @@ export async function handleRaceCommand(interaction: ChatInputCommandInteraction
     await startRace(interaction.client, {
       channelId: interaction.channelId,
       initiatedBy: interaction.user.tag,
-      isScheduled: false
+      isScheduled: false,
+      hostUserId: interaction.user.id,
     });
     await interaction.editReply("レース受付パネルを作成しました。");
   } catch (error) {

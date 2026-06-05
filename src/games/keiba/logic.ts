@@ -26,6 +26,8 @@ type ActiveRaceSession = {
   message: Message;
   acceptingBets: boolean;
   guildId: string;
+  hostId: string | null;          // 手動 /競馬 start の発信者。cron なら null
+  closeTimeout: NodeJS.Timeout | null; // 主催者が手動で進めた時にキャンセルする
 };
 
 const TRACK_LENGTH = 20;
@@ -156,6 +158,15 @@ function renderPanel(session: ActiveRaceSession, disabled = false): {
     .setStyle(ButtonStyle.Danger)
     .setDisabled(disabled);
 
+  // 主催者のみ: 3分待たずに即スタート（手動レースのみ・cron では非表示）
+  const goButton = session.hostId
+    ? new ButtonBuilder()
+        .setCustomId(`keiba:go:${session.raceId}`)
+        .setLabel("🏁 締切→スタート（主催者）")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(disabled)
+    : null;
+
   // 馬一覧（人気・現在オッズ付き）
   const horseList = session.horses.map((h, i) => {
     const winStake = stats.winByHorse.get(h.id) ?? 0;
@@ -187,13 +198,17 @@ function renderPanel(session: ActiveRaceSession, disabled = false): {
     )
     .setFooter({ text: "オッズは現時点のプールから計算。賭け状況確認は📋ボタンから（あなたのみ表示）" });
 
+  const buttonRow = goButton
+    ? new ActionRowBuilder<ButtonBuilder>().addComponents(statusButton, cancelWinButton, cancelPlaceButton, cancelButton, goButton)
+    : new ActionRowBuilder<ButtonBuilder>().addComponents(statusButton, cancelWinButton, cancelPlaceButton, cancelButton);
+
   return {
     embed,
     rows: [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(winMenu),
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(placeMenu),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(statusButton, cancelWinButton, cancelPlaceButton, cancelButton),
-    ]
+      buttonRow,
+    ],
   };
 }
 
@@ -217,7 +232,7 @@ function requireSession(raceId: string): ActiveRaceSession | null {
 
 export async function startRace(
   client: Client,
-  payload: { channelId: string; initiatedBy: string; isScheduled: boolean }
+  payload: { channelId: string; initiatedBy: string; isScheduled: boolean; hostUserId?: string | null }
 ): Promise<void> {
   let lockAcquired = tryAcquireRaceLock();
   if (!lockAcquired) {
@@ -243,7 +258,9 @@ export async function startRace(
       horses,
       message: {} as Message,
       acceptingBets: true,
-      guildId: channel.guildId
+      guildId: channel.guildId,
+      hostId: payload.hostUserId ?? null,
+      closeTimeout: null,
     };
     const panel = renderPanel(tempSession, false);
     const message = await channel.send({
@@ -256,7 +273,7 @@ export async function startRace(
     tempSession.message = message;
     sessions.set(raceId, tempSession);
 
-    setTimeout(() => {
+    tempSession.closeTimeout = setTimeout(() => {
       const session = sessions.get(raceId);
       if (!session) {
         return;
@@ -475,6 +492,35 @@ export async function handleKeibaCancelOne(interaction: ButtonInteraction): Prom
   } catch (error) {
     console.error("[keiba] cancel_one failed:", error);
     await interaction.editReply("取り消しに失敗しちゃった。ごめんね。");
+  }
+}
+
+/** 主催者の「🏁 締切→スタート」ボタン。3分待たずに即レース開始。 */
+export async function handleKeibaGo(interaction: ButtonInteraction): Promise<void> {
+  const [prefix, action, raceId] = interaction.customId.split(":");
+  if (prefix !== "keiba" || action !== "go" || !raceId) return;
+
+  const session = requireSession(raceId);
+  if (!session) { await interaction.reply({ content: "そのレースはもう無いみたい。", ephemeral: true }); return; }
+  if (!session.acceptingBets) { await interaction.reply({ content: "もう受付終わってるよ。", ephemeral: true }); return; }
+  if (!session.hostId || interaction.user.id !== session.hostId) {
+    await interaction.reply({ content: "主催者だけがスタートできるよ。", ephemeral: true }); return;
+  }
+
+  // 3分タイマーをキャンセル
+  if (session.closeTimeout) { clearTimeout(session.closeTimeout); session.closeTimeout = null; }
+
+  await interaction.deferUpdate().catch(() => {});
+  try {
+    await closeBettingAndRunRace(session);
+  } catch (error) {
+    console.error("[keiba] manual go failed:", error);
+    try {
+      await rollbackRaceBets("レース処理エラー返金", session.guildId);
+      await session.message.edit({ content: "⚠️ レース処理でエラーが発生したため、賭け金を全額返金しました。", components: [] });
+    } catch { /* ignore */ }
+    sessions.delete(session.raceId);
+    releaseRaceLock();
   }
 }
 
@@ -782,6 +828,7 @@ export async function handleKeibaRestart(interaction: ButtonInteraction): Promis
       channelId,
       initiatedBy: `<@${interaction.user.id}>`,
       isScheduled: false,
+      hostUserId: interaction.user.id,
     });
   } catch (error) {
     console.error("[keiba] restart failed:", error);

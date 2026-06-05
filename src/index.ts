@@ -4,7 +4,7 @@ import { initializeDatabase, db, updateSystemStatus, cleanStaleSessions, runTran
 import { adjustBalance } from "./core/bank";
 import { handleAsobuCommand } from "./games/asobu";
 import { handleRaceCommand } from "./games/keiba/command";
-import { handleKeibaCancel, handleKeibaCancelOne, handleKeibaModalSubmit, handleKeibaSelect, handleKeibaStatus, handleKeibaRestart } from "./games/keiba/logic";
+import { handleKeibaCancel, handleKeibaCancelOne, handleKeibaModalSubmit, handleKeibaSelect, handleKeibaStatus, handleKeibaRestart, handleKeibaGo } from "./games/keiba/logic";
 import { registerSchedulers } from "./core/scheduler";
 
 // ─── New: Casino Commands ──────────────────────────────
@@ -429,6 +429,10 @@ async function bootstrap(): Promise<void> {
       }
       if (interaction.isButton() && interaction.customId.startsWith("keiba:restart:")) {
         await handleKeibaRestart(interaction);
+        return;
+      }
+      if (interaction.isButton() && interaction.customId.startsWith("keiba:go:")) {
+        await handleKeibaGo(interaction);
         return;
       }
     } catch (error) {
