@@ -219,9 +219,15 @@ export async function startRace(
   client: Client,
   payload: { channelId: string; initiatedBy: string; isScheduled: boolean }
 ): Promise<void> {
-  const lockAcquired = tryAcquireRaceLock();
+  let lockAcquired = tryAcquireRaceLock();
   if (!lockAcquired) {
-    throw new Error("Another race is already in progress.");
+    // ゾンビロック対策: 実体セッションが無いのにフラグだけ残ってるなら強制リセットして再取得
+    if (sessions.size === 0) {
+      console.warn("[keiba] zombie race lock detected — force-release and retry");
+      releaseRaceLock();
+      lockAcquired = tryAcquireRaceLock();
+    }
+    if (!lockAcquired) throw new Error("Another race is already in progress.");
   }
   const raceId = `${Date.now()}`;
 
@@ -727,14 +733,22 @@ async function settleRace(session: ActiveRaceSession, ranking: KeibaHorse[], pos
       .setStyle(ButtonStyle.Primary),
   );
 
+  // 賭けた人を全員メンション（重複排除・最大25人で打ち切り）
+  const bettorIds = Array.from(new Set(allBets.map((b) => b.user_id)));
+  const mentionCap = 25;
+  const mentionsLine = bettorIds.length > 0
+    ? `\n${bettorIds.slice(0, mentionCap).map((id) => `<@${id}>`).join(" ")}${bettorIds.length > mentionCap ? ` …他${bettorIds.length - mentionCap}人` : ""}`
+    : "";
+
   await session.message.edit({
-    content: "🏁 **レース終了！結果発表**",
+    content: `🏁 **レース終了！結果発表**${mentionsLine}`,
     embeds: [
       new EmbedBuilder().setTitle("🏆 結果").setColor(0xF1C40F).setDescription(resultText),
       new EmbedBuilder().setTitle("📊 払戻内訳").setColor(0xC0392B).setDescription(breakdown.join("\n")),
       new EmbedBuilder().setTitle("📋 最終着順").setColor(0x95A5A6).setDescription(board)
     ],
-    components: [retryRow]
+    components: [retryRow],
+    allowedMentions: { users: bettorIds.slice(0, mentionCap) },
   });
 }
 

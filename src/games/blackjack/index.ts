@@ -187,11 +187,14 @@ export async function playBlackjack(
     new ButtonBuilder().setCustomId("bj_surrender").setLabel("🏳️ 降りる").setStyle(ButtonStyle.Secondary),
   );
 
-  const reply = await interaction.reply({
+  // 「もう一回」経路では interaction は既に deferUpdate 済みなので reply ではなく followUp で新メッセージを送る
+  const initialPayload = {
     embeds: [buildGameEmbed(false)],
     components: [actionRow],
-    fetchReply: true,
-  });
+  };
+  const reply = (interaction.deferred || interaction.replied)
+    ? await interaction.followUp({ ...initialPayload, fetchReply: true } as any)
+    : await interaction.reply({ ...initialPayload, fetchReply: true });
 
   // ── Collector ──
   const collector = reply.createMessageComponentCollector({
