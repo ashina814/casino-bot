@@ -162,6 +162,9 @@ export const adminCommand = new SlashCommandBuilder()
       .addStringOption((opt) =>
         opt.setName("絞り込み").setDescription("reason に含まれる文字列で絞り込み（任意・例: 心付け）").setRequired(false).setMaxLength(60)
       )
+  )
+  .addSubcommand((sub) =>
+    sub.setName("流通").setDescription("📊 通貨の発行/回収・現流通量・プール残高の総まとめ")
   );
 
 // ─── Admin Role Mention Helper ─────────────────────────
@@ -213,6 +216,7 @@ export async function handleAdminCommand(interaction: ChatInputCommandInteractio
     case "卓掃除": return handleVCSweep(interaction, guildId);
     case "板掃除": return handleBoardSweep(interaction, guildId);
     case "通貨ログ": return handleTxLog(interaction, guildId);
+    case "流通": return handleFlowSummary(interaction, guildId);
   }
 }
 
@@ -1003,4 +1007,92 @@ async function handleTxLog(interaction: ChatInputCommandInteraction, _guildId: s
   }
 
   await interaction.editReply({ embeds: [embed], ...(files ? { files } : {}) });
+}
+
+// ─── 📊 流通サマリー（lifetime mint/burn + 内訳 + 現流通量 + プール） ───
+
+async function handleFlowSummary(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  // ─ Lifetime 集計 ─
+  const agg = db.prepare(
+    `SELECT
+       IFNULL(SUM(CASE WHEN amount > 0 THEN amount END), 0) AS total_in,
+       IFNULL(SUM(CASE WHEN amount < 0 THEN -amount END), 0) AS total_out,
+       COUNT(*) AS tx_count
+     FROM transaction_logs
+     WHERE currency = 'currency2'`,
+  ).get() as { total_in: number; total_out: number; tx_count: number };
+
+  // ─ 内訳: 流入トップ5（reason 前方一致でグループ化） ─
+  type RC = { reason: string; total: number; count: number };
+  const inflowTop = db.prepare(
+    `SELECT reason, SUM(amount) AS total, COUNT(*) AS count
+     FROM transaction_logs
+     WHERE currency = 'currency2' AND amount > 0
+     GROUP BY reason
+     ORDER BY total DESC LIMIT 5`,
+  ).all() as RC[];
+
+  const outflowTop = db.prepare(
+    `SELECT reason, SUM(-amount) AS total, COUNT(*) AS count
+     FROM transaction_logs
+     WHERE currency = 'currency2' AND amount < 0
+     GROUP BY reason
+     ORDER BY total DESC LIMIT 5`,
+  ).all() as RC[];
+
+  // ─ 現流通量 ＆ プール ─
+  const totalBalance = (db.prepare("SELECT IFNULL(SUM(balance), 0) AS s FROM users").get() as { s: number }).s;
+  const userCount = (db.prepare("SELECT COUNT(*) AS c FROM users").get() as { c: number }).c;
+  const cfg = getServerConfig(guildId);
+
+  // 整合性チェック: net 流入 − 流出 が プレイヤー残高合計 + プール残高 と一致するはず
+  // （厳密には複数 guild がある場合に崩れるが、ASTERIA は単一 guild 前提）
+  const net = agg.total_in - agg.total_out;
+  const poolSum = cfg.jackpot_pool + cfg.relief_pool;
+  const accountedFor = totalBalance + poolSum;
+  const drift = net - accountedFor;
+
+  const fmtRows = (rows: RC[]) =>
+    rows.length === 0
+      ? "*（記録なし）*"
+      : rows.map((r) => `\`${r.reason.slice(0, 30).padEnd(30)}\` ◈${r.total.toLocaleString().padStart(10)}（${r.count}回）`).join("\n");
+
+  const embed = baseEmbed("📊 通貨流通サマリー", COLORS.MAIN)
+    .setDescription(
+      [
+        "**【総計】**（取引ログ全期間）",
+        `📥 流入合計: **◈${agg.total_in.toLocaleString()}**`,
+        `📤 流出合計: **◈${agg.total_out.toLocaleString()}**`,
+        `📈 純増減（流入−流出）: **${net >= 0 ? "+" : ""}◈${net.toLocaleString()}**`,
+        `🧾 取引件数: ${agg.tx_count.toLocaleString()}`,
+      ].join("\n"),
+    )
+    .addFields(
+      {
+        name: "💰 現在の所在",
+        value: [
+          `プレイヤー残高合計: ◈${totalBalance.toLocaleString()}（${userCount}人）`,
+          `JPプール: ◈${cfg.jackpot_pool.toLocaleString()}`,
+          `救済プール: ◈${cfg.relief_pool.toLocaleString()}`,
+          `合計: ◈${accountedFor.toLocaleString()}`,
+          drift !== 0 ? `⚠️ 差分: ${drift >= 0 ? "+" : ""}◈${drift.toLocaleString()}（要監査）` : "✅ 整合 OK",
+        ].join("\n"),
+        inline: false,
+      },
+      {
+        name: "📥 流入トップ5（reason別）",
+        value: fmtRows(inflowTop),
+        inline: false,
+      },
+      {
+        name: "📤 流出トップ5（reason別）",
+        value: fmtRows(outflowTop),
+        inline: false,
+      },
+    )
+    .setFooter({ text: "※ /心づけ や /板 など内部移転も流入/流出 両方に二重計上される。純増減は mint−burn ではなく総トランザクション動量。" });
+
+  await interaction.editReply({ embeds: [embed] });
 }
