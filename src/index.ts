@@ -27,6 +27,7 @@ import { handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } fro
 import { handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
 import { handleShoubuCommand } from "./games/shoubu";
 import { handleVipCommand, handleVipButton } from "./games/vip";
+import { handleNagareCommand } from "./games/nagareboshi";
 import { bootDecisionPanels, handleDecisionButton } from "./games/decisionPanel";
 import { setTxFeedHandler, type TxEvent } from "./core/txfeed";
 
@@ -213,6 +214,8 @@ async function bootstrap(): Promise<void> {
             return await handleTipCommand(interaction);
           case "vip":
             return await handleVipCommand(interaction);
+          case "流れ星":
+            return await handleNagareCommand(interaction);
         }
       }
 

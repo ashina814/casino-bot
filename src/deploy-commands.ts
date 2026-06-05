@@ -12,6 +12,7 @@ import { exchangeCommand } from "./games/exchange";
 import { shoubuCommand } from "./games/shoubu";
 import { tipCommand } from "./games/tip";
 import { vipCommand } from "./games/vip";
+import { nagareCommand } from "./games/nagareboshi";
 
 async function deployCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discordToken);
@@ -28,6 +29,7 @@ async function deployCommands(): Promise<void> {
     shoubuCommand.toJSON(),
     tipCommand.toJSON(),
     vipCommand.toJSON(),
+    nagareCommand.toJSON(),
   ];
   if (config.guildId) {
     // 開発用: 特定 guild に即時デプロイ

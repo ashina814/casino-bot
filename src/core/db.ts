@@ -615,6 +615,9 @@ export function initializeDatabase(): void {
     "ALTER TABLE betting_markets ADD COLUMN settled_at TEXT",
     // 通貨ログのライブフィード送信先
     "ALTER TABLE server_config ADD COLUMN tx_feed_channel_id TEXT",
+    // /流れ星 占い 1日カウンタ
+    "ALTER TABLE users ADD COLUMN nagareboshi_date TEXT",
+    "ALTER TABLE users ADD COLUMN nagareboshi_count INTEGER NOT NULL DEFAULT 0",
   ];
   for (const sql of v2MigrationCols) {
     try { db.exec(sql); } catch { /* column exists */ }
