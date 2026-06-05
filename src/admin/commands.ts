@@ -23,6 +23,8 @@ import {
   TextInputStyle,
   ComponentType,
   EmbedBuilder,
+  StringSelectMenuBuilder,
+  Client,
 } from "discord.js";
 import { db, getServerConfig, updateServerConfig, runTransaction } from "../core/db";
 import { adjustBalance, ensureUser } from "../core/bank";
@@ -748,27 +750,53 @@ async function handleSashiList(interaction: ChatInputCommandInteraction, guildId
     const ts = r.created_at.slice(5, 16).replace("T", " ");
     return `\`#${r.id}\` ${statusLabel[r.status] ?? r.status} — <@${r.challenger_id}> vs <@${r.opponent_id}> / ◈${r.stake.toLocaleString()} (${ts})`;
   });
-  await interaction.reply({
+
+  const sel = new StringSelectMenuBuilder()
+    .setCustomId("admin_sashi_cancel_pick")
+    .setPlaceholder("🗑 取消するサシを選ぶ（任意）")
+    .setMinValues(1).setMaxValues(1)
+    .addOptions(
+      rows.map((r) => ({
+        label: `#${r.id} ${statusLabel[r.status] ?? r.status} — ◈${r.stake.toLocaleString()}`,
+        description: `${r.title ?? "サシ星約"}`.slice(0, 100),
+        value: String(r.id),
+      })),
+    );
+
+  const reply = await interaction.reply({
     embeds: [baseEmbed(`⚔️ サシ — 進行中 ${rows.length}件`, COLORS.GOLD).setDescription(lines.join("\n"))],
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(sel)],
     ephemeral: true,
   });
+
+  try {
+    const picked = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: 120_000 });
+    const matchId = Number(picked.values[0]);
+
+    const modal = new ModalBuilder()
+      .setCustomId(`admin_sashi_cancel_modal_${matchId}`)
+      .setTitle(`⚔️ サシ #${matchId} を取消`)
+      .addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+          new TextInputBuilder().setCustomId("reason").setLabel("取消理由").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(200),
+        ),
+      );
+    await picked.showModal(modal);
+    const mod = await picked.awaitModalSubmit({ time: 120_000 });
+    const reason = mod.fields.getTextInputValue("reason");
+    const result = await executeSashiCancel(mod.client, guildId, matchId, reason);
+    await mod.reply({ embeds: [result.ok ? successEmbed(result.msg) : errorEmbed(result.msg)], ephemeral: true });
+  } catch { /* timeout or user closed */ }
 }
 
-async function handleSashiCancel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const matchId = interaction.options.getInteger("id", true);
-  const reason = interaction.options.getString("reason", true);
-
+/** サシ取消のコア。slash 直接 / 一覧→セレクト→モーダル の両方から呼ばれる。 */
+async function executeSashiCancel(client: Client, guildId: string, matchId: number, reason: string): Promise<{ ok: boolean; msg: string }> {
   const m = db.prepare("SELECT * FROM pvp_matches WHERE id = ? AND guild_id = ?").get(matchId, guildId) as SashiAdminRow | undefined;
-  if (!m) {
-    await interaction.reply({ embeds: [errorEmbed(`match #${matchId} が見つからないよ。`)], ephemeral: true });
-    return;
-  }
+  if (!m) return { ok: false, msg: `match #${matchId} が見つからないよ。` };
   if (m.status === "settled" || m.status === "void" || m.status === "declined") {
-    await interaction.reply({ embeds: [errorEmbed(`match #${matchId} は既に終了（${m.status}）。取り消せないよ。`)], ephemeral: true });
-    return;
+    return { ok: false, msg: `match #${matchId} は既に終了（${m.status}）。取り消せないよ。` };
   }
 
-  // 返金: active/reported/disputed は両者に stake 返却。pending は未徴収。
   const refunded = m.status !== "pending";
   runTransaction(() => {
     if (refunded) {
@@ -778,17 +806,15 @@ async function handleSashiCancel(interaction: ChatInputCommandInteraction, guild
     db.prepare("UPDATE pvp_matches SET status = 'void' WHERE id = ?").run(matchId);
   });
 
-  // 紐付きVCのデポジットも保護返金（admin 取消の責はユーザーにない）
   let depositRefunded = false;
   try {
     const { refundLinkedVCDeposit } = require("../games/takutate");
     depositRefunded = refundLinkedVCDeposit("sashi", String(matchId));
   } catch (err) { console.warn("[admin sashi cancel] deposit refund failed:", err); }
 
-  // 元メッセージ書き換え
   if (m.channel_id && m.message_id) {
     try {
-      const ch = await interaction.client.channels.fetch(m.channel_id).catch(() => null);
+      const ch = await client.channels.fetch(m.channel_id).catch(() => null);
       if (ch && "messages" in ch) {
         const msg = await (ch as any).messages.fetch(m.message_id).catch(() => null);
         if (msg) {
@@ -802,10 +828,17 @@ async function handleSashiCancel(interaction: ChatInputCommandInteraction, guild
     } catch { /* ignore */ }
   }
 
-  await interaction.reply({
-    embeds: [successEmbed(`match #${matchId} を取り消したよ。${refunded ? "両者に ◈" + m.stake.toLocaleString() + " ずつ返金。" : "（未徴収のため返金なし）"}${depositRefunded ? "\n紐付きVCのデポジットも返金。" : ""}`)],
-    ephemeral: true,
-  });
+  return {
+    ok: true,
+    msg: `match #${matchId} を取り消したよ。${refunded ? "両者に ◈" + m.stake.toLocaleString() + " ずつ返金。" : "（未徴収のため返金なし）"}${depositRefunded ? "\n紐付きVCのデポジットも返金。" : ""}`,
+  };
+}
+
+async function handleSashiCancel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const matchId = interaction.options.getInteger("id", true);
+  const reason = interaction.options.getString("reason", true);
+  const result = await executeSashiCancel(interaction.client, guildId, matchId, reason);
+  await interaction.reply({ embeds: [result.ok ? successEmbed(result.msg) : errorEmbed(result.msg)], ephemeral: true });
 }
 
 // ─── 📋 板救済 ────────────────────────────────────────
@@ -842,27 +875,53 @@ async function handleBoardList(interaction: ChatInputCommandInteraction, guildId
     const ts = r.created_at.slice(5, 16).replace("T", " ");
     return `\`#${r.id}\` ${statusLabel[r.status] ?? r.status} — **${r.title}** / 立てた人: <@${r.creator_id}> (${ts})`;
   });
-  await interaction.reply({
+
+  const sel = new StringSelectMenuBuilder()
+    .setCustomId("admin_board_cancel_pick")
+    .setPlaceholder("🗑 取消する議題を選ぶ（任意）")
+    .setMinValues(1).setMaxValues(1)
+    .addOptions(
+      rows.map((r) => ({
+        label: `#${r.id} ${r.title}`.slice(0, 100),
+        description: `${statusLabel[r.status] ?? r.status} — 立て主: ${r.creator_id}`.slice(0, 100),
+        value: String(r.id),
+      })),
+    );
+
+  const reply = await interaction.reply({
     embeds: [baseEmbed(`📋 板 — 進行中 ${rows.length}件`, COLORS.GOLD).setDescription(lines.join("\n"))],
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(sel)],
     ephemeral: true,
   });
+
+  try {
+    const picked = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: 120_000 });
+    const marketId = Number(picked.values[0]);
+
+    const modal = new ModalBuilder()
+      .setCustomId(`admin_board_cancel_modal_${marketId}`)
+      .setTitle(`📋 議題 #${marketId} を取消`)
+      .addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+          new TextInputBuilder().setCustomId("reason").setLabel("取消理由").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(200),
+        ),
+      );
+    await picked.showModal(modal);
+    const mod = await picked.awaitModalSubmit({ time: 120_000 });
+    const reason = mod.fields.getTextInputValue("reason");
+    const result = await executeBoardCancel(mod.client, guildId, marketId, reason);
+    await mod.reply({ embeds: [result.ok ? successEmbed(result.msg) : errorEmbed(result.msg)], ephemeral: true });
+  } catch { /* timeout or user closed */ }
 }
 
-async function handleBoardCancel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const marketId = interaction.options.getInteger("id", true);
-  const reason = interaction.options.getString("reason", true);
-
+/** 板取消のコア。slash 直接 / 一覧→セレクト→モーダル の両方から呼ばれる。 */
+async function executeBoardCancel(client: Client, guildId: string, marketId: number, reason: string): Promise<{ ok: boolean; msg: string }> {
   const m = db.prepare("SELECT * FROM betting_markets WHERE id = ? AND guild_id = ?").get(marketId, guildId) as BoardAdminRow | undefined;
-  if (!m) {
-    await interaction.reply({ embeds: [errorEmbed(`market #${marketId} が見つからないよ。`)], ephemeral: true });
-    return;
-  }
+  if (!m) return { ok: false, msg: `market #${marketId} が見つからないよ。` };
   if (m.status === "settled" || m.status === "void") {
-    await interaction.reply({ embeds: [errorEmbed(`market #${marketId} は既に終了（${m.status}）。取り消せないよ。`)], ephemeral: true });
-    return;
+    return { ok: false, msg: `market #${marketId} は既に終了（${m.status}）。取り消せないよ。` };
   }
 
-  // 賭けた全員へ返金
   const bets = db.prepare("SELECT user_id, amount FROM market_bets WHERE market_id = ?").all(marketId) as BoardBetAdminRow[];
   const refunded = bets.length;
   runTransaction(() => {
@@ -882,7 +941,7 @@ async function handleBoardCancel(interaction: ChatInputCommandInteraction, guild
   // 元メッセージ書き換え
   if (m.channel_id && m.message_id) {
     try {
-      const ch = await interaction.client.channels.fetch(m.channel_id).catch(() => null);
+      const ch = await client.channels.fetch(m.channel_id).catch(() => null);
       if (ch && "messages" in ch) {
         const msg = await (ch as any).messages.fetch(m.message_id).catch(() => null);
         if (msg) {
@@ -896,10 +955,17 @@ async function handleBoardCancel(interaction: ChatInputCommandInteraction, guild
     } catch { /* ignore */ }
   }
 
-  await interaction.reply({
-    embeds: [successEmbed(`市場 #${marketId} を取り消したよ。${refunded}人に全額返金。${depositRefunded ? "\n紐付きVCのデポジットも返金。" : ""}`)],
-    ephemeral: true,
-  });
+  return {
+    ok: true,
+    msg: `市場 #${marketId} を取り消したよ。${refunded}人に全額返金。${depositRefunded ? "\n紐付きVCのデポジットも返金。" : ""}`,
+  };
+}
+
+async function handleBoardCancel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const marketId = interaction.options.getInteger("id", true);
+  const reason = interaction.options.getString("reason", true);
+  const result = await executeBoardCancel(interaction.client, guildId, marketId, reason);
+  await interaction.reply({ embeds: [result.ok ? successEmbed(result.msg) : errorEmbed(result.msg)], ephemeral: true });
 }
 
 // ─── 🧹 卓掃除（紐付きVCの即時 sweep） ─────────────

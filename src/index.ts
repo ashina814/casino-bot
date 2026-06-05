@@ -24,7 +24,7 @@ import { handleSashiButton, refundStaleSashiOnStartup, bootSashiTimeouts } from 
 import { handleTipCommand } from "./games/tip";
 import { handleTakuButton, handleTableVoiceState, sweepStaleTempVCs, refundAllVCDepositsOnStartup } from "./games/takutate";
 import { handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
-import { handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
+import { handleSaiButton, refundStaleDuelsOnStartup, bootSaiTimeouts } from "./games/saishoubu";
 import { handleShoubuCommand } from "./games/shoubu";
 import { handleVipCommand, handleVipButton } from "./games/vip";
 import { handleNagareCommand } from "./games/nagareboshi";
@@ -168,11 +168,17 @@ async function bootstrap(): Promise<void> {
     } catch (err) {
       console.error("[bootstrap] bootDecisionPanels failed:", err);
     }
-    // サシ: 報告フェーズ10分 / アクティブ6時間 の自動タイムアウト
+    // サシ: 報告フェーズ10分 / アクティブ6時間 / pending 1時間 の自動タイムアウト
     try {
       bootSashiTimeouts(client);
     } catch (err) {
       console.error("[bootstrap] bootSashiTimeouts failed:", err);
+    }
+    // チンチロ対戦: pending 1時間 の自動辞退
+    try {
+      bootSaiTimeouts(client);
+    } catch (err) {
+      console.error("[bootstrap] bootSaiTimeouts failed:", err);
     }
     // 通貨ログのライブフィード（adjustBalance 毎にチャットへ1行）
     setTxFeedHandler((e: TxEvent) => { void postTxFeedLine(client, e); });

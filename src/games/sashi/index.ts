@@ -33,6 +33,7 @@ import { mentionAdminRole } from "../../admin/commands";
 const DRAW = "draw";
 
 // 自動タイムアウト
+const PENDING_AUTO_DECLINE_MS = 60 * 60_000;        // 申込みから1時間で自動辞退
 const REPORT_AUTO_FINALIZE_MS = 10 * 60_000;        // 報告後10分で自動承認
 const ACTIVE_AUTO_VOID_MS = 6 * 60 * 60_000;        // 両者エスクロー後6時間で自動void
 const SASHI_TICK_INTERVAL_MS = 60_000;              // 1分ごとに点検
@@ -405,6 +406,20 @@ async function announce(client: Client, m: MatchRow, content: string): Promise<v
  */
 async function sweepStaleSashi(client: Client): Promise<void> {
   const now = Date.now();
+
+  // pending の自動辞退（申込みから1時間）— 未徴収なので返金不要
+  const pending = db.prepare("SELECT * FROM pvp_matches WHERE status = 'pending'").all() as MatchRow[];
+  for (const m of pending) {
+    const createdTs = new Date(m.created_at + "Z").getTime();
+    if (now - createdTs >= PENDING_AUTO_DECLINE_MS) {
+      try {
+        db.prepare("UPDATE pvp_matches SET status = 'void' WHERE id = ? AND status = 'pending'").run(m.id);
+        await clearPanelComponents(client, m, "⚔️ 申込みが1時間放置されたから流したよ。また気が向いたら声かけて。");
+      } catch (err) {
+        console.warn(`[sashi sweep] pending auto-decline failed for #${m.id}:`, err);
+      }
+    }
+  }
 
   // reported の自動承認
   const reported = db.prepare(

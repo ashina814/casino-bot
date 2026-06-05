@@ -28,6 +28,8 @@ import { autoRollHand, handRank, describeHand, diceDisplay, type Hand } from "..
 
 const RAKE_PCT = 0.03;     // 場代 3%（勝者が得る相手分から）→ 星溜まり(JP)
 const MAX_TIE_ROUNDS = 5;  // 同役での振り直し上限
+const PENDING_AUTO_DECLINE_MS = 60 * 60_000; // 申込み放置 1時間で自動辞退
+const SAI_TICK_INTERVAL_MS = 60_000;         // 1分ごとに点検
 
 type DuelRow = {
   id: number;
@@ -273,6 +275,49 @@ async function announce(client: Client, d: DuelRow, payload: any): Promise<void>
     const ch = await client.channels.fetch(d.channel_id);
     if (ch && ch.isTextBased()) await (ch as any).send(payload);
   } catch { /* ignore */ }
+}
+
+// ─── pending 自動辞退 ──────────────────────────────
+async function clearDuelPanel(client: Client, d: DuelRow, replaceContent: string): Promise<void> {
+  if (!d.channel_id || !d.message_id) return;
+  try {
+    const ch = await client.channels.fetch(d.channel_id).catch(() => null);
+    if (!ch || !("messages" in ch)) return;
+    const msg = await (ch as any).messages.fetch(d.message_id).catch(() => null);
+    if (!msg) return;
+    await msg.edit({
+      content: "",
+      embeds: [baseEmbed(`🎲 チンチロ対戦 #${d.id}`, PALETTE.NIGHT).setDescription(replaceContent)],
+      components: [],
+    }).catch(() => {});
+  } catch { /* ignore */ }
+}
+
+async function sweepStalePendingDuels(client: Client): Promise<void> {
+  const now = Date.now();
+  const pending = db.prepare("SELECT * FROM dice_duels WHERE status = 'pending'").all() as DuelRow[];
+  for (const d of pending) {
+    const createdTs = new Date(d.created_at + "Z").getTime();
+    if (now - createdTs >= PENDING_AUTO_DECLINE_MS) {
+      try {
+        db.prepare("UPDATE dice_duels SET status = 'void' WHERE id = ? AND status = 'pending'").run(d.id);
+        await clearDuelPanel(client, d, "🎲 申込みが1時間放置されたから流したよ。また気が向いたら声かけて。");
+      } catch (err) {
+        console.warn(`[saishoubu sweep] pending auto-decline failed for #${d.id}:`, err);
+      }
+    }
+  }
+}
+
+let saiTickHandle: NodeJS.Timeout | null = null;
+/** 起動時に呼ぶ。1分ごとに pending を点検して放置申込みを自動辞退化する。 */
+export function bootSaiTimeouts(client: Client): void {
+  if (saiTickHandle) clearInterval(saiTickHandle);
+  void sweepStalePendingDuels(client).catch((err) => console.error("[saishoubu] initial sweep failed:", err));
+  saiTickHandle = setInterval(() => {
+    void sweepStalePendingDuels(client).catch((err) => console.error("[saishoubu] tick sweep failed:", err));
+  }, SAI_TICK_INTERVAL_MS);
+  console.log("[saishoubu] pending sweep started (1min interval)");
 }
 
 // ─── 起動時返金 ───────────────────────────────────────
