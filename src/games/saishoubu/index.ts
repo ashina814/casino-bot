@@ -25,6 +25,7 @@ import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { autoRollHand, handRank, describeHand, diceDisplay, type Hand } from "../chinchiro/index";
+import { createLinkedTable, findLinkedVC } from "../takutate/index";
 
 const RAKE_PCT = 0.03;     // 場代 3%（勝者が得る相手分から）→ 星溜まり(JP)
 const MAX_TIE_ROUNDS = 5;  // 同役での振り直し上限
@@ -101,8 +102,11 @@ export async function challenge(interaction: ChatInputCommandInteraction): Promi
     new ButtonBuilder().setCustomId(`sai:accept:${duelId}`).setLabel("受ける").setStyle(ButtonStyle.Success).setEmoji("🎲"),
     new ButtonBuilder().setCustomId(`sai:decline:${duelId}`).setLabel("辞退").setStyle(ButtonStyle.Secondary),
   );
+  const linkRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`sai:linkvc:${duelId}`).setLabel("この勝負用の卓を立てる").setStyle(ButtonStyle.Secondary).setEmoji("🎲"),
+  );
 
-  await interaction.reply({ content: `<@${opponent.id}>`, embeds: [embed], components: [row] });
+  await interaction.reply({ content: `<@${opponent.id}>`, embeds: [embed], components: [row, linkRow] });
   const msg = await interaction.fetchReply();
   db.prepare("UPDATE dice_duels SET message_id = ? WHERE id = ?").run(msg.id, duelId);
 }
@@ -114,6 +118,31 @@ export async function handleSaiButton(interaction: ButtonInteraction): Promise<v
   if (!d) { await interaction.reply({ content: "その勝負はもう無いみたい。", ephemeral: true }); return; }
   if (action === "accept") return accept(interaction, d);
   if (action === "decline") return decline(interaction, d);
+  if (action === "linkvc") return linkVc(interaction, d);
+}
+
+async function linkVc(interaction: ButtonInteraction, d: DuelRow): Promise<void> {
+  if (interaction.user.id !== d.challenger_id && interaction.user.id !== d.opponent_id) {
+    await interaction.reply({ content: "当事者だけが立てられるよ。", ephemeral: true }); return;
+  }
+  if (d.status !== "pending" && d.status !== "active") {
+    await interaction.reply({ content: "勝負が成立してる時だけ立てられるよ。", ephemeral: true }); return;
+  }
+  const existing = findLinkedVC("saishoubu", String(d.id));
+  if (existing) {
+    await interaction.reply({
+      embeds: [baseEmbed("🎲 もう立ってるよ", PALETTE.JADE).setDescription(`卓は <#${existing.channel_id}> にあるよ。`)],
+      ephemeral: true,
+    });
+    return;
+  }
+  await createLinkedTable(interaction, {
+    linkType: "saishoubu",
+    linkId: String(d.id),
+    userLimit: 2,
+    allowedUserIds: [d.challenger_id, d.opponent_id],
+    vcName: `🎲 賽勝負の卓 #${d.id}`,
+  });
 }
 
 async function decline(interaction: ButtonInteraction, d: DuelRow): Promise<void> {

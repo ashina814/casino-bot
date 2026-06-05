@@ -26,6 +26,7 @@ import { getTierByKey } from "../../core/economy";
 import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
+import { createLinkedTable, findLinkedVC } from "../takutate/index";
 
 const RAKE_PCT = 0.03;
 const MIN_OPEN = 2;
@@ -203,7 +204,10 @@ export async function challenge(interaction: ChatInputCommandInteraction): Promi
       new ButtonBuilder().setCustomId(`pkr:accept:${gameId}`).setLabel("受ける").setStyle(ButtonStyle.Success).setEmoji("🃏"),
       new ButtonBuilder().setCustomId(`pkr:decline:${gameId}`).setLabel("辞退").setStyle(ButtonStyle.Secondary),
     );
-    await interaction.reply({ content: `<@${opponent!.id}>`, embeds: [embed], components: [row] });
+    const linkRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`pkr:linkvc:${gameId}`).setLabel("この勝負用の卓を立てる").setStyle(ButtonStyle.Secondary).setEmoji("🃏"),
+    );
+    await interaction.reply({ content: `<@${opponent!.id}>`, embeds: [embed], components: [row, linkRow] });
     const msg = await interaction.fetchReply();
     db.prepare("UPDATE poker_games SET message_id = ? WHERE id = ?").run(msg.id, gameId);
   } else {
@@ -231,12 +235,17 @@ function renderOpenLobby(gameId: number): ReturnType<typeof baseEmbed> {
   ].join("\n"));
 }
 function lobbyButtons(gameId: number): ActionRowBuilder<ButtonBuilder>[] {
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`pkr:join:${gameId}`).setLabel("🃏 参加").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`pkr:leave:${gameId}`).setLabel("🚪 抜ける").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`pkr:deal:${gameId}`).setLabel("🎴 締切→配布").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`pkr:cancel:${gameId}`).setLabel("❌ 中止").setStyle(ButtonStyle.Danger),
-  )];
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`pkr:join:${gameId}`).setLabel("🃏 参加").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`pkr:leave:${gameId}`).setLabel("🚪 抜ける").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`pkr:deal:${gameId}`).setLabel("🎴 締切→配布").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`pkr:cancel:${gameId}`).setLabel("❌ 中止").setStyle(ButtonStyle.Danger),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`pkr:linkvc:${gameId}`).setLabel("この勝負用の卓を立てる").setStyle(ButtonStyle.Secondary).setEmoji("🃏"),
+    ),
+  ];
 }
 
 // ─── ボタン ─────────────────────────────────────────
@@ -252,6 +261,46 @@ export async function handlePokerButton(interaction: ButtonInteraction): Promise
     case "deal": return dealOpen(interaction, g);
     case "cancel": return cancelOpen(interaction, g);
     case "hand": return showHand(interaction, g);
+    case "linkvc": return linkVc(interaction, g);
+  }
+}
+
+async function linkVc(interaction: ButtonInteraction, g: GameRow): Promise<void> {
+  // サシ: 当事者2人のみ / オープン: 公開（パネルch継承）
+  const userId = interaction.user.id;
+  const players = getPlayers(g.id);
+  if (g.mode === "sashi") {
+    if (userId !== g.host_id && userId !== g.opponent_id) {
+      await interaction.reply({ content: "当事者だけが立てられるよ。", ephemeral: true }); return;
+    }
+  } else {
+    if (userId !== g.host_id && !players.some((p) => p.user_id === userId)) {
+      await interaction.reply({ content: "立て主か参加者だけが立てられるよ。", ephemeral: true }); return;
+    }
+  }
+  if (g.status !== "pending" && g.status !== "open" && g.status !== "dealt") {
+    await interaction.reply({ content: "勝負中だけ立てられるよ。", ephemeral: true }); return;
+  }
+  const existing = findLinkedVC("poker", String(g.id));
+  if (existing) {
+    await interaction.reply({
+      embeds: [baseEmbed("🃏 もう立ってるよ", PALETTE.JADE).setDescription(`卓は <#${existing.channel_id}> にあるよ。`)],
+      ephemeral: true,
+    });
+    return;
+  }
+  if (g.mode === "sashi") {
+    await createLinkedTable(interaction, {
+      linkType: "poker", linkId: String(g.id),
+      userLimit: 2, allowedUserIds: [g.host_id, g.opponent_id!],
+      vcName: `🃏 ポーカーの卓 #${g.id}`,
+    });
+  } else {
+    await createLinkedTable(interaction, {
+      linkType: "poker", linkId: String(g.id),
+      userLimit: 6, allowedUserIds: null,
+      vcName: `🃏 ポーカー卓 #${g.id}`,
+    });
   }
 }
 

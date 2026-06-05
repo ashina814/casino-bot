@@ -24,6 +24,7 @@ import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { createDeck, handValue, handDisplay, type Card } from "../blackjack/index";
+import { createLinkedTable, findLinkedVC } from "../takutate/index";
 
 const RAKE_PCT = 0.03;                       // 場代 3% → JP
 const PENDING_AUTO_DECLINE_MS = 60 * 60_000; // 1h で自動辞退
@@ -112,7 +113,10 @@ export async function challenge(interaction: ChatInputCommandInteraction): Promi
     new ButtonBuilder().setCustomId(`bjd:accept:${duelId}`).setLabel("受ける").setStyle(ButtonStyle.Success).setEmoji("🃏"),
     new ButtonBuilder().setCustomId(`bjd:decline:${duelId}`).setLabel("辞退").setStyle(ButtonStyle.Secondary),
   );
-  await interaction.reply({ content: `<@${opponent.id}>`, embeds: [embed], components: [row] });
+  const linkRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`bjd:linkvc:${duelId}`).setLabel("この勝負用の卓を立てる").setStyle(ButtonStyle.Secondary).setEmoji("🃏"),
+  );
+  await interaction.reply({ content: `<@${opponent.id}>`, embeds: [embed], components: [row, linkRow] });
   const msg = await interaction.fetchReply();
   db.prepare("UPDATE bj_duels SET message_id = ? WHERE id = ?").run(msg.id, duelId);
 }
@@ -127,7 +131,30 @@ export async function handleBjDuelButton(interaction: ButtonInteraction): Promis
     case "decline": return decline(interaction, d);
     case "hit": return hit(interaction, d);
     case "stand": return stand(interaction, d);
+    case "linkvc": return linkVc(interaction, d);
   }
+}
+
+async function linkVc(interaction: ButtonInteraction, d: DuelRow): Promise<void> {
+  if (!isParticipant(d, interaction.user.id)) {
+    await interaction.reply({ content: "当事者だけが立てられるよ。", ephemeral: true }); return;
+  }
+  if (d.status !== "pending" && d.status !== "active") {
+    await interaction.reply({ content: "勝負が成立してる時だけ立てられるよ。", ephemeral: true }); return;
+  }
+  const existing = findLinkedVC("bjduel", String(d.id));
+  if (existing) {
+    await interaction.reply({
+      embeds: [baseEmbed("🃏 もう立ってるよ", PALETTE.JADE).setDescription(`卓は <#${existing.channel_id}> にあるよ。`)],
+      ephemeral: true,
+    });
+    return;
+  }
+  await createLinkedTable(interaction, {
+    linkType: "bjduel", linkId: String(d.id),
+    userLimit: 2, allowedUserIds: [d.challenger_id, d.opponent_id],
+    vcName: `🃏 BJ対戦の卓 #${d.id}`,
+  });
 }
 
 async function decline(interaction: ButtonInteraction, d: DuelRow): Promise<void> {

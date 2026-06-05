@@ -34,6 +34,7 @@ import { getTierByKey } from "../../core/economy";
 import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
+import { createLinkedTable, findLinkedVC } from "../takutate/index";
 
 // ─── 定数 ─────────────────────────────────────────────
 const RAKE_PCT = 0.03;                   // 場代 3% → 星溜まり(JP)
@@ -188,6 +189,7 @@ function renderPanel(gameId: number): { embeds: EmbedBuilder[]; components: Acti
     ));
     rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`bon:close:${g.id}`).setLabel("締めて振る").setStyle(ButtonStyle.Secondary).setEmoji("🎲"),
+      new ButtonBuilder().setCustomId(`bon:linkvc:${g.id}`).setLabel("この勝負用の卓を立てる").setStyle(ButtonStyle.Secondary).setEmoji("🎴"),
     ));
   }
   return { embeds: [embed], components: rows };
@@ -221,6 +223,27 @@ export async function handleChohanButton(interaction: ButtonInteraction): Promis
   if (!g) { await interaction.reply({ content: "その丁半はもう無いみたい。", ephemeral: true }); return; }
   if (action === "bet") return openBetModal(interaction, g, sideArg as Side);
   if (action === "close") return doClose(interaction, g);
+  if (action === "linkvc") return linkVc(interaction, g);
+}
+
+async function linkVc(interaction: ButtonInteraction, g: GameRow): Promise<void> {
+  if (g.status !== "open") {
+    await interaction.reply({ content: "受付中の盆だけ立てられるよ。", ephemeral: true }); return;
+  }
+  const existing = findLinkedVC("chohan", String(g.id));
+  if (existing) {
+    await interaction.reply({
+      embeds: [baseEmbed("🎴 もう立ってるよ", PALETTE.JADE).setDescription(`卓は <#${existing.channel_id}> にあるよ。`)],
+      ephemeral: true,
+    });
+    return;
+  }
+  // 丁半は公開（誰でも参加可能）→ パネルch継承
+  await createLinkedTable(interaction, {
+    linkType: "chohan", linkId: String(g.id),
+    userLimit: 0, allowedUserIds: null,
+    vcName: `🎴 丁半の卓 #${g.id}`,
+  });
 }
 
 export async function handleChohanModal(interaction: ModalSubmitInteraction): Promise<void> {
