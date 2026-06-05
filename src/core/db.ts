@@ -620,6 +620,28 @@ export function initializeDatabase(): void {
     "ALTER TABLE users ADD COLUMN nagareboshi_count INTEGER NOT NULL DEFAULT 0",
   ];
 
+  // ─── インディアンポーカー（1v1心理戦） ───
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS indian_duels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      challenger_id TEXT NOT NULL,
+      opponent_id TEXT NOT NULL,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','active','settled','declined','void')),
+      challenger_card INTEGER NOT NULL DEFAULT 0,
+      opponent_card INTEGER NOT NULL DEFAULT 0,
+      challenger_action TEXT,
+      opponent_action TEXT,
+      winner_id TEXT,
+      rake INTEGER NOT NULL DEFAULT 0,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // ─── BJ 対人戦テーブル ───
   db.exec(`
     CREATE TABLE IF NOT EXISTS bj_duels (

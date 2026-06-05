@@ -11,6 +11,7 @@ import { challenge as saiChallenge } from "../saishoubu";
 import { challenge as sashiChallenge } from "../sashi";
 import { handleBoardCommand } from "../board";
 import { challenge as bjdChallenge } from "../bjduel";
+import { challenge as indianChallenge } from "../indian";
 
 export const shoubuCommand = new SlashCommandBuilder()
   .setName("勝負")
@@ -48,6 +49,13 @@ export const shoubuCommand = new SlashCommandBuilder()
       .addUserOption((o) => o.setName("相手").setDescription("対戦相手").setRequired(true))
       .addIntegerOption((o) => o.setName("額").setDescription("賭け金（両者同額・勝者総取り）").setRequired(true).setMinValue(1)),
   )
+  .addSubcommand((sc) =>
+    sc
+      .setName("インディアン")
+      .setDescription("🪶 インディアンポーカー — 相手の手は見えて自分の手は見えない心理戦")
+      .addUserOption((o) => o.setName("相手").setDescription("対戦相手").setRequired(true))
+      .addIntegerOption((o) => o.setName("額").setDescription("賭け金（両者同額・勝者総取り）").setRequired(true).setMinValue(1)),
+  )
   .addSubcommandGroup((g) =>
     g
       .setName("板")
@@ -78,5 +86,6 @@ export async function handleShoubuCommand(interaction: ChatInputCommandInteracti
     case "チンチロ": return saiChallenge(interaction);
     case "サシ": return sashiChallenge(interaction);
     case "BJ": return bjdChallenge(interaction);
+    case "インディアン": return indianChallenge(interaction);
   }
 }
