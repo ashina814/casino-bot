@@ -12,6 +12,7 @@ import { challenge as sashiChallenge } from "../sashi";
 import { handleBoardCommand } from "../board";
 import { challenge as bjdChallenge } from "../bjduel";
 import { challenge as indianChallenge } from "../indian";
+import { challenge as pokerChallenge } from "../poker";
 
 export const shoubuCommand = new SlashCommandBuilder()
   .setName("勝負")
@@ -56,6 +57,13 @@ export const shoubuCommand = new SlashCommandBuilder()
       .addUserOption((o) => o.setName("相手").setDescription("対戦相手").setRequired(true))
       .addIntegerOption((o) => o.setName("額").setDescription("賭け金（両者同額・勝者総取り）").setRequired(true).setMinValue(1)),
   )
+  .addSubcommand((sc) =>
+    sc
+      .setName("ポーカー")
+      .setDescription("🃏 5枚交換ポーカー — 相手指定でサシ・未指定でオープン募集")
+      .addIntegerOption((o) => o.setName("額").setDescription("賭け金（参加者全員同額）").setRequired(true).setMinValue(1))
+      .addUserOption((o) => o.setName("相手").setDescription("相手指定でサシ（未指定なら誰でも参加できるオープン）").setRequired(false)),
+  )
   .addSubcommandGroup((g) =>
     g
       .setName("板")
@@ -87,5 +95,6 @@ export async function handleShoubuCommand(interaction: ChatInputCommandInteracti
     case "サシ": return sashiChallenge(interaction);
     case "BJ": return bjdChallenge(interaction);
     case "インディアン": return indianChallenge(interaction);
+    case "ポーカー": return pokerChallenge(interaction);
   }
 }

@@ -620,6 +620,39 @@ export function initializeDatabase(): void {
     "ALTER TABLE users ADD COLUMN nagareboshi_count INTEGER NOT NULL DEFAULT 0",
   ];
 
+  // ─── 5枚交換ポーカー ───
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS poker_games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      mode TEXT NOT NULL CHECK(mode IN ('sashi','open')),
+      host_id TEXT NOT NULL,
+      opponent_id TEXT,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','open','dealt','settled','declined','void')),
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      dealt_at TEXT,
+      settled_at TEXT
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS poker_players (
+      game_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      hand TEXT NOT NULL DEFAULT '[]',
+      discarded TEXT NOT NULL DEFAULT '[]',
+      discard_done INTEGER NOT NULL DEFAULT 0,
+      final_hand TEXT NOT NULL DEFAULT '[]',
+      rank_category INTEGER NOT NULL DEFAULT 0,
+      rank_tiebreak TEXT NOT NULL DEFAULT '[]',
+      rank_label TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (game_id, user_id)
+    )
+  `);
+
   // ─── インディアンポーカー（1v1心理戦） ───
   db.exec(`
     CREATE TABLE IF NOT EXISTS indian_duels (

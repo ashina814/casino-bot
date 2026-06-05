@@ -34,7 +34,7 @@ const WARNING_BEFORE_MS = 30_000;          // 残りこの時間で警告
 const TICK_INTERVAL_MS = 10_000;           // 期限/警告の点検周期
 
 // ─── 型 ──────────────────────────────────────────────
-type LinkType = "sashi" | "board" | "chohan" | "saishoubu" | "bjduel" | "indian";
+type LinkType = "sashi" | "board" | "chohan" | "saishoubu" | "bjduel" | "indian" | "poker";
 
 type PanelRow = {
   id: number;
@@ -333,6 +333,9 @@ async function tryRestart(client: Client, p: PanelRow): Promise<void> {
     } else if (p.link_type === "indian") {
       const { restartIndian } = require("./indian/index");
       newLinkId = await restartIndian(client, Number(p.link_id), p.vc_id, p.guild_id);
+    } else if (p.link_type === "poker") {
+      const { restartPoker } = require("./poker/index");
+      newLinkId = await restartPoker(client, Number(p.link_id), p.vc_id, p.guild_id);
     } else if (p.link_type === "board") {
       const { restartBoard } = require("./board/index");
       newLinkId = await restartBoard(client, Number(p.link_id), p.vc_id, p.guild_id);

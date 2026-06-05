@@ -27,6 +27,7 @@ import { handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } fro
 import { handleSaiButton, refundStaleDuelsOnStartup, bootSaiTimeouts } from "./games/saishoubu";
 import { handleBjDuelButton, refundStaleBjDuelsOnStartup, bootBjDuelTimeouts } from "./games/bjduel";
 import { handleIndianButton, refundStaleIndianOnStartup, bootIndianTimeouts } from "./games/indian";
+import { handlePokerButton, handlePokerSelect, refundStalePokerOnStartup, bootPokerTimeouts } from "./games/poker";
 import { handleShoubuCommand } from "./games/shoubu";
 import { handleVipCommand, handleVipButton } from "./games/vip";
 import { handleNagareCommand } from "./games/nagareboshi";
@@ -152,6 +153,11 @@ async function bootstrap(): Promise<void> {
   } catch (err) {
     console.error("[bootstrap] refundStaleIndianOnStartup failed:", err);
   }
+  try {
+    refundStalePokerOnStartup();
+  } catch (err) {
+    console.error("[bootstrap] refundStalePokerOnStartup failed:", err);
+  }
   // 為替の中断分を回収（API有効時のみ・非同期で投げっぱなし）
   reconcileStaleExchangesOnStartup().catch((err) =>
     console.error("[bootstrap] reconcileStaleExchangesOnStartup failed:", err),
@@ -203,6 +209,12 @@ async function bootstrap(): Promise<void> {
       bootIndianTimeouts(client);
     } catch (err) {
       console.error("[bootstrap] bootIndianTimeouts failed:", err);
+    }
+    // 5枚交換ポーカー
+    try {
+      bootPokerTimeouts(client);
+    } catch (err) {
+      console.error("[bootstrap] bootPokerTimeouts failed:", err);
     }
     // 通貨ログのライブフィード（adjustBalance 毎にチャットへ1行）
     setTxFeedHandler((e: TxEvent) => { void postTxFeedLine(client, e); });
@@ -314,6 +326,16 @@ async function bootstrap(): Promise<void> {
       // ── インディアン (ind:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("ind:")) {
         await handleIndianButton(interaction);
+        return;
+      }
+
+      // ── 5枚交換ポーカー (pkr:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("pkr:")) {
+        await handlePokerButton(interaction);
+        return;
+      }
+      if (interaction.isStringSelectMenu() && interaction.customId.startsWith("pkr:")) {
+        await handlePokerSelect(interaction);
         return;
       }
 
