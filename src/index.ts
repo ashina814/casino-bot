@@ -22,7 +22,7 @@ import { reconcileStaleExchangesOnStartup } from "./core/exchange";
 import { handleBoardCommand, handleBoardButton, handleBoardSelect, handleBoardModal, refundStaleMarketsOnStartup } from "./games/board";
 import { handleSashiButton, refundStaleSashiOnStartup, bootSashiTimeouts } from "./games/sashi";
 import { handleTipCommand } from "./games/tip";
-import { handleTakuButton, handleTableVoiceState, sweepStaleTempVCs } from "./games/takutate";
+import { handleTakuButton, handleTableVoiceState, sweepStaleTempVCs, refundAllVCDepositsOnStartup } from "./games/takutate";
 import { handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
 import { handleSaiButton, refundStaleDuelsOnStartup } from "./games/saishoubu";
 import { handleShoubuCommand } from "./games/shoubu";
@@ -108,6 +108,12 @@ function refundStaleBetsOnStartup(): void {
 
 async function bootstrap(): Promise<void> {
   initializeDatabase();
+  // 卓デポジットは最初に保護返金（後続の void / VC 削除で没収扱いになる前に）
+  try {
+    refundAllVCDepositsOnStartup();
+  } catch (err) {
+    console.error("[bootstrap] refundAllVCDepositsOnStartup failed:", err);
+  }
   try {
     refundStaleBetsOnStartup();
   } catch (err) {

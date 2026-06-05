@@ -70,6 +70,45 @@ export function markLinkedVCSettled(linkType: string, linkId: string): void {
 }
 
 /**
+ * 特定の link 対象に紐付く VC デポジットを保有者へ即返金（idempotent）。
+ * 管理者が cancel/sweep する時に呼ぶ — ユーザー責でない事由で没収するのを防ぐ。
+ */
+export function refundLinkedVCDeposit(linkType: string, linkId: string): boolean {
+  const row = db.prepare(
+    `SELECT channel_id, deposit_holder, deposit_amount, guild_id
+     FROM temp_voice_channels
+     WHERE link_type = ? AND link_id = ? AND deposit_amount > 0 AND deposit_holder IS NOT NULL`,
+  ).get(linkType, linkId) as { channel_id: string; deposit_holder: string; deposit_amount: number; guild_id: string } | undefined;
+  if (!row) return false;
+  adjustBalance(row.deposit_holder, row.deposit_amount, "卓: 管理者取消による保護返金", "takutate", row.guild_id);
+  db.prepare("UPDATE temp_voice_channels SET deposit_amount = 0 WHERE channel_id = ?").run(row.channel_id);
+  return true;
+}
+
+/**
+ * 起動時に呼ぶ: 保有中のデポジットを全て即返金。
+ * 再起動でゲームが void になり settle_count=0 のまま VC が消されてデポが没収される
+ * 不公正を防ぐ。返金後 deposit_amount=0 なので、生き残った VC が後で settle/close しても
+ * 二重返金は発生しない。
+ */
+export function refundAllVCDepositsOnStartup(): void {
+  const rows = db.prepare(
+    `SELECT channel_id, deposit_holder, deposit_amount, guild_id
+     FROM temp_voice_channels
+     WHERE deposit_amount > 0 AND deposit_holder IS NOT NULL`,
+  ).all() as Array<{ channel_id: string; deposit_holder: string; deposit_amount: number; guild_id: string }>;
+  if (rows.length === 0) return;
+
+  let refunded = 0;
+  for (const r of rows) {
+    adjustBalance(r.deposit_holder, r.deposit_amount, "卓: 再起動による保護返金", "takutate", r.guild_id);
+    db.prepare("UPDATE temp_voice_channels SET deposit_amount = 0 WHERE channel_id = ?").run(r.channel_id);
+    refunded++;
+  }
+  console.log(`[bootstrap] refunded ${refunded} VC deposit(s) for safety on restart`);
+}
+
+/**
  * デポジット精算（VC が閉じられる直前に呼ぶ）。
  *  settle_count > 0 → 返却
  *  settle_count = 0 → JP没収

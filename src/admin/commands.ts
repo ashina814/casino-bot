@@ -727,6 +727,13 @@ async function handleSashiCancel(interaction: ChatInputCommandInteraction, guild
     db.prepare("UPDATE pvp_matches SET status = 'void' WHERE id = ?").run(matchId);
   });
 
+  // 紐付きVCのデポジットも保護返金（admin 取消の責はユーザーにない）
+  let depositRefunded = false;
+  try {
+    const { refundLinkedVCDeposit } = require("../games/takutate");
+    depositRefunded = refundLinkedVCDeposit("sashi", String(matchId));
+  } catch (err) { console.warn("[admin sashi cancel] deposit refund failed:", err); }
+
   // 元メッセージ書き換え
   if (m.channel_id && m.message_id) {
     try {
@@ -745,7 +752,7 @@ async function handleSashiCancel(interaction: ChatInputCommandInteraction, guild
   }
 
   await interaction.reply({
-    embeds: [successEmbed(`match #${matchId} を取り消したよ。${refunded ? "両者に ◈" + m.stake.toLocaleString() + " ずつ返金。" : "（未徴収のため返金なし）"}`)],
+    embeds: [successEmbed(`match #${matchId} を取り消したよ。${refunded ? "両者に ◈" + m.stake.toLocaleString() + " ずつ返金。" : "（未徴収のため返金なし）"}${depositRefunded ? "\n紐付きVCのデポジットも返金。" : ""}`)],
     ephemeral: true,
   });
 }
@@ -814,6 +821,13 @@ async function handleBoardCancel(interaction: ChatInputCommandInteraction, guild
     db.prepare("UPDATE betting_markets SET status = 'void', settled_at = datetime('now') WHERE id = ?").run(marketId);
   });
 
+  // 紐付きVCのデポジットも保護返金
+  let depositRefunded = false;
+  try {
+    const { refundLinkedVCDeposit } = require("../games/takutate");
+    depositRefunded = refundLinkedVCDeposit("board", String(marketId));
+  } catch (err) { console.warn("[admin board cancel] deposit refund failed:", err); }
+
   // 元メッセージ書き換え
   if (m.channel_id && m.message_id) {
     try {
@@ -832,7 +846,7 @@ async function handleBoardCancel(interaction: ChatInputCommandInteraction, guild
   }
 
   await interaction.reply({
-    embeds: [successEmbed(`市場 #${marketId} を取り消したよ。${refunded}人に全額返金。`)],
+    embeds: [successEmbed(`市場 #${marketId} を取り消したよ。${refunded}人に全額返金。${depositRefunded ? "\n紐付きVCのデポジットも返金。" : ""}`)],
     ephemeral: true,
   });
 }
@@ -875,6 +889,9 @@ async function handleBoardSweep(interaction: ChatInputCommandInteraction, guildI
   let totalRefunds = 0;
   let totalAmount = 0;
 
+  // 紐付きVCのデポジット保護返金（admin sweep の責はユーザーにない）
+  const { refundLinkedVCDeposit } = require("../games/takutate");
+
   for (const m of stale) {
     const bets = db.prepare("SELECT user_id, amount FROM market_bets WHERE market_id = ?").all(m.id) as Array<{ user_id: string; amount: number }>;
     runTransaction(() => {
@@ -885,6 +902,7 @@ async function handleBoardSweep(interaction: ChatInputCommandInteraction, guildI
       }
       db.prepare("UPDATE betting_markets SET status = 'void', settled_at = datetime('now') WHERE id = ?").run(m.id);
     });
+    try { refundLinkedVCDeposit("board", String(m.id)); } catch (err) { console.warn("[admin board sweep] deposit refund failed:", err); }
 
     // 元メッセージ書き換え（あれば）
     if (m.channel_id && m.message_id) {

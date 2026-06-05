@@ -23,7 +23,7 @@ import {
   type VoiceChannel,
   type TextBasedChannel,
 } from "discord.js";
-import { db } from "../core/db";
+import { db, runTransaction } from "../core/db";
 import { baseEmbed } from "../ui/embeds";
 import { PALETTE } from "../world.config";
 import { findLinkedVC, updateLinkedVCLinkId, deleteLinkedVC, markLinkedVCSettled } from "./takutate/index";
@@ -228,17 +228,34 @@ export async function handleDecisionButton(interaction: ButtonInteraction): Prom
   if (action === "stop") return onStop(interaction, p, userId, isPair);
 }
 
-async function onContinue(interaction: ButtonInteraction, p: PanelRow, userId: string, isPair: boolean): Promise<void> {
-  const cont = new Set(parseList(p.votes_continue));
-  const stop = new Set(parseList(p.votes_stop));
-  cont.add(userId); stop.delete(userId);
-  setVotes(p.id, "continue", Array.from(cont));
-  setVotes(p.id, "stop", Array.from(stop));
+/** 投票更新を transaction で包んで read-modify-write を原子化する。
+ *  status が既に 'open' でなければ null を返す（同時押下対策）。 */
+function castVote(panelId: number, userId: string, kind: "continue" | "stop"): PanelRow | null {
+  return runTransaction<PanelRow | null>(() => {
+    const fresh = getPanel(panelId);
+    if (!fresh || fresh.status !== "open") return null;
+    const cont = new Set(parseList(fresh.votes_continue));
+    const stop = new Set(parseList(fresh.votes_stop));
+    if (kind === "continue") { cont.add(userId); stop.delete(userId); }
+    else                     { stop.add(userId); cont.delete(userId); }
+    db.prepare(
+      "UPDATE decision_panels SET votes_continue = ?, votes_stop = ? WHERE id = ?",
+    ).run(JSON.stringify(Array.from(cont)), JSON.stringify(Array.from(stop)), panelId);
+    return getPanel(panelId)!;
+  });
+}
 
-  const refreshed = getPanel(p.id)!;
+async function onContinue(interaction: ButtonInteraction, p: PanelRow, userId: string, isPair: boolean): Promise<void> {
+  const refreshed = castVote(p.id, userId, "continue");
+  if (!refreshed) {
+    await interaction.reply({ content: "もう決まっちゃったみたい。", ephemeral: true }).catch(() => {});
+    return;
+  }
+  // 集約後の最新票で判定する（自分以外の同時押下も含めて反映済み）
+  const cont = new Set(parseList(refreshed.votes_continue));
 
   if (isPair) {
-    const participants = parseList(p.participant_ids);
+    const participants = parseList(refreshed.participant_ids);
     const bothAgreed = participants.every((u) => cont.has(u));
     if (bothAgreed) {
       await interaction.deferUpdate().catch(() => {});
@@ -246,7 +263,7 @@ async function onContinue(interaction: ButtonInteraction, p: PanelRow, userId: s
       return;
     }
   } else {
-    if (userId === p.host_id) {
+    if (userId === refreshed.host_id) {
       await interaction.deferUpdate().catch(() => {});
       await tryRestart(interaction.client, refreshed);
       return;
@@ -262,7 +279,15 @@ async function onStop(interaction: ButtonInteraction, p: PanelRow, userId: strin
   // 1v1: どちらかが [やめる] → 即解散
   // 多人数: 立て主が [やめる] → 即解散。参加者の [やめる] は意思表示のみ
   if (isPair || userId === p.host_id) {
-    setPanelStatus(p.id, "stopped");
+    // 解散の原子化: status を 'open' → 'stopped' に差分 UPDATE。同時押し対策。
+    const claim = db.prepare(
+      "UPDATE decision_panels SET status = 'stopped' WHERE id = ? AND status = 'open'",
+    ).run(p.id);
+    if (claim.changes !== 1) {
+      // 別フローが既に決着済み
+      await interaction.reply({ content: "もう決まっちゃったみたい。", ephemeral: true }).catch(() => {});
+      return;
+    }
     await interaction.update({
       embeds: [baseEmbed("⏹️ お開き", PALETTE.NIGHT).setDescription("また今度ね。卓はそっと片付けるよ。")],
       components: [],
@@ -270,12 +295,11 @@ async function onStop(interaction: ButtonInteraction, p: PanelRow, userId: strin
     if (p.vc_id) await deleteLinkedVC(interaction.client, p.vc_id, "decisionPanel: やめる");
     return;
   }
-  const cont = new Set(parseList(p.votes_continue));
-  const stop = new Set(parseList(p.votes_stop));
-  stop.add(userId); cont.delete(userId);
-  setVotes(p.id, "continue", Array.from(cont));
-  setVotes(p.id, "stop", Array.from(stop));
-  const refreshed = getPanel(p.id)!;
+  const refreshed = castVote(p.id, userId, "stop");
+  if (!refreshed) {
+    await interaction.reply({ content: "もう決まっちゃったみたい。", ephemeral: true }).catch(() => {});
+    return;
+  }
   await interaction.update(renderPanelEmbed(refreshed)).catch(async () => {
     await interaction.reply({ content: "票を反映したよ。", ephemeral: true }).catch(() => {});
   });
@@ -283,6 +307,17 @@ async function onStop(interaction: ButtonInteraction, p: PanelRow, userId: strin
 
 // ─── 再戦立て（dispatcher） ─────────────────────────
 async function tryRestart(client: Client, p: PanelRow): Promise<void> {
+  // 二重実行ガード: status='open' を 'continued' に差分 UPDATE して "claim" する。
+  // 同時に2人が[続行]を押した場合、片方の UPDATE だけが changes=1 になり、もう片方は 0 で早期離脱。
+  // これで restartSashi が2回呼ばれて二重エスクローになる事故を防ぐ。
+  const claim = db.prepare(
+    "UPDATE decision_panels SET status = 'continued' WHERE id = ? AND status = 'open'",
+  ).run(p.id);
+  if (claim.changes !== 1) {
+    console.log(`[decision] tryRestart skipped (already claimed): panel #${p.id}`);
+    return;
+  }
+
   try {
     let newLinkId: string | null = null;
 
