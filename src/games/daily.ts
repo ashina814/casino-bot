@@ -15,6 +15,7 @@ import { db } from "../core/db";
 import { adjustBalance, ensureUser } from "../core/bank";
 import { calculateDailyBonus, addExp, drawFromReliefPool } from "../core/economy";
 import { dialogueDaily } from "../core/dialogue";
+import { addressOwner } from "../core/ownerAddress";
 import { gameResultEmbed, infoEmbed, COLORS } from "../ui/embeds";
 import { getZashikiAttachment } from "../core/zashikiAsset";
 import {
@@ -103,7 +104,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   addExp(userId, 20);
 
   // ─── Dialogue ────────────────────────────────────────
-  let dialogue = dialogueDaily(newStreak, affection, userId, mode as any);
+  let dialogue = addressOwner(dialogueDaily(newStreak, affection, userId, mode as any), userId);
 
   // ─── Insider Info (20% chance) ───────────────────────
   if (Math.random() < 0.2) {

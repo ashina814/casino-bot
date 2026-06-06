@@ -15,6 +15,7 @@ import { handleCasinoCommand, handleHomeButton, handleHomeModal } from "./ui/hom
 import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStocksModal } from "./games/stocks";
 import { handleAdminCommand } from "./admin/commands";
 import { handleOwnerCommand } from "./admin/owner";
+import { handleShakaCommand } from "./admin/shaka";
 import { handleBlackjackButton } from "./games/blackjack";
 import { handleShoutenCommand, handleShoutenButton, handleShoutenSelect } from "./games/shouten";
 import { handleShopSelect } from "./games/shop";
@@ -172,7 +173,12 @@ async function bootstrap(): Promise<void> {
   cleanStaleSessions();
 
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildVoiceStates,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent, // ⚠ Discord Dev Portal で privileged intent を有効化必要
+    ],
   });
 
   client.once(Events.ClientReady, (ready) => {
@@ -229,6 +235,29 @@ async function bootstrap(): Promise<void> {
     );
   });
 
+  // ─── アステル: 「飽きた」リアクション（1/3 で反応） ──
+  const TIRED_LINES = [
+    "飽きるなんて、もったいないよ。",
+    "じゃあ、わたしに何かしてみる？",
+    "そういう時こそ、何もしないのがいいんだよ。",
+    "わたしも、たまにはそうなる。",
+    "ふぅん。…じゃあ、座って話そっか。",
+    "賭場の風に当たってみる？気分変わるよ。",
+    "そっか。じゃあ星でも見てよ。",
+  ];
+  client.on(Events.MessageCreate, (message) => {
+    try {
+      if (message.author.bot || !message.guild) return;
+      const content = message.content ?? "";
+      if (!content.includes("飽きた")) return;
+      if (Math.random() >= 1 / 3) return;
+      const line = TIRED_LINES[Math.floor(Math.random() * TIRED_LINES.length)];
+      void message.reply({ content: `*「${line}」*`, allowedMentions: { repliedUser: false } }).catch(() => {});
+    } catch (err) {
+      console.warn("[message] tired reaction failed:", err);
+    }
+  });
+
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
       // ── Slash Commands ──
@@ -248,6 +277,8 @@ async function bootstrap(): Promise<void> {
             return await handleAdminCommand(interaction);
           case "オーナー":
             return await handleOwnerCommand(interaction);
+          case "釈迦の心づけ":
+            return await handleShakaCommand(interaction);
           case "商店":
             return await handleShoutenCommand(interaction);
           case "アステル":

@@ -7,6 +7,7 @@ import { profileCommand } from "./games/profile";
 import { casinoCommand } from "./ui/home";
 import { adminCommand } from "./admin/commands";
 import { ownerCommand } from "./admin/owner";
+import { shakaCommand } from "./admin/shaka";
 import { shoutenCommand } from "./games/shouten";
 import { zashikiCommand } from "./games/zashiki";
 import { exchangeCommand } from "./games/exchange";
@@ -25,6 +26,7 @@ async function deployCommands(): Promise<void> {
     casinoCommand.toJSON(),
     adminCommand.toJSON(),
     ownerCommand.toJSON(),
+    shakaCommand.toJSON(),
     shoutenCommand.toJSON(),
     zashikiCommand.toJSON(),
     exchangeCommand.toJSON(),

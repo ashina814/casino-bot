@@ -15,6 +15,7 @@ import { db, getServerConfig, runTransaction } from "../core/db";
 import { adjustBalance, ensureUser, getBalance } from "../core/bank";
 import { baseEmbed, errorEmbed, COLORS } from "../ui/embeds";
 import { PALETTE } from "../world.config";
+import { addressOwner } from "../core/ownerAddress";
 
 const MAX_PER_DAY = 5;
 
@@ -139,7 +140,7 @@ export async function handleNagareCommand(interaction: ChatInputCommandInteracti
   }
 
   const pick = pickOutcome();
-  const line = pickLine(pick.key);
+  const line = addressOwner(pickLine(pick.key), userId);
 
   runTransaction(() => {
     if (cost > 0) {
