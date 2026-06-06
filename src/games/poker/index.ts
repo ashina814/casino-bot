@@ -31,7 +31,7 @@ import { createLinkedTable, findLinkedVC } from "../takutate/index";
 const RAKE_PCT = 0.03;
 const MIN_OPEN = 2;
 const MAX_OPEN = 6;
-const PENDING_AUTO_DECLINE_MS = 60 * 60_000;
+const PENDING_AUTO_DECLINE_MS = 5 * 60_000;
 const ACTIVE_AUTO_VOID_MS = 6 * 60 * 60_000;
 const TICK_INTERVAL_MS = 60_000;
 
@@ -656,7 +656,7 @@ async function sweepStalePoker(client: Client): Promise<void> {
     if (now - ts >= PENDING_AUTO_DECLINE_MS) {
       try {
         db.prepare("UPDATE poker_games SET status = 'void' WHERE id = ? AND status = 'pending'").run(g.id);
-        await editMsg(client, g, "🃏 申込みが1時間放置されたから流したよ。");
+        await editMsg(client, g, "🃏 申込みが5分放置されたから流したよ。");
       } catch { /* ignore */ }
     }
   }

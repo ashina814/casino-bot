@@ -29,7 +29,7 @@ import { createLinkedTable, findLinkedVC } from "../takutate/index";
 
 const RAKE_PCT = 0.03;     // 場代 3%（勝者が得る相手分から）→ 星溜まり(JP)
 const MAX_TIE_ROUNDS = 5;  // 同役での振り直し上限
-const PENDING_AUTO_DECLINE_MS = 60 * 60_000; // 申込み放置 1時間で自動辞退
+const PENDING_AUTO_DECLINE_MS = 5 * 60_000; // 申込み放置 5分で自動辞退
 const SAI_TICK_INTERVAL_MS = 60_000;         // 1分ごとに点検
 
 type DuelRow = {
@@ -335,7 +335,7 @@ async function sweepStalePendingDuels(client: Client): Promise<void> {
     if (now - createdTs >= PENDING_AUTO_DECLINE_MS) {
       try {
         db.prepare("UPDATE dice_duels SET status = 'void' WHERE id = ? AND status = 'pending'").run(d.id);
-        await clearDuelPanel(client, d, "🎲 申込みが1時間放置されたから流したよ。また気が向いたら声かけて。");
+        await clearDuelPanel(client, d, "🎲 申込みが5分放置されたから流したよ。また気が向いたら声かけて。");
       } catch (err) {
         console.warn(`[saishoubu sweep] pending auto-decline failed for #${d.id}:`, err);
       }

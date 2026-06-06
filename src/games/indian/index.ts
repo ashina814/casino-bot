@@ -28,7 +28,7 @@ import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { createLinkedTable, findLinkedVC } from "../takutate/index";
 
 const RAKE_PCT = 0.03;
-const PENDING_AUTO_DECLINE_MS = 60 * 60_000;
+const PENDING_AUTO_DECLINE_MS = 5 * 60_000;
 const ACTIVE_AUTO_VOID_MS = 6 * 60 * 60_000;
 const TICK_INTERVAL_MS = 60_000;
 
@@ -386,7 +386,7 @@ async function sweepStaleIndian(client: Client): Promise<void> {
     if (now - ts >= PENDING_AUTO_DECLINE_MS) {
       try {
         db.prepare("UPDATE indian_duels SET status = 'void' WHERE id = ? AND status = 'pending'").run(d.id);
-        await clearPanel(client, d, "🪶 申込みが1時間放置されたから流したよ。");
+        await clearPanel(client, d, "🪶 申込みが5分放置されたから流したよ。");
       } catch (err) { console.warn(`[indian sweep] pending decline failed for #${d.id}:`, err); }
     }
   }
