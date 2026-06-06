@@ -6,6 +6,7 @@ import { stocksCommand } from "./games/stocks/index";
 import { profileCommand } from "./games/profile";
 import { casinoCommand } from "./ui/home";
 import { adminCommand } from "./admin/commands";
+import { ownerCommand } from "./admin/owner";
 import { shoutenCommand } from "./games/shouten";
 import { zashikiCommand } from "./games/zashiki";
 import { exchangeCommand } from "./games/exchange";
@@ -23,6 +24,7 @@ async function deployCommands(): Promise<void> {
     profileCommand.toJSON(),
     casinoCommand.toJSON(),
     adminCommand.toJSON(),
+    ownerCommand.toJSON(),
     shoutenCommand.toJSON(),
     zashikiCommand.toJSON(),
     exchangeCommand.toJSON(),

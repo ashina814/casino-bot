@@ -14,6 +14,7 @@ import { handleProfileCommand } from "./games/profile";
 import { handleCasinoCommand, handleHomeButton, handleHomeModal } from "./ui/home";
 import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStocksModal } from "./games/stocks";
 import { handleAdminCommand } from "./admin/commands";
+import { handleOwnerCommand } from "./admin/owner";
 import { handleBlackjackButton } from "./games/blackjack";
 import { handleShoutenCommand, handleShoutenButton, handleShoutenSelect } from "./games/shouten";
 import { handleShopSelect } from "./games/shop";
@@ -245,6 +246,8 @@ async function bootstrap(): Promise<void> {
             return await handleCasinoCommand(interaction);
           case "管理":
             return await handleAdminCommand(interaction);
+          case "オーナー":
+            return await handleOwnerCommand(interaction);
           case "商店":
             return await handleShoutenCommand(interaction);
           case "アステル":

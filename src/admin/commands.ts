@@ -40,7 +40,19 @@ export const adminCommand = new SlashCommandBuilder()
   .setDescription("管理者パネル")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sub) =>
-    sub.setName("監視").setDescription("📊 経済監視ダッシュボード（オーナー除く）")
+    sub
+      .setName("監視")
+      .setDescription("📊 経済監視ダッシュボード（オーナー除く）")
+      .addStringOption((o) =>
+        o.setName("区分").setDescription("見たいセクションだけに絞る（既定: 全て）").setRequired(false)
+          .addChoices(
+            { name: "全て", value: "all" },
+            { name: "流通（量・プール・lifetime動量）", value: "flow" },
+            { name: "動き（24hプレイ・大型取引）", value: "activity" },
+            { name: "ランキング（残高TOP・流入/流出TOP）", value: "ranking" },
+            { name: "分布（資産分布）", value: "dist" },
+          ),
+      )
   )
   .addSubcommand((sub) =>
     sub.setName("設定").setDescription("⚙️ サーバー設定パネル")
@@ -113,35 +125,7 @@ export const adminCommand = new SlashCommandBuilder()
     sub.setName("株速報").setDescription("📈 株価速報を今すぐ株式市場チャンネルに投稿（テスト用）")
   )
   .addSubcommand((sub) =>
-    sub.setName("サシ一覧").setDescription("⚔️ 進行中のサシ勝負を一覧")
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("サシ取消")
-      .setDescription("⚔️ サシ勝負を強制的に無効化し、両者へ返金する")
-      .addIntegerOption((opt) =>
-        opt.setName("id").setDescription("対象の match ID").setRequired(true).setMinValue(1)
-      )
-      .addStringOption((opt) =>
-        opt.setName("reason").setDescription("取消理由").setRequired(true)
-      )
-  )
-  .addSubcommand((sub) =>
-    sub.setName("板一覧").setDescription("📋 進行中の議題を一覧")
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("板取消")
-      .setDescription("📋 議題を強制的に無効化し、賭けた全員へ返金する")
-      .addIntegerOption((opt) =>
-        opt.setName("id").setDescription("対象の market ID").setRequired(true).setMinValue(1)
-      )
-      .addStringOption((opt) =>
-        opt.setName("reason").setDescription("取消理由").setRequired(true)
-      )
-  )
-  .addSubcommand((sub) =>
-    sub.setName("卓掃除").setDescription("🧹 空いてる紐付きVC（卓）をいま即掃除する")
+    sub.setName("板一覧").setDescription("📋 進行中の議題を一覧（選択で取消可）")
   )
   .addSubcommand((sub) =>
     sub
@@ -208,11 +192,7 @@ export async function handleAdminCommand(interaction: ChatInputCommandInteractio
     case "調査":  return handleInspect(interaction, guildId);
     case "通知":  return handleAnnounce(interaction, guildId);
     case "株速報": return handleStockBroadcast(interaction, guildId);
-    case "サシ一覧": return handleSashiList(interaction, guildId);
-    case "サシ取消": return handleSashiCancel(interaction, guildId);
     case "板一覧": return handleBoardList(interaction, guildId);
-    case "板取消": return handleBoardCancel(interaction, guildId);
-    case "卓掃除": return handleVCSweep(interaction, guildId);
     case "板掃除": return handleBoardSweep(interaction, guildId);
     case "通貨ログ": return handleTxLog(interaction, guildId);
   }
@@ -365,9 +345,20 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
     ? `*<@${config.ownerId}> をオーナーとして集計から除外*`
     : "*オーナーID 未設定（全ユーザーを集計）*";
 
-  const embed = baseEmbed("📊 経済監視ダッシュボード", COLORS.MAIN)
-    .setDescription(ownerNote)
-    .addFields(
+  // 区分フィルタ
+  const section = (interaction.options.getString("区分") as "all" | "flow" | "activity" | "ranking" | "dist" | null) ?? "all";
+  const show = {
+    flow: section === "all" || section === "flow",
+    dist: section === "all" || section === "dist",
+    activity: section === "all" || section === "activity",
+    ranking: section === "all" || section === "ranking",
+  };
+
+  const titleSuffix = section === "all" ? "" : `（${{ flow: "流通", activity: "動き", ranking: "ランキング", dist: "分布" }[section]}）`;
+  const embed = baseEmbed(`📊 経済監視ダッシュボード${titleSuffix}`, COLORS.MAIN).setDescription(ownerNote);
+
+  if (show.flow) {
+    embed.addFields(
       {
         name: "🏛 流通量",
         value: [
@@ -400,37 +391,24 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
         ].join("\n"),
         inline: false,
       },
-      {
-        name: "📊 資産分布",
-        value: chartLines,
-        inline: false,
-      },
-      {
-        name: "🎰 直近24h アクティビティ",
-        value: activityLine,
-        inline: false,
-      },
-      {
-        name: "👑 残高 TOP 5",
-        value: topLine,
-        inline: false,
-      },
-      {
-        name: "💸 大型取引（直近48h・5万以上）",
-        value: bigTxLine,
-        inline: false,
-      },
-      {
-        name: "📥 流入TOP5（reason別・lifetime）",
-        value: fmtRC(inflowTop),
-        inline: false,
-      },
-      {
-        name: "📤 流出TOP5（reason別・lifetime）",
-        value: fmtRC(outflowTop),
-        inline: false,
-      },
     );
+  }
+  if (show.dist) {
+    embed.addFields({ name: "📊 資産分布", value: chartLines, inline: false });
+  }
+  if (show.activity) {
+    embed.addFields(
+      { name: "🎰 直近24h アクティビティ", value: activityLine, inline: false },
+      { name: "💸 大型取引（直近48h・5万以上）", value: bigTxLine, inline: false },
+    );
+  }
+  if (show.ranking) {
+    embed.addFields(
+      { name: "👑 残高 TOP 5", value: topLine, inline: false },
+      { name: "📥 流入TOP5（reason別・lifetime）", value: fmtRC(inflowTop), inline: false },
+      { name: "📤 流出TOP5（reason別・lifetime）", value: fmtRC(outflowTop), inline: false },
+    );
+  }
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
@@ -716,131 +694,6 @@ async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId:
   });
 }
 
-// ─── ⚔️ サシ救済 ─────────────────────────────────────
-
-type SashiAdminRow = {
-  id: number;
-  guild_id: string;
-  challenger_id: string;
-  opponent_id: string;
-  title: string | null;
-  stake: number;
-  status: string;
-  reported_winner_id: string | null;
-  channel_id: string | null;
-  message_id: string | null;
-  created_at: string;
-};
-
-async function handleSashiList(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const rows = db.prepare(
-    `SELECT id, challenger_id, opponent_id, stake, status, title, created_at
-     FROM pvp_matches
-     WHERE guild_id = ? AND status IN ('pending','active','reported','disputed')
-     ORDER BY id DESC LIMIT 25`,
-  ).all(guildId) as Array<Pick<SashiAdminRow, "id" | "challenger_id" | "opponent_id" | "stake" | "status" | "title" | "created_at">>;
-
-  if (rows.length === 0) {
-    await interaction.reply({ embeds: [infoEmbed("⚔️ サシ", "進行中のサシは無いよ。", COLORS.GOLD)], ephemeral: true });
-    return;
-  }
-
-  const statusLabel: Record<string, string> = { pending: "申込中", active: "勝負中", reported: "承認待ち", disputed: "異議・裁定待ち" };
-  const lines = rows.map((r) => {
-    const ts = r.created_at.slice(5, 16).replace("T", " ");
-    return `\`#${r.id}\` ${statusLabel[r.status] ?? r.status} — <@${r.challenger_id}> vs <@${r.opponent_id}> / ◈${r.stake.toLocaleString()} (${ts})`;
-  });
-
-  const sel = new StringSelectMenuBuilder()
-    .setCustomId("admin_sashi_cancel_pick")
-    .setPlaceholder("🗑 取消するサシを選ぶ（任意）")
-    .setMinValues(1).setMaxValues(1)
-    .addOptions(
-      rows.map((r) => ({
-        label: `#${r.id} ${statusLabel[r.status] ?? r.status} — ◈${r.stake.toLocaleString()}`,
-        description: `${r.title ?? "サシ星約"}`.slice(0, 100),
-        value: String(r.id),
-      })),
-    );
-
-  const reply = await interaction.reply({
-    embeds: [baseEmbed(`⚔️ サシ — 進行中 ${rows.length}件`, COLORS.GOLD).setDescription(lines.join("\n"))],
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(sel)],
-    ephemeral: true,
-  });
-
-  try {
-    const picked = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: 120_000 });
-    const matchId = Number(picked.values[0]);
-
-    const modal = new ModalBuilder()
-      .setCustomId(`admin_sashi_cancel_modal_${matchId}`)
-      .setTitle(`⚔️ サシ #${matchId} を取消`)
-      .addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(
-          new TextInputBuilder().setCustomId("reason").setLabel("取消理由").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(200),
-        ),
-      );
-    await picked.showModal(modal);
-    const mod = await picked.awaitModalSubmit({ time: 120_000 });
-    const reason = mod.fields.getTextInputValue("reason");
-    const result = await executeSashiCancel(mod.client, guildId, matchId, reason);
-    await mod.reply({ embeds: [result.ok ? successEmbed(result.msg) : errorEmbed(result.msg)], ephemeral: true });
-  } catch { /* timeout or user closed */ }
-}
-
-/** サシ取消のコア。slash 直接 / 一覧→セレクト→モーダル の両方から呼ばれる。 */
-async function executeSashiCancel(client: Client, guildId: string, matchId: number, reason: string): Promise<{ ok: boolean; msg: string }> {
-  const m = db.prepare("SELECT * FROM pvp_matches WHERE id = ? AND guild_id = ?").get(matchId, guildId) as SashiAdminRow | undefined;
-  if (!m) return { ok: false, msg: `match #${matchId} が見つからないよ。` };
-  if (m.status === "settled" || m.status === "void" || m.status === "declined") {
-    return { ok: false, msg: `match #${matchId} は既に終了（${m.status}）。取り消せないよ。` };
-  }
-
-  const refunded = m.status !== "pending";
-  runTransaction(() => {
-    if (refunded) {
-      adjustBalance(m.challenger_id, m.stake, `サシ取消(管理者): ${reason}`, "sashi", m.guild_id);
-      adjustBalance(m.opponent_id, m.stake, `サシ取消(管理者): ${reason}`, "sashi", m.guild_id);
-    }
-    db.prepare("UPDATE pvp_matches SET status = 'void' WHERE id = ?").run(matchId);
-  });
-
-  let depositRefunded = false;
-  try {
-    const { refundLinkedVCDeposit } = require("../games/takutate");
-    depositRefunded = refundLinkedVCDeposit("sashi", String(matchId));
-  } catch (err) { console.warn("[admin sashi cancel] deposit refund failed:", err); }
-
-  if (m.channel_id && m.message_id) {
-    try {
-      const ch = await client.channels.fetch(m.channel_id).catch(() => null);
-      if (ch && "messages" in ch) {
-        const msg = await (ch as any).messages.fetch(m.message_id).catch(() => null);
-        if (msg) {
-          await msg.edit({
-            content: "",
-            embeds: [baseEmbed(`⚔️ サシ #${matchId} — 取消（管理者）`, COLORS.LOSE).setDescription(`管理者により無効化されたよ。\n**理由**: ${reason}${refunded ? "\n両者に賭け金を返金したよ。" : ""}`)],
-            components: [],
-          }).catch(() => {});
-        }
-      }
-    } catch { /* ignore */ }
-  }
-
-  return {
-    ok: true,
-    msg: `match #${matchId} を取り消したよ。${refunded ? "両者に ◈" + m.stake.toLocaleString() + " ずつ返金。" : "（未徴収のため返金なし）"}${depositRefunded ? "\n紐付きVCのデポジットも返金。" : ""}`,
-  };
-}
-
-async function handleSashiCancel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const matchId = interaction.options.getInteger("id", true);
-  const reason = interaction.options.getString("reason", true);
-  const result = await executeSashiCancel(interaction.client, guildId, matchId, reason);
-  await interaction.reply({ embeds: [result.ok ? successEmbed(result.msg) : errorEmbed(result.msg)], ephemeral: true });
-}
-
 // ─── 📋 板救済 ────────────────────────────────────────
 
 type BoardAdminRow = {
@@ -961,26 +814,6 @@ async function executeBoardCancel(client: Client, guildId: string, marketId: num
   };
 }
 
-async function handleBoardCancel(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const marketId = interaction.options.getInteger("id", true);
-  const reason = interaction.options.getString("reason", true);
-  const result = await executeBoardCancel(interaction.client, guildId, marketId, reason);
-  await interaction.reply({ embeds: [result.ok ? successEmbed(result.msg) : errorEmbed(result.msg)], ephemeral: true });
-}
-
-// ─── 🧹 卓掃除（紐付きVCの即時 sweep） ─────────────
-
-async function handleVCSweep(interaction: import("discord.js").ChatInputCommandInteraction, _guildId: string): Promise<void> {
-  const { sweepStaleTempVCs } = require("../games/takutate");
-  await interaction.deferReply({ ephemeral: true });
-  try {
-    const n = await sweepStaleTempVCs(interaction.client, 0);
-    await interaction.editReply({ embeds: [successEmbed(`🧹 空いてた卓を **${n}** 個 片付けたよ。`)] });
-  } catch (err) {
-    console.error("[admin] vc sweep failed:", err);
-    await interaction.editReply({ embeds: [errorEmbed("掃除中にエラーが出たよ。")] });
-  }
-}
 
 // ─── 🧹 板掃除（長期放置議題の一括 void） ─────────────
 
