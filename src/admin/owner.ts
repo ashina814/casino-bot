@@ -8,10 +8,13 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   AttachmentBuilder,
+  ChannelType,
 } from "discord.js";
 import * as fs from "node:fs";
-import { db } from "../core/db";
-import { baseEmbed, errorEmbed, COLORS } from "../ui/embeds";
+import { db, getServerConfig, runTransaction } from "../core/db";
+import { adjustBalance } from "../core/bank";
+import { baseEmbed, errorEmbed, successEmbed, COLORS } from "../ui/embeds";
+import { PALETTE } from "../world.config";
 import { config } from "../config";
 
 const OWNER_ID_FALLBACK = "1436392582635847691";
@@ -31,6 +34,25 @@ export const ownerCommand = new SlashCommandBuilder()
       .setName("db")
       .setDescription("🔍 読み取り専用 SQL を実行（SELECT/PRAGMA/EXPLAIN）")
       .addStringOption((o) => o.setName("sql").setDescription("実行する SQL").setRequired(true).setMaxLength(900)),
+  )
+  .addSubcommand((sc) =>
+    sc
+      .setName("流星群")
+      .setDescription("🌠 直近24h アクティブな全プレイヤーに少額をランダム配布")
+      .addIntegerOption((o) => o.setName("基本額").setDescription("中央値（既定 200・±50%でばらつく）").setRequired(false).setMinValue(10).setMaxValue(10000)),
+  )
+  .addSubcommand((sc) =>
+    sc
+      .setName("jp放出")
+      .setDescription("💸 JPプールを 直近24h アクティブから抽選で N人に山分け")
+      .addIntegerOption((o) => o.setName("人数").setDescription("当選者数（既定 3）").setRequired(false).setMinValue(1).setMaxValue(20))
+      .addIntegerOption((o) => o.setName("放出率").setDescription("放出する割合%（既定 50・1〜100）").setRequired(false).setMinValue(1).setMaxValue(100)),
+  )
+  .addSubcommand((sc) =>
+    sc
+      .setName("アステル")
+      .setDescription("✦ アステル口調で任意のセリフを投稿")
+      .addStringOption((o) => o.setName("セリフ").setDescription("発言内容").setRequired(true).setMaxLength(1500)),
   );
 
 export async function handleOwnerCommand(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -41,6 +63,9 @@ export async function handleOwnerCommand(interaction: ChatInputCommandInteractio
   const sub = interaction.options.getSubcommand();
   if (sub === "状態") return handleStatus(interaction);
   if (sub === "db") return handleDB(interaction);
+  if (sub === "流星群") return handleMeteor(interaction);
+  if (sub === "jp放出") return handleJPRelease(interaction);
+  if (sub === "アステル") return handleAstelSay(interaction);
 }
 
 // ─── 状態 ─────────────────────────────────────────
@@ -189,5 +214,144 @@ async function handleDB(interaction: ChatInputCommandInteraction): Promise<void>
     await interaction.editReply({ embeds: [embed], files });
   } catch (err) {
     await interaction.editReply({ embeds: [errorEmbed(`SQLエラー: ${(err as Error).message}`)] });
+  }
+}
+
+// ─── 🌠 流星群（直近24h アクティブに少額バラ撒き） ──────
+async function handleMeteor(interaction: ChatInputCommandInteraction): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) { await interaction.reply({ embeds: [errorEmbed("サーバー内でのみ使えるよ。")], ephemeral: true }); return; }
+  await interaction.deferReply({ ephemeral: true });
+
+  const base = interaction.options.getInteger("基本額") ?? 200;
+  // 直近24h でゲーム関連の取引があったユーザー
+  const users = db.prepare(
+    `SELECT DISTINCT user_id FROM transaction_logs
+     WHERE created_at >= datetime('now', '-1 day') AND game IS NOT NULL`,
+  ).all() as Array<{ user_id: string }>;
+
+  if (users.length === 0) {
+    await interaction.editReply({ embeds: [errorEmbed("直近24h にアクティブなプレイヤーがいないみたい。")] });
+    return;
+  }
+
+  let totalGranted = 0;
+  const grants: Array<{ user_id: string; amount: number }> = [];
+  runTransaction(() => {
+    for (const u of users) {
+      // base ±50% で乱数
+      const amount = Math.max(1, Math.floor(base * (0.5 + Math.random())));
+      adjustBalance(u.user_id, amount, "流星群: オーナー発火", "owner_event", guildId);
+      grants.push({ user_id: u.user_id, amount });
+      totalGranted += amount;
+    }
+  });
+
+  // 公開アナウンス（実行チャンネルに投稿）
+  const ch = interaction.channel;
+  if (ch && "send" in ch) {
+    const top3 = [...grants].sort((a, b) => b.amount - a.amount).slice(0, 3);
+    const announce = baseEmbed("🌠 流星群が降ってきた", PALETTE.STARGOLD).setDescription([
+      "*「ほら、見て。今夜は星が降ってる。」*",
+      "*「みんなに、ひとかけらずつ。」*",
+      "",
+      `🌟 **${users.length}人** に総額 **◈${totalGranted.toLocaleString()}** を授けたよ。`,
+      "",
+      "🥇 最大の幸運:",
+      ...top3.map((g, i) => `${["🥇", "🥈", "🥉"][i]} <@${g.user_id}>: ◈${g.amount.toLocaleString()}`),
+    ].join("\n"));
+    await (ch as any).send({
+      embeds: [announce],
+      allowedMentions: { users: top3.map((g) => g.user_id) },
+    }).catch(() => {});
+  }
+
+  await interaction.editReply({ embeds: [successEmbed(`🌠 流星群完了。**${users.length}人** に総額 **◈${totalGranted.toLocaleString()}** を配ったよ。`)] });
+}
+
+// ─── 💸 JP放出（プール一部を当選者で山分け） ─────────
+async function handleJPRelease(interaction: ChatInputCommandInteraction): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) { await interaction.reply({ embeds: [errorEmbed("サーバー内でのみ使えるよ。")], ephemeral: true }); return; }
+  await interaction.deferReply({ ephemeral: true });
+
+  const winners = interaction.options.getInteger("人数") ?? 3;
+  const ratio = (interaction.options.getInteger("放出率") ?? 50) / 100;
+
+  const cfg = getServerConfig(guildId);
+  const pool = cfg.jackpot_pool;
+  if (pool <= 0) {
+    await interaction.editReply({ embeds: [errorEmbed("JPプールが空っぽだよ。")] });
+    return;
+  }
+
+  // 直近24h アクティブ
+  const active = (db.prepare(
+    `SELECT DISTINCT user_id FROM transaction_logs
+     WHERE created_at >= datetime('now', '-1 day') AND game IS NOT NULL`,
+  ).all() as Array<{ user_id: string }>).map((r) => r.user_id);
+
+  if (active.length === 0) {
+    await interaction.editReply({ embeds: [errorEmbed("直近24h にアクティブな人がいないよ。")] });
+    return;
+  }
+
+  // ランダム抽選（重複なし）
+  const picked: string[] = [];
+  const pool_users = [...active];
+  while (picked.length < Math.min(winners, active.length) && pool_users.length > 0) {
+    const idx = Math.floor(Math.random() * pool_users.length);
+    picked.push(pool_users.splice(idx, 1)[0]);
+  }
+
+  const release = Math.floor(pool * ratio);
+  const per = Math.floor(release / picked.length);
+  const leftover = release - per * picked.length;
+
+  runTransaction(() => {
+    db.prepare("UPDATE server_config SET jackpot_pool = jackpot_pool - ? WHERE guild_id = ?").run(release, guildId);
+    for (const uid of picked) {
+      adjustBalance(uid, per, "JP放出: オーナー発火", "owner_event", guildId);
+    }
+    // 端数は救済プールへ
+    if (leftover > 0) db.prepare("UPDATE server_config SET relief_pool = relief_pool + ? WHERE guild_id = ?").run(leftover, guildId);
+  });
+
+  // 公開アナウンス
+  const ch = interaction.channel;
+  if (ch && "send" in ch) {
+    const embed = baseEmbed("💸 星溜まりが弾けた！", PALETTE.STARGOLD).setDescription([
+      "*「JPプールから、ひとときの放出。」*",
+      "*「選ばれたのは…この子たち。」*",
+      "",
+      `💰 放出額: **◈${release.toLocaleString()}**（プール ${Math.round(ratio * 100)}%）`,
+      `👥 当選: **${picked.length}人** に **◈${per.toLocaleString()}** ずつ`,
+      "",
+      ...picked.map((u) => `🎉 <@${u}>`),
+    ].join("\n"));
+    await (ch as any).send({
+      content: picked.map((u) => `<@${u}>`).join(" "),
+      embeds: [embed],
+      allowedMentions: { users: picked },
+    }).catch(() => {});
+  }
+
+  await interaction.editReply({ embeds: [successEmbed(`💸 JP放出完了。**${picked.length}人** に **◈${per.toLocaleString()}** ずつ（計 ◈${release.toLocaleString()}）。`)] });
+}
+
+// ─── ✦ アステル口調で任意発言 ───────────────────
+async function handleAstelSay(interaction: ChatInputCommandInteraction): Promise<void> {
+  const line = interaction.options.getString("セリフ", true).trim();
+  const ch = interaction.channel;
+  if (!ch || !("send" in ch)) {
+    await interaction.reply({ embeds: [errorEmbed("このチャンネルでは送れないよ。")], ephemeral: true });
+    return;
+  }
+  const embed = baseEmbed("", PALETTE.STARGOLD).setDescription(`*「${line}」*`);
+  try {
+    await (ch as any).send({ embeds: [embed] });
+    await interaction.reply({ embeds: [successEmbed("アステルが喋ったよ。")], ephemeral: true });
+  } catch (err) {
+    await interaction.reply({ embeds: [errorEmbed("送信に失敗しちゃった。")], ephemeral: true });
   }
 }
