@@ -240,7 +240,12 @@ async function settle(
   ].filter(Boolean).join("\n");
 
   const embed = baseEmbed(`🎲 チンチロ対戦 #${d.id} — 決着`, winnerId ? PALETTE.JADE : PALETTE.NIGHT).setDescription(lines);
-  await announce(client, d, { embeds: [embed] });
+  const mentions = winnerId ? [winnerId] : [d.challenger_id, d.opponent_id];
+  await announce(client, d, {
+    content: mentions.map((u) => `<@${u}>`).join(" "),
+    embeds: [embed],
+    allowedMentions: { users: mentions },
+  });
 
   // 紐付きVCがあれば 続行/やめる パネルを投下
   try {

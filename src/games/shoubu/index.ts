@@ -45,7 +45,7 @@ export const shoubuCommand = new SlashCommandBuilder()
   )
   .addSubcommand((sc) =>
     sc
-      .setName("bj")
+      .setName("ブラックジャック")
       .setDescription("🃏 ブラックジャック対人戦 — 2人で21に近づける（手は全公開）")
       .addUserOption((o) => o.setName("相手").setDescription("対戦相手").setRequired(true))
       .addIntegerOption((o) => o.setName("額").setDescription("賭け金（両者同額・勝者総取り）").setRequired(true).setMinValue(1)),
@@ -93,7 +93,7 @@ export async function handleShoubuCommand(interaction: ChatInputCommandInteracti
     case "丁半": return openBon(interaction);
     case "チンチロ": return saiChallenge(interaction);
     case "サシ": return sashiChallenge(interaction);
-    case "bj": return bjdChallenge(interaction);
+    case "ブラックジャック": return bjdChallenge(interaction);
     case "インディアン": return indianChallenge(interaction);
     case "ポーカー": return pokerChallenge(interaction);
   }

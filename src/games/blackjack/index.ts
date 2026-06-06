@@ -271,7 +271,7 @@ export async function playBlackjack(
 
       const retryRow = makeRetryRow(bet, guildId, userId);
       await reply.edit({ embeds: [embed], components: [retryRow] });
-      setupRetryCollector(reply, guildId, userId, bet);
+      // 旧 setupRetryCollector は廃止。global router (handleBlackjackButton) が常時受ける。
     }
   });
 
@@ -456,19 +456,21 @@ function makeRetryRow(bet: number, guildId?: string, userId?: string): ActionRow
     }
   } catch { /* fallback to simple row */ }
 
+  // userId を customId に encode しておき、グローバル router 側で「他人のボタン」を弾く
+  const uid = userId ?? "anon";
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`bj_retry_${minB}_min`)
+      .setCustomId(`bj_retry_${minB}_min_${uid}`)
       .setLabel(`最低 ◈${minB.toLocaleString()}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(balance < minB),
     new ButtonBuilder()
-      .setCustomId(`bj_retry_${bet}_same`)
+      .setCustomId(`bj_retry_${bet}_same_${uid}`)
       .setLabel(`🎰 もう一回 ◈${bet.toLocaleString()}`)
       .setStyle(ButtonStyle.Primary)
       .setDisabled(balance < bet),
     new ButtonBuilder()
-      .setCustomId(`bj_retry_${maxB}_max`)
+      .setCustomId(`bj_retry_${maxB}_max_${uid}`)
       .setLabel(`最大 ◈${maxB.toLocaleString()}`)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(maxB < minB),
@@ -477,10 +479,70 @@ function makeRetryRow(bet: number, guildId?: string, userId?: string): ActionRow
       .setLabel("📖 配当表")
       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
-      .setCustomId("bj_quit")
+      .setCustomId(`bj_quit_${uid}`)
       .setLabel("🚪 退席")
       .setStyle(ButtonStyle.Secondary),
   );
+}
+
+// ─── Global router: もう一回 / 配当表 / 退席 を時間制限なしで処理 ─────
+export async function handleBlackjackButton(interaction: ButtonInteraction): Promise<void> {
+  const id = interaction.customId;
+
+  if (id === "bj_paytable") {
+    await interaction.reply({ embeds: [blackjackPaytableEmbed()], ephemeral: true }).catch(() => {});
+    return;
+  }
+
+  if (id.startsWith("bj_quit")) {
+    // bj_quit or bj_quit_<userId>
+    const parts = id.split("_");
+    const owner = parts[2];
+    if (owner && owner !== interaction.user.id) {
+      await interaction.reply({ content: "他の人のボタンだよ。", ephemeral: true }).catch(() => {});
+      return;
+    }
+    await interaction.update({ components: [] }).catch(() => {});
+    return;
+  }
+
+  if (id.startsWith("bj_retry_")) {
+    // bj_retry_<bet>_<kind>[_<userId>]
+    const parts = id.split("_");
+    const bet = parseInt(parts[2]);
+    const owner = parts[4];
+    if (!Number.isFinite(bet) || bet <= 0) {
+      await interaction.reply({ content: "このボタンはもう古いみたい。", ephemeral: true }).catch(() => {});
+      return;
+    }
+    if (owner && owner !== interaction.user.id) {
+      await interaction.reply({ content: "他の人のボタンだよ。自分で `/遊ぶ ブラックジャック` を打ってね。", ephemeral: true }).catch(() => {});
+      return;
+    }
+    const guildId = interaction.guildId;
+    const userId = interaction.user.id;
+    if (!guildId) {
+      await interaction.reply({ content: "サーバー内でのみ使えるよ。", ephemeral: true }).catch(() => {});
+      return;
+    }
+    if (!acquireGameLock(userId, "blackjack")) {
+      await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true }).catch(() => {});
+      return;
+    }
+    try {
+      // ボタンを消してから新ゲーム開始
+      try { await interaction.update({ components: [] }); } catch { /* update may fail if too old */ }
+      await playBlackjack(interaction, guildId, userId, bet);
+    } catch (err) {
+      console.error("[blackjack] retry global failed:", err);
+      releaseGameLock(userId);
+      const reply = async (content: string) => {
+        if (interaction.replied || interaction.deferred) await interaction.followUp({ content, ephemeral: true }).catch(() => {});
+        else await interaction.reply({ content, ephemeral: true }).catch(() => {});
+      };
+      await reply("ゲームの開始に失敗しちゃった。");
+    }
+  }
 }
 
 function setupRetryCollector(reply: any, guildId: string, userId: string, bet: number): void {

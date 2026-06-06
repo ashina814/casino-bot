@@ -14,6 +14,7 @@ import { handleProfileCommand } from "./games/profile";
 import { handleCasinoCommand, handleHomeButton, handleHomeModal } from "./ui/home";
 import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStocksModal } from "./games/stocks";
 import { handleAdminCommand } from "./admin/commands";
+import { handleBlackjackButton } from "./games/blackjack";
 import { handleShoutenCommand, handleShoutenButton, handleShoutenSelect } from "./games/shouten";
 import { handleShopSelect } from "./games/shop";
 import { handleZashikiCommand, handleAstelButton, handleAstelSelect } from "./games/zashiki";
@@ -364,6 +365,16 @@ async function bootstrap(): Promise<void> {
       // ── 両替承認 (exapprove:) Interactions ──
       if (interaction.isButton() && interaction.customId.startsWith("exapprove:")) {
         await handleExchangeApproval(interaction);
+        return;
+      }
+
+      // ── ブラックジャック もう一回 / 配当表 / 退席（時間制限なし global） ──
+      if (interaction.isButton() && (
+        interaction.customId.startsWith("bj_retry_") ||
+        interaction.customId === "bj_paytable" ||
+        interaction.customId.startsWith("bj_quit")
+      )) {
+        await handleBlackjackButton(interaction);
         return;
       }
 

@@ -320,12 +320,20 @@ async function settleDuel(client: Client, duelId: number): Promise<void> {
   ].filter(Boolean).join("\n");
   render.embeds[0].setDescription(((render.embeds[0].data as any).description ?? "") + "\n\n" + tail);
 
+  const mentions = winnerId ? [winnerId] : [d.challenger_id, d.opponent_id];
   try {
     if (d.channel_id && d.message_id) {
       const ch = await client.channels.fetch(d.channel_id).catch(() => null);
       if (ch && "messages" in ch) {
         const msg = await (ch as any).messages.fetch(d.message_id).catch(() => null);
-        if (msg) await msg.edit({ content: "", embeds: render.embeds, components: [] }).catch(() => {});
+        if (msg) {
+          await msg.edit({
+            content: mentions.map((u) => `<@${u}>`).join(" "),
+            embeds: render.embeds,
+            components: [],
+            allowedMentions: { users: mentions },
+          }).catch(() => {});
+        }
       }
     }
   } catch { /* ignore */ }
