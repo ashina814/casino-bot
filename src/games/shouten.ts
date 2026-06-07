@@ -21,9 +21,6 @@ export const shoutenCommand = new SlashCommandBuilder()
   .setName("商店")
   .setDescription("🛍️ アステルの商店（買い物・持ち物・心付け）")
   .addSubcommand((sub) =>
-    sub.setName("設置").setDescription("📌 このチャンネルに常設の商店パネルを置く（管理者）")
-  )
-  .addSubcommand((sub) =>
     sub.setName("購入").setDescription("🛍️ 称号・使い切り景品を買う（アステルへの贈り物は /アステル 贈り物）")
   )
   .addSubcommand((sub) =>
@@ -41,14 +38,13 @@ export const shoutenCommand = new SlashCommandBuilder()
 
 export async function handleShoutenCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const sub = interaction.options.getSubcommand();
-  if (sub === "設置") return postShopPanel(interaction);
   if (sub === "購入") return handleShopCommand(interaction);
   if (sub === "持ち物") return handleInventory(interaction);
   if (sub === "使う") return handleUse(interaction);
 }
 
-// ─── 常設パネル ───────────────────────────────────────
-async function postShopPanel(interaction: ChatInputCommandInteraction): Promise<void> {
+// ─── 常設パネル ─────────────────────────────────────── /管理 商店設置 から呼ばれる
+export async function postShopPanel(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
     await interaction.reply({ content: "このコマンドは管理者だけが使えるよ。", ephemeral: true });
     return;

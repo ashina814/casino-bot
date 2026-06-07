@@ -9,6 +9,7 @@ import {
   ChatInputCommandInteraction,
   AttachmentBuilder,
   ChannelType,
+  PermissionFlagsBits,
 } from "discord.js";
 import * as fs from "node:fs";
 import { db, getServerConfig, runTransaction } from "../core/db";
@@ -26,6 +27,7 @@ function isOwner(userId: string): boolean {
 export const ownerCommand = new SlashCommandBuilder()
   .setName("オーナー")
   .setDescription("👑 Bot オーナー専用（dev/ops）")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sc) =>
     sc.setName("状態").setDescription("📊 Bot 稼働・DB・guild の状態をひと目で見る"),
   )

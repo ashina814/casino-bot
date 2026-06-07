@@ -125,6 +125,12 @@ export const adminCommand = new SlashCommandBuilder()
     sub.setName("株速報").setDescription("📈 株価速報を今すぐ株式市場チャンネルに投稿（テスト用）")
   )
   .addSubcommand((sub) =>
+    sub.setName("案内設置").setDescription("📌 このチャンネルに常設の案内パネルを置く")
+  )
+  .addSubcommand((sub) =>
+    sub.setName("商店設置").setDescription("📌 このチャンネルに常設の商店パネルを置く")
+  )
+  .addSubcommand((sub) =>
     sub.setName("板一覧").setDescription("📋 進行中の議題を一覧（選択で取消可）")
   )
   .addSubcommand((sub) =>
@@ -195,6 +201,14 @@ export async function handleAdminCommand(interaction: ChatInputCommandInteractio
     case "板一覧": return handleBoardList(interaction, guildId);
     case "板掃除": return handleBoardSweep(interaction, guildId);
     case "通貨ログ": return handleTxLog(interaction, guildId);
+    case "案内設置": {
+      const { postHomePanel } = require("../ui/home");
+      return postHomePanel(interaction);
+    }
+    case "商店設置": {
+      const { postShopPanel } = require("../games/shouten");
+      return postShopPanel(interaction);
+    }
   }
 }
 

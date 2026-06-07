@@ -9,6 +9,7 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  PermissionFlagsBits,
 } from "discord.js";
 import { db } from "../core/db";
 import { ensureUser } from "../core/bank";
@@ -19,6 +20,7 @@ import { isOwnerId } from "../core/ownerAddress";
 export const shakaCommand = new SlashCommandBuilder()
   .setName("釈迦の心づけ")
   .setDescription("🪷 悟りし者の褒章。任意ユーザーへ無制限の授け。")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addUserOption((o) => o.setName("user").setDescription("授ける相手").setRequired(true))
   .addIntegerOption((o) => o.setName("額").setDescription("授ける額").setRequired(true).setMinValue(1))
   .addStringOption((o) => o.setName("memo").setDescription("褒章の理由（公開アナウンス文に載る・任意）").setRequired(false).setMaxLength(200));

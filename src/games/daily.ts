@@ -17,7 +17,6 @@ import { calculateDailyBonus, addExp, drawFromReliefPool } from "../core/economy
 import { dialogueDaily } from "../core/dialogue";
 import { addressOwner } from "../core/ownerAddress";
 import { gameResultEmbed, infoEmbed, COLORS } from "../ui/embeds";
-import { getZashikiAttachment } from "../core/zashikiAsset";
 import {
   getStage,
   getNextStage,
@@ -161,11 +160,6 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
     guildId,
   });
 
-  const zashiki = getZashikiAttachment("idle");
-  if (zashiki) {
-    embed.setImage(zashiki.thumbnailUrl);
-  }
-
   const embeds: EmbedBuilder[] = [embed];
 
   // ─── Stage Transition Notification ───────────────────
@@ -219,7 +213,6 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
 
   await interaction.reply({
     embeds,
-    files: zashiki ? [zashiki.attachment] : [],
     components: [row],
     ephemeral: true,
   });

@@ -72,9 +72,7 @@ export function getTodayLuckyGame(guildId: string): string {
 
 export const casinoCommand = new SlashCommandBuilder()
   .setName("案内")
-  .setDescription("✦ 星約の賭場 — ホーム")
-  .addSubcommand((sc) => sc.setName("ホーム").setDescription("✦ 自分のホーム画面を開く（残高・各ゲームへの入口）"))
-  .addSubcommand((sc) => sc.setName("設置").setDescription("📌 このチャンネルに常設の案内パネルを置く（管理者）"));
+  .setDescription("✦ 星約の賭場 — ホーム画面を開く");
 
 // 玄関のアクション（個人情報・案内のみ）。ゲームは各チャンネルで遊ぶので起動ボタンは置かない。
 function buildHomeRows(): ActionRowBuilder<ButtonBuilder>[] {
@@ -109,13 +107,11 @@ const PLAY_GUIDE = [
 ].join("\n");
 
 export async function handleCasinoCommand(interaction: ChatInputCommandInteraction): Promise<void> {
-  const sub = interaction.options.getSubcommand();
-  if (sub === "設置") return postHomePanel(interaction);
   return personalHome(interaction);
 }
 
-// 常設パネル（公開・全員のボタン操作はそれぞれ ephemeral で開く）
-async function postHomePanel(interaction: ChatInputCommandInteraction): Promise<void> {
+// 常設パネル（公開・全員のボタン操作はそれぞれ ephemeral で開く）— /管理 案内設置 から呼ばれる
+export async function postHomePanel(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
     await interaction.reply({ content: "このコマンドは管理者だけが使えるよ。", ephemeral: true });
     return;
