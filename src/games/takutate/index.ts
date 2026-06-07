@@ -238,12 +238,18 @@ export async function createLinkedTable(interaction: ButtonInteraction, opts: Li
   // 入室権限
   let overwrites: { id: string; type: number; allow: bigint; deny: bigint }[] | undefined;
   if (opts.allowedUserIds && opts.allowedUserIds.length > 0) {
-    // プライベート: 指定ユーザーだけ Connect/View 許可、@everyone は拒否
-    const Connect = PermissionFlagsBits.Connect;
+    // プライベート: 指定ユーザーだけ Connect/View/Speak/Stream/UseVAD/SendMessages/履歴 を許可、@everyone は拒否
     const View = PermissionFlagsBits.ViewChannel;
+    const Connect = PermissionFlagsBits.Connect;
+    const Speak = PermissionFlagsBits.Speak;
+    const Stream = PermissionFlagsBits.Stream;
+    const UseVAD = PermissionFlagsBits.UseVAD;
+    const SendMessages = PermissionFlagsBits.SendMessages;
+    const ReadHistory = PermissionFlagsBits.ReadMessageHistory;
+    const AllowMask = View | Connect | Speak | Stream | UseVAD | SendMessages | ReadHistory;
     overwrites = [
       { id: guild.roles.everyone.id, type: 0, allow: 0n, deny: View | Connect },
-      ...opts.allowedUserIds.map((uid) => ({ id: uid, type: 1, allow: View | Connect, deny: 0n })),
+      ...opts.allowedUserIds.map((uid) => ({ id: uid, type: 1, allow: AllowMask, deny: 0n })),
     ];
   } else if (panelChannel && "permissionOverwrites" in panelChannel) {
     // 公開（パネルchの権限継承）
