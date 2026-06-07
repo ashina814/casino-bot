@@ -732,9 +732,10 @@ async function settleRace(session: ActiveRaceSession, ranking: KeibaHorse[], pos
   const winPayoutRate = winStakeOnTop > 0 ? (winPrizePool / winStakeOnTop) : 0;
   const placePayoutRate = placeStakeOnTop > 0 ? (placePrizePool / placeStakeOnTop) : 0;
 
+  const payoutsByUser = new Map<string, number>();
   runTransaction(() => {
-    settlePool("win", new Set([top[0].id]), allBets, nextCarry, session.guildId);
-    settlePool("place", new Set(placeWinners.map((h) => h.id)), allBets, nextCarry, session.guildId);
+    settlePool("win", new Set([top[0].id]), allBets, nextCarry, session.guildId, payoutsByUser);
+    settlePool("place", new Set(placeWinners.map((h) => h.id)), allBets, nextCarry, session.guildId, payoutsByUser);
     updateSystemStatus({
       keiba_carryover_win: nextCarry.win,
       keiba_carryover_place: nextCarry.place
@@ -770,6 +771,17 @@ async function settleRace(session: ActiveRaceSession, ranking: KeibaHorse[], pos
   }
   const houseCut = Math.floor((totalWin + totalPlace) * 0.2);
   breakdown.push(`🏛️ ハウス取り分 (20%): ◈${houseCut.toLocaleString()}`);
+
+  // 当たり金額（個人別、降順）
+  if (payoutsByUser.size > 0) {
+    const sorted = [...payoutsByUser.entries()].sort((a, b) => b[1] - a[1]);
+    const PAYOUT_CAP = 10;
+    const winLines = sorted.slice(0, PAYOUT_CAP).map(([uid, amt]) => `　🎯 <@${uid}> → **+◈${amt.toLocaleString()}**`);
+    if (sorted.length > PAYOUT_CAP) winLines.push(`　…他 ${sorted.length - PAYOUT_CAP}人`);
+    breakdown.push("");
+    breakdown.push("**💴 当たり金額**");
+    breakdown.push(...winLines);
+  }
 
   // レース後の「もう一度開催」ボタン
   const retryRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -841,7 +853,8 @@ function settlePool(
   winnerHorseIds: Set<number>,
   allBets: Array<{ user_id: string; horse_id: number; bet_type: BetType; amount: number }>,
   nextCarry: { win: number; place: number },
-  guildId: string
+  guildId: string,
+  payouts: Map<string, number>,
 ): void {
   const poolBets = allBets.filter((b) => b.bet_type === betType);
   if (poolBets.length === 0) {
@@ -868,6 +881,7 @@ function settlePool(
       if (!paid.ok) {
         throw new Error("Payout failed.");
       }
+      payouts.set(b.user_id, (payouts.get(b.user_id) ?? 0) + payout);
     }
     nextCarry[carryKey] = 0;
     return;
