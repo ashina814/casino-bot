@@ -9,6 +9,7 @@ import {
   ChatInputCommandInteraction,
 } from "discord.js";
 import { errorEmbed } from "../ui/embeds";
+import { memberName } from "../core/names";
 
 const COOLDOWN_MS = 60_000; // 60秒
 const lastUsed = new Map<string, number>();
@@ -75,6 +76,6 @@ export async function handleCheerCommand(interaction: ChatInputCommandInteractio
   const line = kind === "cheer" ? pick(CHEERS) : pick(TAUNTS);
   const verb = kind === "cheer" ? "応援" : "煽り";
   await interaction.reply({
-    content: `🎭 **${interaction.user.displayName}** が <@${target.id}> に${verb}！\n*「${line}」*`,
+    content: `🎭 **${memberName(interaction)}** が <@${target.id}> に${verb}！\n*「${line}」*`,
   });
 }

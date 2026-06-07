@@ -2,6 +2,7 @@ import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
 import { adjustBalance, ensureUser } from "../core/bank";
 import { db, runTransaction } from "../core/db";
 import { infoEmbed, errorEmbed, successEmbed, COLORS } from "../ui/embeds";
+import { memberName, memberNameOfCached } from "../core/names";
 
 // 折衷化: 賭けの精算には使わない "気持ち程度のチップ"。
 // RMT・経済横流しの温床にならないよう、1日1回・1回◈500 までに絞る。
@@ -94,7 +95,7 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
     } catch {}
 
     const embed = successEmbed(
-      `💸 **${interaction.user.displayName}** が **${targetUser.displayName}** に ◈${amount.toLocaleString()} エテルを贈りました！${msgDesc}${affectionNote}`
+      `💸 **${memberName(interaction)}** が **${memberNameOfCached(interaction.guild, targetUser)}** に ◈${amount.toLocaleString()} エテルを贈りました！${msgDesc}${affectionNote}`
     );
 
     await interaction.reply({ content: `<@${targetUser.id}>`, embeds: [embed] });

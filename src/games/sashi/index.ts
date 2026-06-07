@@ -29,6 +29,7 @@ import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { createLinkedTable, findLinkedVC } from "../takutate/index";
 import { mentionAdminRole } from "../../admin/commands";
+import { memberName } from "../../core/names";
 
 const DRAW = "draw";
 
@@ -103,7 +104,7 @@ export async function challenge(interaction: ChatInputCommandInteraction): Promi
 
   const embed = baseEmbed(`⚔️ ${WORLD.GAME_SASHI} #${matchId}`, PALETTE.VERMILION)
     .setDescription([
-      `**${interaction.user.displayName}** が <@${opponent.id}> に決闘を申し込んだ。`,
+      `**${memberName(interaction)}** が <@${opponent.id}> に決闘を申し込んだ。`,
       `内容: **${title}**`,
       `賭け金: **${formatEther(stake)}**（両者同額・勝者総取り）`,
       "",
@@ -236,7 +237,7 @@ async function report(interaction: ButtonInteraction, m: MatchRow, winnerId: str
   const autoAt = Math.floor((Date.now() + REPORT_AUTO_FINALIZE_MS) / 1000);
   const embed = baseEmbed(`⚔️ ${WORLD.GAME_SASHI} #${m.id} — 結果報告`, PALETTE.STARGOLD)
     .setDescription([
-      `**${interaction.user.displayName}** が報告: **${winnerLabel}**`,
+      `**${memberName(interaction)}** が報告: **${winnerLabel}**`,
       "",
       `<@${other}> — 異議なければ「承認」を。違うなら「異議」を。`,
       `*<t:${autoAt}:R> に何も無ければ自動承認するよ。*`,

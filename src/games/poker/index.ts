@@ -27,6 +27,7 @@ import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { createLinkedTable, findLinkedVC } from "../takutate/index";
+import { memberName } from "../../core/names";
 
 const RAKE_PCT = 0.03;
 const MIN_OPEN = 2;
@@ -192,7 +193,7 @@ export async function challenge(interaction: ChatInputCommandInteraction): Promi
       "INSERT INTO poker_games (guild_id, mode, host_id, opponent_id, stake, status, channel_id) VALUES (?, 'sashi', ?, ?, ?, 'pending', ?)",
     ).run(guildId, hostId, opponent!.id, stake, interaction.channelId).lastInsertRowid);
     const embed = baseEmbed(`🃏 ポーカー（サシ）#${gameId}`, PALETTE.VERMILION).setDescription([
-      `**${interaction.user.displayName}** が <@${opponent!.id}> にポーカー対戦を申し込んだ。`,
+      `**${memberName(interaction)}** が <@${opponent!.id}> にポーカー対戦を申し込んだ。`,
       `賭け金: **${formatEther(stake)}**（両者同額・勝者総取り）`,
       `*場代 ${Math.round(RAKE_PCT * 100)}% は ${WORLD.POOL_JACKPOT} へ。*`,
       "",

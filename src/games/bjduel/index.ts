@@ -24,6 +24,7 @@ import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { createDeck, handValue, handDisplay, type Card } from "../blackjack/index";
 import { createLinkedTable, findLinkedVC } from "../takutate/index";
+import { memberName } from "../../core/names";
 
 const RAKE_PCT = 0.03;                       // 場代 3% → JP
 const PENDING_AUTO_DECLINE_MS = 5 * 60_000; // 5分で自動辞退
@@ -91,7 +92,7 @@ export async function challenge(interaction: ChatInputCommandInteraction): Promi
   ).run(guildId, challengerId, opponent.id, stake, interaction.channelId).lastInsertRowid);
 
   const embed = baseEmbed(`🃏 BJ対戦 #${duelId}`, PALETTE.VERMILION).setDescription([
-    `**${interaction.user.displayName}** が <@${opponent.id}> にブラックジャック対戦を申し込んだ。`,
+    `**${memberName(interaction)}** が <@${opponent.id}> にブラックジャック対戦を申し込んだ。`,
     `賭け金: **${formatEther(stake)}**（両者同額・勝者総取り）`,
     `*場代 ${Math.round(RAKE_PCT * 100)}% は ${WORLD.POOL_JACKPOT} へ。*`,
     "",

@@ -26,6 +26,7 @@ import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { createLinkedTable, findLinkedVC } from "../takutate/index";
+import { memberName } from "../../core/names";
 
 const RAKE_PCT = 0.03;
 const PENDING_AUTO_DECLINE_MS = 5 * 60_000;
@@ -108,7 +109,7 @@ export async function challenge(interaction: ChatInputCommandInteraction): Promi
   ).run(guildId, challengerId, opponent.id, stake, interaction.channelId).lastInsertRowid);
 
   const embed = baseEmbed(`🪶 インディアン #${duelId}`, PALETTE.VERMILION).setDescription([
-    `**${interaction.user.displayName}** が <@${opponent.id}> にインディアンポーカーを申し込んだ。`,
+    `**${memberName(interaction)}** が <@${opponent.id}> にインディアンポーカーを申し込んだ。`,
     `賭け金: **${formatEther(stake)}**（両者同額・勝者総取り）`,
     `*場代 ${Math.round(RAKE_PCT * 100)}% は ${WORLD.POOL_JACKPOT} へ。*`,
     "",

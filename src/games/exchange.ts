@@ -28,6 +28,7 @@ import { gilBalance } from "../core/gilApi";
 import type { GilDirection } from "../core/gilApi";
 import { baseEmbed, errorEmbed } from "../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../world.config";
+import { memberName } from "../core/names";
 
 const C1 = WORLD.CURRENCY_1_NAME;   // Gil
 const C2 = WORLD.CURRENCY_2_NAME;   // エテル
@@ -120,7 +121,7 @@ async function startExchange(interaction: ChatInputCommandInteraction, guildId: 
   const approvalChannelId = cfg.exchange_approval_channel_id || interaction.channelId;
   const embed = baseEmbed("💱 両替の承認待ち", PALETTE.VERMILION)
     .setDescription([
-      `**${interaction.user.displayName}** の両替申請（#${id}）`,
+      `**${memberName(interaction)}** の両替申請（#${id}）`,
       `種別: **${label}**　額: **${amount.toLocaleString()}**`,
       "",
       "管理者の承認で実行されるよ。",

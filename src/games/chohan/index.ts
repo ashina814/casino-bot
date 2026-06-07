@@ -35,6 +35,7 @@ import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { createLinkedTable, findLinkedVC } from "../takutate/index";
+import { memberName } from "../../core/names";
 
 // ─── 定数 ─────────────────────────────────────────────
 const RAKE_PCT = 0.03;                   // 場代 3% → 星溜まり(JP)
@@ -321,7 +322,7 @@ async function submitBet(interaction: ModalSubmitInteraction, g: GameRow, side: 
   await interaction.reply({ content: `【${SIDE_LABEL[side]}】に ${formatEther(amount)} を張ったよ（きみの合計: ${formatEther(result.total!)}）。`, ephemeral: true });
   await refreshPanel(interaction.client, g.id);
 
-  const feed = `🎴 **${interaction.user.displayName}** が【${SIDE_LABEL[side]}】に ${formatEther(amount)}`;
+  const feed = `🎴 **${memberName(interaction)}** が【${SIDE_LABEL[side]}】に ${formatEther(amount)}`;
   await announce(interaction.client, g, amount >= BIG_BET_THRESHOLD ? `🔥 大口！ ${feed}` : feed);
 }
 

@@ -26,6 +26,7 @@ import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { autoRollHand, handRank, describeHand, diceDisplay, type Hand } from "../chinchiro/index";
 import { createLinkedTable, findLinkedVC } from "../takutate/index";
+import { memberName } from "../../core/names";
 
 const RAKE_PCT = 0.03;     // 場代 3%（勝者が得る相手分から）→ 星溜まり(JP)
 const MAX_TIE_ROUNDS = 5;  // 同役での振り直し上限
@@ -92,7 +93,7 @@ export async function challenge(interaction: ChatInputCommandInteraction): Promi
   ).run(guildId, challengerId, opponent.id, stake, interaction.channelId).lastInsertRowid);
 
   const embed = baseEmbed(`🎲 チンチロ対戦 #${duelId}`, PALETTE.STARGOLD).setDescription([
-    `**${interaction.user.displayName}** が <@${opponent.id}> にチンチロ対戦を申し込んだ。`,
+    `**${memberName(interaction)}** が <@${opponent.id}> にチンチロ対戦を申し込んだ。`,
     `賭け金: **${formatEther(stake)}**（両者同額・勝者総取り）`,
     `*場代 ${Math.round(RAKE_PCT * 100)}% は ${WORLD.POOL_JACKPOT} へ。*`,
     "",

@@ -28,6 +28,7 @@ import { db } from "../../core/db";
 import { adjustBalance, getBalance } from "../../core/bank";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { PALETTE, WORLD, formatEther } from "../../world.config";
+import { memberName } from "../../core/names";
 
 // 紐付きVC のデポジット: 立てるとき◈X 預け、勝負が 1回でも成立すれば返却、
 // 一度も成立せず VC が消えたら JP没収。雑談VC化の心理障壁＋経済的ペナルティ。
@@ -261,7 +262,7 @@ export async function createLinkedTable(interaction: ButtonInteraction, opts: Li
     saishoubu: { emoji: "🎲", name: "賽勝負の卓" },
   };
   const tag = labelByType[opts.linkType] ?? { emoji: "🎴", name: "勝負の卓" };
-  const vcName = (opts.vcName ?? `${tag.emoji} ${tag.name}・${interaction.user.displayName}`).slice(0, 100);
+  const vcName = (opts.vcName ?? `${tag.emoji} ${tag.name}・${memberName(interaction)}`).slice(0, 100);
 
   // デポジット徴収（VC作成前。作成失敗したら返金する）
   const debit = adjustBalance(userId, -VC_DEPOSIT, "卓: デポジット預け", "takutate", guild.id);

@@ -35,6 +35,7 @@ import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
 import { createLinkedTable, findLinkedVC } from "../takutate/index";
 import { mentionAdminRole } from "../../admin/commands";
+import { memberName } from "../../core/names";
 
 // ─── 定数 ─────────────────────────────────────────────
 const MAX_OPTIONS = 4;
@@ -461,7 +462,7 @@ async function submitBet(interaction: ModalSubmitInteraction, m: MarketRow, opt:
   await interaction.reply({ content: `【${options[opt]}】に ${formatEther(amount)} を投じたよ。`, ephemeral: true });
   await refreshPanel(interaction.client, m.id);
 
-  const feed = `🎲 **${interaction.user.displayName}** が【${options[opt]}】に ${formatEther(amount)} を投じた`;
+  const feed = `🎲 **${memberName(interaction)}** が【${options[opt]}】に ${formatEther(amount)} を投じた`;
   await postToThread(interaction.client, m, amount >= BIG_BET_THRESHOLD ? `🔥 大口！ ${feed}` : feed);
 }
 
