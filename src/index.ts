@@ -31,6 +31,7 @@ import { handleSaiButton, refundStaleDuelsOnStartup, bootSaiTimeouts } from "./g
 import { handleBjDuelButton, refundStaleBjDuelsOnStartup, bootBjDuelTimeouts } from "./games/bjduel";
 import { handleIndianButton, refundStaleIndianOnStartup, bootIndianTimeouts } from "./games/indian";
 import { handlePokerButton, handlePokerSelect, refundStalePokerOnStartup, bootPokerTimeouts } from "./games/poker";
+import { handleHoldemButton, handleHoldemModal, refundStaleHoldemOnStartup } from "./games/holdem";
 import { handleShoubuCommand } from "./games/shoubu";
 import { handleVipCommand, handleVipButton } from "./games/vip";
 import { handleNagareCommand } from "./games/nagareboshi";
@@ -160,6 +161,11 @@ async function bootstrap(): Promise<void> {
     refundStalePokerOnStartup();
   } catch (err) {
     console.error("[bootstrap] refundStalePokerOnStartup failed:", err);
+  }
+  try {
+    refundStaleHoldemOnStartup();
+  } catch (err) {
+    console.error("[bootstrap] refundStaleHoldemOnStartup failed:", err);
   }
   // 為替の中断分を回収（API有効時のみ・非同期で投げっぱなし）
   reconcileStaleExchangesOnStartup().catch((err) =>
@@ -371,6 +377,16 @@ async function bootstrap(): Promise<void> {
       }
       if (interaction.isStringSelectMenu() && interaction.customId.startsWith("pkr:")) {
         await handlePokerSelect(interaction);
+        return;
+      }
+
+      // ── 奥座敷ホールデム (hold:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("hold:")) {
+        await handleHoldemButton(interaction);
+        return;
+      }
+      if (interaction.isModalSubmit() && interaction.customId.startsWith("hold:")) {
+        await handleHoldemModal(interaction);
         return;
       }
 

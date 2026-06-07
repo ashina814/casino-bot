@@ -13,6 +13,7 @@ import { handleBoardCommand } from "../board";
 import { challenge as bjdChallenge } from "../bjduel";
 import { challenge as indianChallenge } from "../indian";
 import { challenge as pokerChallenge } from "../poker";
+import { challenge as holdemChallenge } from "../holdem";
 
 export const shoubuCommand = new SlashCommandBuilder()
   .setName("勝負")
@@ -64,6 +65,15 @@ export const shoubuCommand = new SlashCommandBuilder()
       .addIntegerOption((o) => o.setName("額").setDescription("賭け金（参加者全員同額）").setRequired(true).setMinValue(1))
       .addUserOption((o) => o.setName("相手").setDescription("相手指定でサシ（未指定なら誰でも参加できるオープン）").setRequired(false)),
   )
+  .addSubcommand((sc) =>
+    sc
+      .setName("奥ポーカー")
+      .setDescription("✦ VIP専用 本格テキサスホールデム（キャッシュゲーム・サイドポット対応）")
+      .addIntegerOption((o) => o.setName("sb").setDescription("スモールブラインド（既定 100）").setRequired(false).setMinValue(10))
+      .addIntegerOption((o) => o.setName("bb").setDescription("ビッグブラインド（既定 SB×2）").setRequired(false).setMinValue(20))
+      .addIntegerOption((o) => o.setName("最低バイイン").setDescription("最低バイイン額（既定 ◈10,000・BB×20以上）").setRequired(false).setMinValue(100))
+      .addIntegerOption((o) => o.setName("最大人数").setDescription("定員（既定 8・2〜8）").setRequired(false).setMinValue(2).setMaxValue(8)),
+  )
   .addSubcommandGroup((g) =>
     g
       .setName("板")
@@ -96,5 +106,6 @@ export async function handleShoubuCommand(interaction: ChatInputCommandInteracti
     case "ブラックジャック": return bjdChallenge(interaction);
     case "インディアン": return indianChallenge(interaction);
     case "ポーカー": return pokerChallenge(interaction);
+    case "奥ポーカー": return holdemChallenge(interaction);
   }
 }
