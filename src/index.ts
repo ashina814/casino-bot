@@ -16,6 +16,7 @@ import { handleStocksCommand, handleStocksButton, handleStocksSelect, handleStoc
 import { handleAdminCommand } from "./admin/commands";
 import { handleOwnerCommand } from "./admin/owner";
 import { handleShakaCommand } from "./admin/shaka";
+import { handleSeppouCommand } from "./admin/seppou";
 import { handleBlackjackButton } from "./games/blackjack";
 import { handleShoutenCommand, handleShoutenButton, handleShoutenSelect } from "./games/shouten";
 import { handleShopSelect } from "./games/shop";
@@ -285,6 +286,8 @@ async function bootstrap(): Promise<void> {
             return await handleOwnerCommand(interaction);
           case "釈迦の心づけ":
             return await handleShakaCommand(interaction);
+          case "釈迦の説法":
+            return await handleSeppouCommand(interaction);
           case "商店":
             return await handleShoutenCommand(interaction);
           case "アステル":
