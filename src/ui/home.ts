@@ -95,15 +95,16 @@ function buildHomeRows(): ActionRowBuilder<ButtonBuilder>[] {
 // ⚠️ ASTERIA サーバー固定のチャンネルID。他ギルドではリンク切れになる（将来 /管理 登録式に汎用化したい）。
 // 卓は /サシ /板 から派生するので独立チャンネル不要 → ASTERIA_CH からも削除。
 const ASTERIA_CH = {
-  asobi: "1509579411521802363", // 遊技場（フォーラム・ソロ）
-  toba: "1511333213510045806",  // 賭場（板/雑談/対人）
-  keiba: "1509579499929342130", // 競馬場
-  kabu: "1509579561552318484",  // 株式市場
+  asobi: "1509579411521802363",   // 遊技場（フォーラム・ソロ）
+  toba: "1511333213510045806",    // 賭場（板/雑談/対人）
+  keiba: "1509579499929342130",   // 競馬場
+  kabu: "1509579561552318484",    // 株式市場
+  shouten: "1512002091239870484", // 賭場商店（スレッド）
 } as const;
 const PLAY_GUIDE = [
   `🎰 ソロで遊ぶ → <#${ASTERIA_CH.asobi}>（スロット/ブラックジャック/チンチロ/丁半/ハイロー/ルーレット）`,
-  `🀄 対人で遊ぶ → <#${ASTERIA_CH.toba}>（丁半/チンチロ対戦/サシ/板）`,
-  `🐎 競馬 → <#${ASTERIA_CH.keiba}>　📈 株 → <#${ASTERIA_CH.kabu}>`,
+  `🀄 対人で遊ぶ → <#${ASTERIA_CH.toba}>（丁半/チンチロ/サシ/BJ/インディアン/ポーカー/板）`,
+  `🐎 競馬 → <#${ASTERIA_CH.keiba}>　📈 株 → <#${ASTERIA_CH.kabu}>　🛍️ 商店 → <#${ASTERIA_CH.shouten}>`,
 ].join("\n");
 
 export async function handleCasinoCommand(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -134,8 +135,8 @@ export async function postHomePanel(interaction: ChatInputCommandInteraction): P
         name: "🌱 はじめての方へ（3ステップ）",
         value: [
           "**①** 下の **「📅 福分け」** で毎日のエテルを受け取る",
-          "**②** **🎰#遊技場** でソロのゲーム、**🀄#勝負場** で対人に挑戦",
-          "**③** 稼いだエテルで **🛍️#賭場商店** の景品を手に入れる",
+          `**②** <#${ASTERIA_CH.asobi}> でソロのゲーム、<#${ASTERIA_CH.toba}> で対人に挑戦`,
+          `**③** 稼いだエテルで <#${ASTERIA_CH.shouten}> の景品を手に入れる`,
         ].join("\n"),
         inline: false,
       },
@@ -150,9 +151,9 @@ export async function postHomePanel(interaction: ChatInputCommandInteraction): P
           "・**`/商店`** … 景品・お守り・称号",
           "・**`/アステル`** … 状態・モード・贈り物・お礼",
           "・**`/vip`** … 奥座敷の会員（高bet上限×2・専用部屋）",
-          "・**`/勝負`** … 人と賭ける（丁半 / チンチロ / サシ / 板）",
+          "・**`/勝負`** … 人と賭ける（丁半 / チンチロ / サシ / BJ / インディアン / ポーカー / 板）",
           "・**`/心付け`** … 気持ちを贈る（1日1回・◈500まで）",
-          "*（勝負と一緒にVCを立てたい時は、サシ/板 のボタンからどうぞ）*",
+          "*（サシや板から「卓を立てる」を押すと専用VCも立てられるよ）*",
         ].join("\n"),
         inline: false,
       },
@@ -160,7 +161,7 @@ export async function postHomePanel(interaction: ChatInputCommandInteraction): P
         name: "📖 困ったら",
         value: [
           "下の **「📖 ヘルプ」** で遊び方をカテゴリ別に。",
-          "自分の残高・段位・戦績は **「👤 通行証」** か **`/案内 ホーム`** で。",
+          "自分の残高・段位・戦績は **「👤 通行証」** か **`/案内`** で。",
         ].join("\n"),
         inline: false,
       },
