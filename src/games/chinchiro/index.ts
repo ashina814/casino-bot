@@ -22,6 +22,7 @@ import {
   ModalSubmitInteraction,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { awardChain } from "../../core/chain";
 import { consumeWinBonus, consumeLossProtection, consumeReroll } from "../../core/items";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
@@ -580,6 +581,7 @@ async function settleVsDealer(
     const actualTotal = total - fukuTax;
 
     adjustBalance(userId, actualTotal, "chinchiro_win", "chinchiro", guildId);
+    const chain = awardChain(userId, profit - fukuTax, "chinchiro", guildId);
     recordWin(userId, profit - fukuTax);
     if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
     addExp(userId, 15);
@@ -587,7 +589,7 @@ async function settleVsDealer(
     resultType = (playerHand.type === "pinzoro" || playerHand.type === "zorome") ? "jackpot" : "win";
     broadcastBigWin(reply.client, guildId, { userId, game: "チンチロ", bet, payout: actualTotal });
     dialogue = dialogueWin(ctx, profit - fukuTax, bet);
-    payoutText = `💰 配当: ◈${actualTotal.toLocaleString()}（賭金返却+利益 ◈${(profit - fukuTax).toLocaleString()}）`;
+    payoutText = `💰 配当: ◈${actualTotal.toLocaleString()}（賭金返却+利益 ◈${(profit - fukuTax).toLocaleString()}）${chain.line ? "\n" + chain.line : ""}`;
   } else if (mul === 0) {
     // プッシュ：賭金を返金
     adjustBalance(userId, bet, "chinchiro_push", "chinchiro", guildId);

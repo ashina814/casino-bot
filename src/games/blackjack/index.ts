@@ -14,6 +14,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { awardChain } from "../../core/chain";
 import { effectiveBetCap } from "../../core/vip";
 import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
@@ -368,6 +369,8 @@ async function resolveGame(
     actualPayout = effPayout - fukuTax;
 
     adjustBalance(userId, actualPayout, "bj_win", "blackjack", guildId);
+    const chain = awardChain(userId, net - fukuTax, "blackjack", guildId);
+    if (chain.line) itemNote = (itemNote ? itemNote + "\n" : "") + chain.line;
     recordWin(userId, net - fukuTax);
     if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
   } else if (net === 0) {

@@ -14,6 +14,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { awardChain } from "../../core/chain";
 import { getServerConfig, acquireGameLock, releaseGameLock, db } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -267,8 +268,11 @@ export async function playSlots(
   let resultType: "win" | "lose" | "jackpot";
   let dialogue: string;
 
+  let chainLine = "";
   if (actualPayout > 0) {
     adjustBalance(userId, actualPayout, "slots_win", "slots", guildId);
+    const chain = awardChain(userId, actualPayout, "slots", guildId);
+    chainLine = chain.line;
     recordWin(userId, actualPayout);
 
     if (fukuTax > 0) {
@@ -349,6 +353,7 @@ export async function playSlots(
     reelDisplay,
     "",
     payout > 0 ? `💰 配当: ◈${actualPayout.toLocaleString()} (${payoutLabel})${jpLine}` : "💨 ハズレ",
+    chainLine,
     extraInfo,
     freeSpinNotice,
     isFreeSpin ? "" : `\n🏆 JP プール: ◈${getJackpotPool(guildId).toLocaleString()}`,

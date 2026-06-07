@@ -17,6 +17,7 @@ import {
   TextChannel,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { awardChain } from "../../core/chain";
 import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig } from "../../core/db";
 import {
@@ -247,13 +248,15 @@ export async function runRouletteSession(
       const actualPayout = rawPayout - fukuTax;
 
       adjustBalance(b.userId, actualPayout, "roulette_win", "roulette", guildId);
+      const chain = awardChain(b.userId, net - fukuTax, "roulette", guildId);
       recordWin(b.userId, net - fukuTax);
       if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
       addExp(b.userId, 15);
       broadcastBigWin(interaction.client, guildId, { userId: b.userId, game: "ルーレット", bet: b.amount, payout: actualPayout });
 
       const emoji = b.betType === "green" ? "🎯" : "👑";
-      results.push(`${emoji} <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → **+◈${(net - fukuTax).toLocaleString()}**${itemTag}`);
+      const chainSuffix = chain.line ? `\n　${chain.line}` : "";
+      results.push(`${emoji} <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → **+◈${(net - fukuTax).toLocaleString()}**${itemTag}${chainSuffix}`);
     } else {
       const prot = consumeLossProtection(b.userId);
       if (prot.refundRate > 0) {

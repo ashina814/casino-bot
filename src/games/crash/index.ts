@@ -15,6 +15,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { awardChain } from "../../core/chain";
 import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
@@ -283,6 +284,7 @@ export async function playCrash(
     const actualPayout = rawPayout - fukuTax;
 
     adjustBalance(userId, actualPayout, "crash_win", "crash", guildId);
+    const chain = awardChain(userId, net - fukuTax, "crash", guildId);
     recordWin(userId, net - fukuTax);
     if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
     addExp(userId, 15);
@@ -296,7 +298,8 @@ export async function playCrash(
         "",
         `📈 離脱: **${cashOutMultiplier.toFixed(2)}x** / 崩壊: ${crashPoint.toFixed(2)}x`,
         `💰 +◈${(net - fukuTax).toLocaleString()}`,
-      ].join("\n"),
+        chain.line,
+      ].filter(Boolean).join("\n"),
       result: "win",
       userId,
       guildId,

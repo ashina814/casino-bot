@@ -14,6 +14,7 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { awardChain } from "../../core/chain";
 import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { effectiveBetCap } from "../../core/vip";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
@@ -176,6 +177,8 @@ export async function startChohan(
       payout = rawPayout - fukuTax;
 
       adjustBalance(userId, payout, "chohan_win", "chohan", guildId);
+      const chain = awardChain(userId, payout, "chohan", guildId);
+      if (chain.line) itemNote = (itemNote ? itemNote + "\n" : "") + chain.line;
       recordWin(userId, payout);
       if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
     } else {
