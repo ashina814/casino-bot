@@ -448,9 +448,10 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     {
       name: "📢 チャンネル",
       value: [
-        `遊戯場: ${cfg.casino_channel_id ? `<#${cfg.casino_channel_id}>` : "*未設定*"}`,
+        `アステル通知先: ${cfg.casino_channel_id ? `<#${cfg.casino_channel_id}>` : "*未設定*"}`,
         `大勝ち速報: ${cfg.jackpot_channel_id ? `<#${cfg.jackpot_channel_id}>` : "*未設定*"}`,
         `株 速報: ${cfg.stock_channel_id ? `<#${cfg.stock_channel_id}>` : "*未設定*"}`,
+        `競馬（定期競馬の発火先）: ${cfg.race_channel_id ? `<#${cfg.race_channel_id}>` : "*未設定*"}`,
         `通貨ログ: ${cfg.tx_feed_channel_id ? `<#${cfg.tx_feed_channel_id}>` : "*未設定*"}`,
       ].join("\n"),
       inline: true,
@@ -460,6 +461,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("admin_economy").setLabel("💰 経済を編集").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("admin_channels").setLabel("📢 チャンネルを編集").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("admin_roles").setLabel("🎭 ロールを編集").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("admin_logs").setLabel("📒 ログ設定").setStyle(ButtonStyle.Secondary),
   );
 
@@ -508,22 +510,19 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     } else if (btn.customId === "admin_channels") {
       const modal = new ModalBuilder()
         .setCustomId("admin_channels_modal")
-        .setTitle("📢 チャンネル / ロール設定")
+        .setTitle("📢 チャンネル設定")
         .addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("casino_channel").setLabel("遊戯場チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.casino_channel_id ?? "").setRequired(false),
+            new TextInputBuilder().setCustomId("casino_channel").setLabel("アステル通知先 チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.casino_channel_id ?? "").setRequired(false),
           ),
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("jackpot_channel").setLabel("大勝ち速報チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.jackpot_channel_id ?? "").setRequired(false),
+            new TextInputBuilder().setCustomId("jackpot_channel").setLabel("大勝ち速報 チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.jackpot_channel_id ?? "").setRequired(false),
           ),
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("stock_channel").setLabel("株 速報チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.stock_channel_id ?? "").setRequired(false),
+            new TextInputBuilder().setCustomId("stock_channel").setLabel("株 速報 チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.stock_channel_id ?? "").setRequired(false),
           ),
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("vip_role").setLabel("VIPロールID（奥座敷）").setStyle(TextInputStyle.Short).setValue(cfg.vip_role_id ?? "").setRequired(false),
-          ),
-          new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("admin_role").setLabel("運営ロールID（異議・通知のメンション先）").setStyle(TextInputStyle.Short).setValue(cfg.admin_role_id ?? "").setRequired(false),
+            new TextInputBuilder().setCustomId("race_channel").setLabel("競馬（定期競馬の発火先） チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.race_channel_id ?? "").setRequired(false),
           ),
         );
 
@@ -534,10 +533,30 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
           casino_channel_id: m.fields.getTextInputValue("casino_channel") || null,
           jackpot_channel_id: m.fields.getTextInputValue("jackpot_channel") || null,
           stock_channel_id: m.fields.getTextInputValue("stock_channel") || null,
+          race_channel_id: m.fields.getTextInputValue("race_channel") || null,
+        });
+        await m.reply({ embeds: [successEmbed("チャンネル設定を更新しました。")], ephemeral: true });
+      } catch { /* timeout */ }
+    } else if (btn.customId === "admin_roles") {
+      const modal = new ModalBuilder()
+        .setCustomId("admin_roles_modal")
+        .setTitle("🎭 ロール設定")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("vip_role").setLabel("VIPロールID（奥座敷）").setStyle(TextInputStyle.Short).setValue(cfg.vip_role_id ?? "").setRequired(false),
+          ),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("admin_role").setLabel("運営ロールID（異議・通知のメンション先）").setStyle(TextInputStyle.Short).setValue(cfg.admin_role_id ?? "").setRequired(false),
+          ),
+        );
+      await btn.showModal(modal);
+      try {
+        const m = await btn.awaitModalSubmit({ time: 60_000 });
+        updateServerConfig(guildId, {
           vip_role_id: m.fields.getTextInputValue("vip_role") || null,
           admin_role_id: m.fields.getTextInputValue("admin_role") || null,
         });
-        await m.reply({ embeds: [successEmbed("チャンネル/ロール設定を更新しました。")], ephemeral: true });
+        await m.reply({ embeds: [successEmbed("ロール設定を更新しました。")], ephemeral: true });
       } catch { /* timeout */ }
     } else if (btn.customId === "admin_logs") {
       const modal = new ModalBuilder()

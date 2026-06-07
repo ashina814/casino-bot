@@ -3,22 +3,27 @@ import { Client } from "discord.js";
 import { config } from "../config";
 import { startRace } from "../games/keiba/logic";
 import { initStockTables, updateAllPrices } from "../games/stocks/index";
-import { getServerConfig } from "../core/db";
+import { getServerConfig, db } from "../core/db";
 import { baseEmbed, COLORS } from "../ui/embeds";
 
 export function registerSchedulers(client: Client): void {
-  // 競馬: 土日21時
+  // 競馬: 土日21時 — 全ギルドの race_channel_id を見て発火（.env は fallback）
   cron.schedule("0 21 * * 6,0", async () => {
-    try {
-      if (config.raceChannelId) {
-        await startRace(client, {
-          channelId: config.raceChannelId,
-          initiatedBy: "system",
-          isScheduled: true
-        });
+    const rows = db.prepare(
+      "SELECT guild_id, race_channel_id FROM server_config WHERE race_channel_id IS NOT NULL AND race_channel_id != ''"
+    ).all() as Array<{ guild_id: string; race_channel_id: string }>;
+
+    const targets: string[] = rows.map((r) => r.race_channel_id);
+    if (targets.length === 0 && config.raceChannelId) {
+      targets.push(config.raceChannelId); // 旧 .env fallback（DB未設定guildのみ）
+    }
+
+    for (const channelId of targets) {
+      try {
+        await startRace(client, { channelId, initiatedBy: "system", isScheduled: true });
+      } catch (error) {
+        console.error(`[scheduler] Failed to start scheduled race (channel ${channelId}):`, error);
       }
-    } catch (error) {
-      console.error("[scheduler] Failed to start scheduled race:", error);
     }
   });
 

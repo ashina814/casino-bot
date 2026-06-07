@@ -102,6 +102,8 @@ export type ServerConfig = {
   admin_role_id: string | null;
   /** 通貨ログのライブフィード送信先（adjustBalance のたびに1行流れる）。未設定なら無効。 */
   tx_feed_channel_id: string | null;
+  /** 定期競馬（土日21時 cron）の発火先チャンネル。未設定なら .env の RACE_CHANNEL_ID を fallback。 */
+  race_channel_id: string | null;
 };
 
 export type Title = {
@@ -618,6 +620,8 @@ export function initializeDatabase(): void {
     // /流れ星 占い 1日カウンタ
     "ALTER TABLE users ADD COLUMN nagareboshi_date TEXT",
     "ALTER TABLE users ADD COLUMN nagareboshi_count INTEGER NOT NULL DEFAULT 0",
+    // 定期競馬の発火先チャンネル（ギルド別・未設定は .env fallback）
+    "ALTER TABLE server_config ADD COLUMN race_channel_id TEXT",
   ];
 
   // ─── 5枚交換ポーカー ───
@@ -745,6 +749,7 @@ export function updateServerConfig(guildId: string, updates: Partial<Omit<Server
     "exchange_rate_offset", "board_fee",
     "exchange_threshold", "exchange_approval_channel_id",
     "vip_role_id", "admin_role_id", "tx_feed_channel_id",
+    "race_channel_id",
   ] as const;
 
   for (const key of allowed) {
