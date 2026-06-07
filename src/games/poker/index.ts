@@ -574,13 +574,12 @@ async function settleGame(client: Client, gameId: number): Promise<void> {
     }
   } catch { /* ignore */ }
 
-  // 紐付きVC（サシのみ decisionPanel 対応）
-  if (g.mode === "sashi") {
-    try {
-      const { postDecisionPanel } = require("../decisionPanel");
-      await postDecisionPanel(client, g.guild_id, "poker", String(gameId), g.host_id, players.map((p) => p.user_id));
-    } catch (err) { console.warn("[poker] decisionPanel post failed:", err); }
-  }
+  // 紐付きVC: ゲーム終了後の決定パネル（やめる/5分タイムアウトで卓を畳む）
+  // サシは「続行」で再戦できる。オープンは続行=未対応で再戦失敗→VC片付け扱い。
+  try {
+    const { postDecisionPanel } = require("../decisionPanel");
+    await postDecisionPanel(client, g.guild_id, "poker", String(gameId), g.host_id, players.map((p) => p.user_id));
+  } catch (err) { console.warn("[poker] decisionPanel post failed:", err); }
 }
 
 // ─── 再戦立て（サシのみ・decisionPanel から） ───────
