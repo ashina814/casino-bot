@@ -26,7 +26,7 @@ import { getTierByKey } from "../../core/economy";
 import { effectiveBetCap } from "../../core/vip";
 import { baseEmbed, errorEmbed } from "../../ui/embeds";
 import { WORLD, formatEther, PALETTE } from "../../world.config";
-import { createLinkedTable, findLinkedVC } from "../takutate/index";
+import { createLinkedTable, findLinkedVC, markLinkedVCSettled } from "../takutate/index";
 import { memberName } from "../../core/names";
 
 const RAKE_PCT = 0.03;
@@ -574,12 +574,29 @@ async function settleGame(client: Client, gameId: number): Promise<void> {
     }
   } catch { /* ignore */ }
 
-  // 紐付きVC: ゲーム終了後の決定パネル（やめる/5分タイムアウトで卓を畳む）
-  // サシは「続行」で再戦できる。オープンは続行=未対応で再戦失敗→VC片付け扱い。
+  // 紐付きVC: ゲーム終了後の振る舞いはモードで分岐
+  //   sashi : 決定パネル（両者[続行]で自動再戦）
+  //   open  : パネル出さず案内文のみ。再戦は /勝負 ポーカー 額:<額> を再度叩く（相手指定なしでオープン）。
+  //           takutate sweep が「最終勝負から 15分」アイドルで VC を片付ける。
   try {
-    const { postDecisionPanel } = require("../decisionPanel");
-    await postDecisionPanel(client, g.guild_id, "poker", String(gameId), g.host_id, players.map((p) => p.user_id));
-  } catch (err) { console.warn("[poker] decisionPanel post failed:", err); }
+    if (g.mode === "sashi") {
+      const { postDecisionPanel } = require("../decisionPanel");
+      await postDecisionPanel(client, g.guild_id, "poker", String(gameId), g.host_id, players.map((p) => p.user_id));
+    } else {
+      const linked = findLinkedVC("poker", String(gameId));
+      if (linked) {
+        markLinkedVCSettled("poker", String(gameId));
+        const ch = await client.channels.fetch(linked.channel_id).catch(() => null);
+        if (ch && "send" in ch) {
+          const notice = baseEmbed("🪑 次やる？", PALETTE.JADE).setDescription([
+            "勝負はお開き。**15分以内**に `/勝負 ポーカー 額:<額>`（相手未指定でオープン）を叩けば、この卓のままもう一戦できるよ。",
+            "*（次の勝負が立たないまま 15分 経ったら卓は片付けるね。雑談用には残さないよ。）*",
+          ].join("\n"));
+          await (ch as any).send({ embeds: [notice] }).catch(() => {});
+        }
+      }
+    }
+  } catch (err) { console.warn("[poker] post-settle notice failed:", err); }
 }
 
 // ─── 再戦立て（サシのみ・decisionPanel から） ───────

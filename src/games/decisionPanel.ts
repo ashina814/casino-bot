@@ -29,9 +29,21 @@ import { PALETTE } from "../world.config";
 import { findLinkedVC, updateLinkedVCLinkId, deleteLinkedVC, markLinkedVCSettled } from "./takutate/index";
 
 // ─── 設定（後で調整しやすいように定数化） ─────────────
-const DECISION_TIMEOUT_MS = 5 * 60_000;   // 続行判断の制限時間
+const DECISION_TIMEOUT_DEFAULT_MS = 10 * 60_000;   // デフォルト（chohan 等）
+const DECISION_TIMEOUT_PAIR_MS    = 20 * 60_000;   // 1v1（sashi/saishoubu/bjduel/indian/poker sashi）
+const DECISION_TIMEOUT_BOARD_MS   = 30 * 60_000;   // 板
 const WARNING_BEFORE_MS = 30_000;          // 残りこの時間で警告
 const TICK_INTERVAL_MS = 10_000;           // 期限/警告の点検周期
+
+function timeoutForLinkType(linkType: string): number {
+  if (linkType === "board") return DECISION_TIMEOUT_BOARD_MS;
+  // poker は sashi モードでしかパネルを出さない（open は呼び元でスキップ）ので
+  // ここで poker を見たら 1v1 扱いで OK
+  if (linkType === "sashi" || linkType === "saishoubu" || linkType === "bjduel" || linkType === "indian" || linkType === "poker") {
+    return DECISION_TIMEOUT_PAIR_MS;
+  }
+  return DECISION_TIMEOUT_DEFAULT_MS;
+}
 
 // ─── 型 ──────────────────────────────────────────────
 type LinkType = "sashi" | "board" | "chohan" | "saishoubu" | "bjduel" | "indian" | "poker";
@@ -165,7 +177,7 @@ export async function postDecisionPanel(
   if (!vc || vc.type !== ChannelType.GuildVoice) return;
   const vcChannel = vc as VoiceChannel & TextBasedChannel;
 
-  const deadline_at = new Date(Date.now() + DECISION_TIMEOUT_MS).toISOString();
+  const deadline_at = new Date(Date.now() + timeoutForLinkType(linkType)).toISOString();
 
   // 先に空レコード作って ID を貰い、メッセージを投下してから message_id を入れる
   const tempId = insertPanel({

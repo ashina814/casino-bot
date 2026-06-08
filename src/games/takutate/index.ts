@@ -41,9 +41,12 @@ type TempVCRow = {
   owner_id: string;
   table_type: string;
   created_at: string;
+  link_type?: string | null;
+  link_id?: string | null;
   deposit_holder?: string | null;
   deposit_amount?: number;
   settle_count?: number;
+  last_settled_at?: string | null;
 };
 
 function trackVC(
@@ -63,12 +66,16 @@ function trackVC(
   ).run(channelId, guildId, ownerId, type, linkType, linkId, depositHolder, depositAmount);
 }
 
-/** 紐付き勝負の精算が走ったら呼ぶ（デポジット返却条件をクリア）。idempotent。 */
+/** 紐付き勝負の精算が走ったら呼ぶ（デポジット返却条件をクリア＋アイドル時計のリセット）。idempotent。 */
 export function markLinkedVCSettled(linkType: string, linkId: string): void {
   db.prepare(
-    "UPDATE temp_voice_channels SET settle_count = settle_count + 1 WHERE link_type = ? AND link_id = ?",
+    "UPDATE temp_voice_channels SET settle_count = settle_count + 1, last_settled_at = datetime('now') WHERE link_type = ? AND link_id = ?",
   ).run(linkType, linkId);
 }
+
+// 紐付きVCのアイドル上限: 最終 settle（または settle 0回なら created_at）から
+// これだけ経った卓は、人がいても sweep で片付ける（雑談化防止）。
+const LINKED_VC_IDLE_LIMIT_MS = 15 * 60_000;
 
 /**
  * 特定の link 対象に紐付く VC デポジットを保有者へ即返金（idempotent）。
@@ -363,6 +370,32 @@ export async function sweepStaleTempVCs(client: Client, graceMs = 0): Promise<nu
         continue;
       }
       const vc = channel as VoiceChannel;
+
+      // ポーカー open だけは決定パネルを使わず「最終勝負から N分」のアイドル判定で片付ける。
+      // 他の紐付きVC（sashi/board/chohan/saishoubu/bjduel/indian/poker sashi）は decisionPanel の
+      // 続行/やめる/期限切れに任せるので、ここでは触らない（=雑談化判定は適用しない）。
+      if (r.link_type === "poker" && r.link_id && vc.members.size > 0) {
+        const mode = (db.prepare("SELECT mode FROM poker_games WHERE id = ?").get(Number(r.link_id)) as { mode?: string } | undefined)?.mode;
+        if (mode === "open") {
+          const baseTs = r.last_settled_at ?? r.created_at;
+          const idleMs = Date.now() - new Date(baseTs + "Z").getTime();
+          if (idleMs >= LINKED_VC_IDLE_LIMIT_MS) {
+            try {
+              await (vc as VoiceChannel & { send?: (m: any) => Promise<any> }).send?.(
+                "*しばらく勝負が無かったから卓を片付けるよ。続きは新しく立ててね。*",
+              );
+            } catch { /* ignore */ }
+            resolveDepositOnClose(r.channel_id);
+            await vc.delete("卓を立てる: アイドル超過（poker open）").catch(() => {});
+            untrackVC(r.channel_id);
+            removed++;
+            continue;
+          }
+          continue; // open 中はアイドル上限内なら残す
+        }
+        // poker sashi は下の通常フロー（人いれば残す）
+      }
+
       if (vc.members.size > 0) continue;
 
       // 立てたばかりで未入室のものは grace 内なら残す

@@ -622,6 +622,8 @@ export function initializeDatabase(): void {
     "ALTER TABLE users ADD COLUMN nagareboshi_count INTEGER NOT NULL DEFAULT 0",
     // 定期競馬の発火先チャンネル（ギルド別・未設定は .env fallback）
     "ALTER TABLE server_config ADD COLUMN race_channel_id TEXT",
+    // 紐付きVCの雑談化防止: 最終勝負成立時刻を保持して N分経ったら sweep で片付ける
+    "ALTER TABLE temp_voice_channels ADD COLUMN last_settled_at TEXT",
   ];
 
   // ─── 5枚交換ポーカー ───
