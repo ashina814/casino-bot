@@ -659,7 +659,8 @@ export function initializeDatabase(): void {
     )
   `);
 
-  // ─── インディアンポーカー（1v1心理戦） ───
+  // ─── インディアンポーカー（旧 1v1心理戦・廃止）───
+  // ※ コードからは参照されないが、過去の対局記録保護のためテーブルは残置。
   db.exec(`
     CREATE TABLE IF NOT EXISTS indian_duels (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -673,6 +674,32 @@ export function initializeDatabase(): void {
       opponent_card INTEGER NOT NULL DEFAULT 0,
       challenger_action TEXT,
       opponent_action TEXT,
+      winner_id TEXT,
+      rake INTEGER NOT NULL DEFAULT 0,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  // ─── ハイロー対人（1v1・同時宣言・best_of 制） ───
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS highlow_duels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      challenger_id TEXT NOT NULL,
+      opponent_id TEXT NOT NULL,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','active','settled','declined','void')),
+      best_of INTEGER NOT NULL DEFAULT 3,
+      round_no INTEGER NOT NULL DEFAULT 0,
+      base_card INTEGER,
+      challenger_call TEXT,
+      opponent_call TEXT,
+      challenger_score INTEGER NOT NULL DEFAULT 0,
+      opponent_score INTEGER NOT NULL DEFAULT 0,
+      history TEXT,
       winner_id TEXT,
       rake INTEGER NOT NULL DEFAULT 0,
       channel_id TEXT,

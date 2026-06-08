@@ -30,7 +30,7 @@ import { handleTakuButton, handleTableVoiceState, sweepStaleTempVCs, refundAllVC
 import { handleChohanButton, handleChohanModal, refundStaleChohanOnStartup } from "./games/chohan";
 import { handleSaiButton, refundStaleDuelsOnStartup, bootSaiTimeouts } from "./games/saishoubu";
 import { handleBjDuelButton, refundStaleBjDuelsOnStartup, bootBjDuelTimeouts } from "./games/bjduel";
-import { handleIndianButton, refundStaleIndianOnStartup, bootIndianTimeouts } from "./games/indian";
+import { handleHighlowDuelButton, refundStaleHighlowDuelOnStartup, bootHighlowDuelTimeouts } from "./games/highlow_duel";
 import { handlePokerButton, handlePokerSelect, refundStalePokerOnStartup, bootPokerTimeouts } from "./games/poker";
 import { handleHoldemButton, handleHoldemModal, refundStaleHoldemOnStartup } from "./games/holdem";
 import { handleShoubuCommand } from "./games/shoubu";
@@ -154,9 +154,9 @@ async function bootstrap(): Promise<void> {
     console.error("[bootstrap] refundStaleBjDuelsOnStartup failed:", err);
   }
   try {
-    refundStaleIndianOnStartup();
+    refundStaleHighlowDuelOnStartup();
   } catch (err) {
-    console.error("[bootstrap] refundStaleIndianOnStartup failed:", err);
+    console.error("[bootstrap] refundStaleHighlowDuelOnStartup failed:", err);
   }
   try {
     refundStalePokerOnStartup();
@@ -219,11 +219,11 @@ async function bootstrap(): Promise<void> {
     } catch (err) {
       console.error("[bootstrap] bootBjDuelTimeouts failed:", err);
     }
-    // インディアンポーカー: pending 1時間 / active 6時間
+    // ハイロー対人: pending 5分 / active 6時間
     try {
-      bootIndianTimeouts(client);
+      bootHighlowDuelTimeouts(client);
     } catch (err) {
-      console.error("[bootstrap] bootIndianTimeouts failed:", err);
+      console.error("[bootstrap] bootHighlowDuelTimeouts failed:", err);
     }
     // 5枚交換ポーカー
     try {
@@ -367,9 +367,9 @@ async function bootstrap(): Promise<void> {
         return;
       }
 
-      // ── インディアン (ind:) Interactions ──
-      if (interaction.isButton() && interaction.customId.startsWith("ind:")) {
-        await handleIndianButton(interaction);
+      // ── ハイロー対人 (hld:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("hld:")) {
+        await handleHighlowDuelButton(interaction);
         return;
       }
 

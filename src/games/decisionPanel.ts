@@ -30,7 +30,7 @@ import { findLinkedVC, updateLinkedVCLinkId, deleteLinkedVC, markLinkedVCSettled
 
 // ─── 設定（後で調整しやすいように定数化） ─────────────
 const DECISION_TIMEOUT_DEFAULT_MS = 10 * 60_000;   // デフォルト（chohan 等）
-const DECISION_TIMEOUT_PAIR_MS    = 20 * 60_000;   // 1v1（sashi/saishoubu/bjduel/indian/poker sashi）
+const DECISION_TIMEOUT_PAIR_MS    = 20 * 60_000;   // 1v1（sashi/saishoubu/bjduel/highlow_duel/poker sashi）
 const DECISION_TIMEOUT_BOARD_MS   = 30 * 60_000;   // 板
 const WARNING_BEFORE_MS = 30_000;          // 残りこの時間で警告
 const TICK_INTERVAL_MS = 10_000;           // 期限/警告の点検周期
@@ -39,14 +39,14 @@ function timeoutForLinkType(linkType: string): number {
   if (linkType === "board") return DECISION_TIMEOUT_BOARD_MS;
   // poker は sashi モードでしかパネルを出さない（open は呼び元でスキップ）ので
   // ここで poker を見たら 1v1 扱いで OK
-  if (linkType === "sashi" || linkType === "saishoubu" || linkType === "bjduel" || linkType === "indian" || linkType === "poker") {
+  if (linkType === "sashi" || linkType === "saishoubu" || linkType === "bjduel" || linkType === "highlow_duel" || linkType === "poker") {
     return DECISION_TIMEOUT_PAIR_MS;
   }
   return DECISION_TIMEOUT_DEFAULT_MS;
 }
 
 // ─── 型 ──────────────────────────────────────────────
-type LinkType = "sashi" | "board" | "chohan" | "saishoubu" | "bjduel" | "indian" | "poker";
+type LinkType = "sashi" | "board" | "chohan" | "saishoubu" | "bjduel" | "highlow_duel" | "poker";
 
 type PanelRow = {
   id: number;
@@ -342,9 +342,9 @@ async function tryRestart(client: Client, p: PanelRow): Promise<void> {
     } else if (p.link_type === "bjduel") {
       const { restartBjDuel } = require("./bjduel/index");
       newLinkId = await restartBjDuel(client, Number(p.link_id), p.vc_id, p.guild_id);
-    } else if (p.link_type === "indian") {
-      const { restartIndian } = require("./indian/index");
-      newLinkId = await restartIndian(client, Number(p.link_id), p.vc_id, p.guild_id);
+    } else if (p.link_type === "highlow_duel") {
+      const { restartHighlowDuel } = require("./highlow_duel/index");
+      newLinkId = await restartHighlowDuel(client, Number(p.link_id), p.vc_id, p.guild_id);
     } else if (p.link_type === "poker") {
       const { restartPoker } = require("./poker/index");
       newLinkId = await restartPoker(client, Number(p.link_id), p.vc_id, p.guild_id);

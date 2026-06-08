@@ -372,7 +372,7 @@ export async function sweepStaleTempVCs(client: Client, graceMs = 0): Promise<nu
       const vc = channel as VoiceChannel;
 
       // ポーカー open だけは決定パネルを使わず「最終勝負から N分」のアイドル判定で片付ける。
-      // 他の紐付きVC（sashi/board/chohan/saishoubu/bjduel/indian/poker sashi）は decisionPanel の
+      // 他の紐付きVC（sashi/board/chohan/saishoubu/bjduel/highlow_duel/poker sashi）は decisionPanel の
       // 続行/やめる/期限切れに任せるので、ここでは触らない（=雑談化判定は適用しない）。
       if (r.link_type === "poker" && r.link_id && vc.members.size > 0) {
         const mode = (db.prepare("SELECT mode FROM poker_games WHERE id = ?").get(Number(r.link_id)) as { mode?: string } | undefined)?.mode;

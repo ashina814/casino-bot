@@ -11,7 +11,7 @@ import { challenge as saiChallenge } from "../saishoubu";
 import { challenge as sashiChallenge } from "../sashi";
 import { handleBoardCommand } from "../board";
 import { challenge as bjdChallenge } from "../bjduel";
-import { challenge as indianChallenge } from "../indian";
+import { challenge as highlowDuelChallenge } from "../highlow_duel";
 import { challenge as pokerChallenge } from "../poker";
 import { challenge as holdemChallenge } from "../holdem";
 
@@ -53,8 +53,8 @@ export const shoubuCommand = new SlashCommandBuilder()
   )
   .addSubcommand((sc) =>
     sc
-      .setName("インディアン")
-      .setDescription("🪶 インディアンポーカー — 相手の手は見えて自分の手は見えない心理戦")
+      .setName("ハイロー")
+      .setDescription("📈 ハイロー対人 — 基準カードに対して Hi/Lo を同時宣言する3本勝負")
       .addUserOption((o) => o.setName("相手").setDescription("対戦相手").setRequired(true))
       .addIntegerOption((o) => o.setName("額").setDescription("賭け金（両者同額・勝者総取り）").setRequired(true).setMinValue(1)),
   )
@@ -104,7 +104,7 @@ export async function handleShoubuCommand(interaction: ChatInputCommandInteracti
     case "チンチロ": return saiChallenge(interaction);
     case "サシ": return sashiChallenge(interaction);
     case "ブラックジャック": return bjdChallenge(interaction);
-    case "インディアン": return indianChallenge(interaction);
+    case "ハイロー": return highlowDuelChallenge(interaction);
     case "ポーカー": return pokerChallenge(interaction);
     case "奥ポーカー": return holdemChallenge(interaction);
   }

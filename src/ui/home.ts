@@ -103,7 +103,7 @@ const ASTERIA_CH = {
 } as const;
 const PLAY_GUIDE = [
   `🎰 ソロで遊ぶ → <#${ASTERIA_CH.asobi}>（スロット/ブラックジャック/チンチロ/丁半/ハイロー/ルーレット）`,
-  `🀄 対人で遊ぶ → <#${ASTERIA_CH.toba}>（丁半/チンチロ/サシ/BJ/インディアン/ポーカー/板）`,
+  `🀄 対人で遊ぶ → <#${ASTERIA_CH.toba}>（丁半/チンチロ/サシ/BJ/ハイロー/ポーカー/板）`,
   `🐎 競馬 → <#${ASTERIA_CH.keiba}>　📈 株 → <#${ASTERIA_CH.kabu}>　🛍️ 商店 → <#${ASTERIA_CH.shouten}>`,
 ].join("\n");
 
@@ -151,7 +151,7 @@ export async function postHomePanel(interaction: ChatInputCommandInteraction): P
           "・**`/商店`** … 景品・お守り・称号",
           "・**`/アステル`** … 状態・モード・贈り物・お礼",
           "・**`/vip`** … 奥座敷の会員（高bet上限×2・専用部屋）",
-          "・**`/勝負`** … 人と賭ける（丁半 / チンチロ / サシ / BJ / インディアン / ポーカー / 板）",
+          "・**`/勝負`** … 人と賭ける（丁半 / チンチロ / サシ / BJ / ハイロー / ポーカー / 板）",
           "・**`/心付け`** … 気持ちを贈る（1日1回・◈500まで）",
           "*（サシや板から「卓を立てる」を押すと専用VCも立てられるよ）*",
         ].join("\n"),

@@ -159,6 +159,7 @@ async function handleStatus(interaction: ChatInputCommandInteraction): Promise<v
     { name: "dice_duels", count: safeCount("SELECT COUNT(*) AS c FROM dice_duels") },
     { name: "bj_duels", count: safeCount("SELECT COUNT(*) AS c FROM bj_duels") },
     { name: "indian_duels", count: safeCount("SELECT COUNT(*) AS c FROM indian_duels") },
+    { name: "highlow_duels", count: safeCount("SELECT COUNT(*) AS c FROM highlow_duels") },
     { name: "poker_games", count: safeCount("SELECT COUNT(*) AS c FROM poker_games") },
     { name: "temp_voice_channels", count: safeCount("SELECT COUNT(*) AS c FROM temp_voice_channels") },
     { name: "decision_panels", count: safeCount("SELECT COUNT(*) AS c FROM decision_panels") },
