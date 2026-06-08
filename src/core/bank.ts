@@ -72,7 +72,8 @@ export function adjustBalance(userId: string, amount: number, reason: string, ga
     }
 
     ensureUser(userId, guildId);
-    const currentBalance = (db.prepare("SELECT balance FROM users WHERE user_id = ?").get(userId) as { balance: number }).balance;
+    const userRow = db.prepare("SELECT balance, tier FROM users WHERE user_id = ?").get(userId) as { balance: number; tier: string };
+    const currentBalance = userRow.balance;
     let newBalance = currentBalance + normalizedAmount;
 
     if (normalizedAmount < 0 && newBalance < 0) {
@@ -85,11 +86,19 @@ export function adjustBalance(userId: string, amount: number, reason: string, ga
       return { ok: false as const, reason: "INVALID_AMOUNT" as const };
     }
 
+    // 所持金上限: ティア別上限（betCap×50, 30万〜500万）と
+    // サーバー設定の balance_cap（ハード天井）の min を取る。
+    // 増加方向だけでなく、既に上限超過のユーザーが何か操作した場合も
+    // 結果残高が cap を超えていれば差分を奉納する（移行期の自動収縮）。
     let overflow = 0;
-    if (guildId && normalizedAmount > 0) {
+    if (guildId && newBalance > 0) {
+      const { getTierByKey, tierBalanceCap } = require("./economy");
+      const tier = getTierByKey(userRow.tier ?? "human");
+      const tierCap = tierBalanceCap(tier);
       const cfg = getServerConfig(guildId);
-      const cap = cfg?.balance_cap;
-      if (typeof cap === "number" && newBalance > cap) {
+      const serverCap = typeof cfg?.balance_cap === "number" ? cfg.balance_cap : Number.POSITIVE_INFINITY;
+      const cap = Math.min(tierCap, serverCap);
+      if (newBalance > cap) {
         overflow = newBalance - cap;
         newBalance = cap;
       }

@@ -186,11 +186,28 @@ export type TierInfo = {
 
 const TIERS: TierInfo[] = [
   { key: "human",    name: "漂着者", emoji: "✦", betCap: 1_000 },
-  { key: "half",     name: "星拾い", emoji: "✧", betCap: 2_000 },
+  { key: "half",     name: "星拾い", emoji: "✧", betCap: 3_000 },
   { key: "yokai",    name: "星約者", emoji: "✶", betCap: 10_000 },
   { key: "daiyokai", name: "星詠み", emoji: "✷", betCap: 50_000 },
   { key: "kami",     name: "北極星", emoji: "✹", betCap: 100_000 },
 ];
+
+// ─── 所持金上限（ティア別） ────────────────────────────
+// betCap × 50 をベースに、最低 30万 〜 最高 500万 でクランプ。
+// 北極星 betCap 100k × 50 = 5M（上限ぴったり）。
+// 漂着者・星拾いは計算上 50k/150k だが下限 30万を保証。
+export const BALANCE_CAP_FLOOR = 300_000;
+export const BALANCE_CAP_CEIL  = 5_000_000;
+export const BALANCE_CAP_MULT  = 50;
+
+/**
+ * ティアに応じた所持金上限。betCap×50 を [30万, 500万] で clamp。
+ * VIP×2 は所持金上限には適用しない（賭けリスクの拡張のみ）。
+ */
+export function tierBalanceCap(tier: TierInfo): number {
+  const raw = tier.betCap * BALANCE_CAP_MULT;
+  return Math.max(BALANCE_CAP_FLOOR, Math.min(BALANCE_CAP_CEIL, raw));
+}
 
 export function getTierForLevel(level: number): TierInfo {
   if (level >= 100) return TIERS[4];

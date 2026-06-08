@@ -151,6 +151,8 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string, vip = f
     ? `🔥 ${profile.current_win_streak}連勝中`
     : profile.current_lose_streak > 0 ? `💧 ${profile.current_lose_streak}連敗中` : "—";
   const betCapEff = tier.betCap * (vip ? 2 : 1);
+  const { tierBalanceCap } = require("../core/economy");
+  const balCap: number = tierBalanceCap(tier);
 
   const embed = baseEmbed("✦ 通行証", COLORS.GOLD)
     .setDescription(
@@ -162,7 +164,7 @@ export function profileEmbed(profile: UserProfile, activeTitle?: string, vip = f
       ].filter(Boolean).join("\n"),
     )
     .addFields(
-      { name: "💰 所持金", value: `◈${profile.balance.toLocaleString()}`, inline: true },
+      { name: "💰 所持金", value: `◈${profile.balance.toLocaleString()} / 上限 ◈${balCap.toLocaleString()}`, inline: true },
       { name: "🎲 賭け上限", value: `◈${betCapEff.toLocaleString()}${vip ? "（×2）" : ""}`, inline: true },
       { name: "🔥 連続ログイン", value: `${profile.daily_streak}日`, inline: true },
       { name: "✦ アステル", value: zashikiLine, inline: true },
