@@ -119,6 +119,18 @@ export const adminCommand = new SlashCommandBuilder()
       .addRoleOption((opt) =>
         opt.setName("role").setDescription("メンションするロール（任意）")
       )
+      .addRoleOption((opt) =>
+        opt.setName("role2").setDescription("追加メンション 2")
+      )
+      .addRoleOption((opt) =>
+        opt.setName("role3").setDescription("追加メンション 3")
+      )
+      .addRoleOption((opt) =>
+        opt.setName("role4").setDescription("追加メンション 4")
+      )
+      .addRoleOption((opt) =>
+        opt.setName("role5").setDescription("追加メンション 5")
+      )
   )
   .addSubcommand((sub) =>
     sub.setName("株速報").setDescription("📈 株価速報を今すぐ株式市場チャンネルに投稿（テスト用）")
@@ -696,7 +708,12 @@ async function handleInspect(interaction: ChatInputCommandInteraction, guildId: 
 
 async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   const message = interaction.options.getString("message", true);
-  const role = interaction.options.getRole("role");
+  // 最大5ロールまでメンション可能。重複は除去。
+  const roles = ["role", "role2", "role3", "role4", "role5"]
+    .map((k) => interaction.options.getRole(k))
+    .filter((r): r is NonNullable<typeof r> => r != null);
+  const uniqueRoleIds = Array.from(new Set(roles.map((r) => r.id)));
+
   const cfg = getServerConfig(guildId);
   const channelId = cfg.casino_channel_id ?? interaction.channelId;
 
@@ -712,11 +729,15 @@ async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId:
   const botAvatar = interaction.client.user?.displayAvatarURL({ size: 256 });
   if (botAvatar) embed.setThumbnail(botAvatar);
 
-  const content = role ? role.toString() : undefined;
+  const content = uniqueRoleIds.length > 0
+    ? uniqueRoleIds.map((id) => `<@&${id}>`).join(" ")
+    : undefined;
 
   await (channel as any).send({
     content,
     embeds: [embed],
+    // 明示的に許可ロールだけメンション通知（@everyone 暴発を防ぐ）
+    allowedMentions: { roles: uniqueRoleIds },
   });
   await interaction.reply({
     embeds: [successEmbed("アナウンスを送信しました。")],
