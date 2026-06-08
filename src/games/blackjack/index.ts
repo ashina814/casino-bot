@@ -299,6 +299,11 @@ async function dealerPlay(
   dealerHand: Card[],
   _doubled: boolean,
 ): Promise<void> {
+  // プレイヤーのターンはここで終わっているのでロックは先に開放する。
+  // 以降はディーラーの決定的な引き札（最大数秒の sleep）なので、待っている間に
+  // 新規ゲームを始められないと「遊んでる最中判定が継続される」体感バグになる。
+  releaseGameLock(userId);
+
   // Dealer draws until 17+
   while (handValue(dealerHand) < 17) {
     dealerHand.push(deck.pop()!);
@@ -326,7 +331,6 @@ async function dealerPlay(
     resultLabel = "lose";
   }
 
-  releaseGameLock(userId);
   await resolveGame(interaction, guildId, userId, totalBet, playerHand, dealerHand, payout, resultLabel);
 }
 
