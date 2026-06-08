@@ -92,6 +92,16 @@ export function registerSchedulers(client: Client): void {
     }
   });
 
+  // JPバーン清算: 5分ごとに閾値超のプールを RNG 判定で点火
+  cron.schedule("*/5 * * * *", async () => {
+    try {
+      const { tickJackpotBurn } = require("./jackpotBurn");
+      await tickJackpotBurn(client);
+    } catch (error) {
+      console.error("[scheduler] jackpot burn tick failed:", error);
+    }
+  });
+
   // ゾンビセッション（5分以上経過した排他ロック）の定期クリーンアップ
   cron.schedule("*/5 * * * *", () => {
     try {

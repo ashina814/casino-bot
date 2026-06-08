@@ -52,6 +52,17 @@ export const ownerCommand = new SlashCommandBuilder()
   )
   .addSubcommand((sc) =>
     sc
+      .setName("jp削除")
+      .setDescription("🗑️ JPプールから配布せず純粋に削る（誤発行修正用）")
+      .addIntegerOption((o) => o.setName("金額").setDescription("削る額（◈）").setRequired(true).setMinValue(1)),
+  )
+  .addSubcommand((sc) =>
+    sc
+      .setName("jp強制清算")
+      .setDescription("🔥 JPバーン清算を即発火（閾値・確率を無視）"),
+  )
+  .addSubcommand((sc) =>
+    sc
       .setName("アステル")
       .setDescription("✦ アステル口調で任意のセリフを投稿")
       .addStringOption((o) => o.setName("セリフ").setDescription("発言内容").setRequired(true).setMaxLength(1500)),
@@ -67,7 +78,49 @@ export async function handleOwnerCommand(interaction: ChatInputCommandInteractio
   if (sub === "db") return handleDB(interaction);
   if (sub === "流星群") return handleMeteor(interaction);
   if (sub === "jp放出") return handleJPRelease(interaction);
+  if (sub === "jp削除") return handleJPDelete(interaction);
+  if (sub === "jp強制清算") return handleJPForceBurn(interaction);
   if (sub === "アステル") return handleAstelSay(interaction);
+}
+
+// ─── JP 削除（純粋に消す・配布なし） ─────────────────
+async function handleJPDelete(interaction: ChatInputCommandInteraction): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ embeds: [errorEmbed("サーバー内でのみ使えるよ。")], ephemeral: true });
+    return;
+  }
+  const amount = interaction.options.getInteger("金額", true);
+  const { pureBurnJackpot } = require("../core/jackpotBurn");
+  const { burned, remaining } = pureBurnJackpot(guildId, amount);
+  if (burned <= 0) {
+    await interaction.reply({ embeds: [errorEmbed(`削れなかった（プール floor 到達 or 0）。現在: ◈${remaining.toLocaleString()}`)], ephemeral: true });
+    return;
+  }
+  await interaction.reply({
+    embeds: [successEmbed(`🗑️ JP プールから **◈${burned.toLocaleString()}** を削除しました。\n残: ◈${remaining.toLocaleString()}`)],
+    ephemeral: true,
+  });
+}
+
+// ─── JP 強制清算（バーンを即発火） ─────────────────
+async function handleJPForceBurn(interaction: ChatInputCommandInteraction): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.reply({ embeds: [errorEmbed("サーバー内でのみ使えるよ。")], ephemeral: true });
+    return;
+  }
+  await interaction.deferReply({ ephemeral: true });
+  const cfg = getServerConfig(guildId);
+  const { fireBurn } = require("../core/jackpotBurn");
+  const result = await fireBurn(interaction.client, guildId, cfg.jackpot_channel_id ?? null);
+  if (!result) {
+    await interaction.editReply({ embeds: [errorEmbed("発火しなかった（候補なし or プール不足）。")] });
+    return;
+  }
+  await interaction.editReply({
+    embeds: [successEmbed(`🔥 バーン清算を発火しました。\n放出: ◈${result.released.toLocaleString()} / 当選 ${result.winners.length}名`)],
+  });
 }
 
 // ─── 状態 ─────────────────────────────────────────
