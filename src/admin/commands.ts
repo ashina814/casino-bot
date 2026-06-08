@@ -30,7 +30,6 @@ import { db, getServerConfig, updateServerConfig, runTransaction } from "../core
 import { adjustBalance, ensureUser } from "../core/bank";
 import { getEconomyState } from "../core/economy";
 import { infoEmbed, errorEmbed, successEmbed, baseEmbed, COLORS } from "../ui/embeds";
-import { getZashikiAttachment } from "../core/zashikiAsset";
 import { config } from "../config";
 
 // ─── Command Definition ────────────────────────────────
@@ -709,17 +708,15 @@ async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId:
 
   const embed = infoEmbed("✦ アステルからのお知らせ", `*「${message}」*`, COLORS.GOLD);
 
-  const zashiki = getZashikiAttachment("idle");
-  if (zashiki) {
-    embed.setThumbnail(zashiki.thumbnailUrl);
-  }
+  // サムネは bot アイコン（旧: idle.gif を添付してたが、お知らせは固定演出にする）
+  const botAvatar = interaction.client.user?.displayAvatarURL({ size: 256 });
+  if (botAvatar) embed.setThumbnail(botAvatar);
 
   const content = role ? role.toString() : undefined;
 
   await (channel as any).send({
     content,
     embeds: [embed],
-    files: zashiki ? [zashiki.attachment] : [],
   });
   await interaction.reply({
     embeds: [successEmbed("アナウンスを送信しました。")],
