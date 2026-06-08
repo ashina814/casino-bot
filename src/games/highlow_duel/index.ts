@@ -250,22 +250,29 @@ async function resolveRound(client: Client, duelId: number): Promise<void> {
     const majority = Math.floor(cur.best_of / 2) + 1;
     const completedRounds = cur.round_no;
     const remaining = cur.best_of - completedRounds;
-    // 勝者確定条件: 既に過半数 or 残ラウンドで追い付けない / または best_of 終了で同点でなければ確定
-    const cClinched = newCScore >= majority;
-    const oClinched = newOScore >= majority;
-    const cUncatchable = newCScore - newOScore > remaining;
-    const oUncatchable = newOScore - newCScore > remaining;
-
-    if (cClinched || cUncatchable) { winnerId = d.challenger_id; finished = true; }
-    else if (oClinched || oUncatchable) { winnerId = d.opponent_id; finished = true; }
-    else if (completedRounds >= cur.best_of) {
-      // 本数終了で同点 → サドンデス 1R 追加（決着まで）
-      if (newCScore !== newOScore) {
-        winnerId = newCScore > newOScore ? d.challenger_id : d.opponent_id;
+    // 勝者確定: スコア差がついていて、かつ「過半数到達」or「残ラウンドで逆転不能」or「本数終了」のいずれか。
+    // 同点（同時 majority 到達を含む）は決着させず、続行 or サドンデス追加に倒す。
+    // ⚠ 旧実装は cClinched/oClinched を OR で並列評価していたため、同時 majority 到達で
+    //   先に評価される challenger 側が常に勝者になっていた（主催者有利バグ）。
+    if (newCScore > newOScore) {
+      const cClinched = newCScore >= majority;
+      const cUncatchable = (newCScore - newOScore) > remaining;
+      const cFinalLead = completedRounds >= cur.best_of;
+      if (cClinched || cUncatchable || cFinalLead) {
+        winnerId = d.challenger_id;
         finished = true;
       }
-      // 同点なら finished = false、追加ラウンド
+    } else if (newOScore > newCScore) {
+      const oClinched = newOScore >= majority;
+      const oUncatchable = (newOScore - newCScore) > remaining;
+      const oFinalLead = completedRounds >= cur.best_of;
+      if (oClinched || oUncatchable || oFinalLead) {
+        winnerId = d.opponent_id;
+        finished = true;
+      }
     }
+    // 同点（newCScore === newOScore）の場合は finished=false のまま追加ラウンド。
+    // best_of 終了時点で同点でもサドンデスに突入する（決着まで追加）。
 
     if (finished && winnerId) {
       rake = Math.floor(d.stake * RAKE_PCT);
