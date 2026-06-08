@@ -14,6 +14,7 @@
  */
 import { db, runTransaction } from "./db";
 import { adjustBalance } from "./bank";
+import { WORLD } from "../world.config";
 import {
   gilCommit, gilCancel, isExchangeApiAvailable,
   type GilDirection, type GilOperation,
@@ -102,7 +103,7 @@ async function runInflow(row: ApiExchangeRow): Promise<ExecResult> {
     // 付与失敗（上限など稀ケース）→ Gil を返金
     await gilCancel({ guildId: row.guild_id, requestId: row.request_id, reason: "casino側のエテル付与に失敗" });
     setStatus(row.id, "cancelled");
-    return { ok: false, code: "CREDIT_FAILED", message: "エテルの付与に失敗したので、Gilを返金したよ。" };
+    return { ok: false, code: "CREDIT_FAILED", message: `エテルの付与に失敗したので、${WORLD.CURRENCY_1_NAME}を返金したよ。` };
   }
   return { ok: true, etherDelta: ether, op };
 }
