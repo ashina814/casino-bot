@@ -61,19 +61,19 @@ const DAILY_QUESTS: QuestDef[] = [
   // EASY
   { key: "play_any_1",   kind: "daily", difficulty: "easy", title: "賭場に顔を出す",       description: "何でも 1 回プレイする",                 metric: { kind: "play_count" },                  target: 1,    reward: { coins: 300,  exp: 5 } },
   { key: "play_any_3",   kind: "daily", difficulty: "easy", title: "今日も常連",            description: "何でも 3 回プレイする",                 metric: { kind: "play_count" },                  target: 3,    reward: { coins: 500,  exp: 5 } },
-  { key: "claim_daily",  kind: "daily", difficulty: "easy", title: "福分けを受け取る",     description: "`/福分け` を受け取る",                  metric: { kind: "daily_claim" },                 target: 1,    reward: { coins: 300,  exp: 5 } },
+  { key: "claim_daily",  kind: "daily", difficulty: "easy", title: "福分けを受け取る",     description: "案内の📅福分けボタンから受け取る",      metric: { kind: "daily_claim" },                 target: 1,    reward: { coins: 300,  exp: 5 } },
 
   // NORMAL
   { key: "win_3",        kind: "daily", difficulty: "normal", title: "三勝の手応え",        description: "何かのゲームで 3 勝する",              metric: { kind: "win_count" },                   target: 3,    reward: { coins: 700,  exp: 10 } },
-  { key: "wager_5k",     kind: "daily", difficulty: "normal", title: "賭場で巡らす",        description: "累計 ◉5,000 を賭ける",                  metric: { kind: "wager_sum" },                   target: 5000, reward: { coins: 800,  exp: 10 } },
+  { key: "wager_5k",     kind: "daily", difficulty: "normal", title: "賭場で巡らす",        description: "累計 ◈5,000 を賭ける",                  metric: { kind: "wager_sum" },                   target: 5000, reward: { coins: 800,  exp: 10 } },
   { key: "distinct_3",   kind: "daily", difficulty: "normal", title: "色々と試す",          description: "3 種類のゲームで遊ぶ",                  metric: { kind: "distinct_games" },              target: 3,    reward: { coins: 700,  exp: 10 } },
   { key: "lucky_win",    kind: "daily", difficulty: "normal", title: "ラッキーゲームで勝つ", description: "本日のラッキーゲーム ({game}) で 1 勝する", metric: { kind: "win_count", game: "_lucky_" }, target: 1,    reward: { coins: 900,  exp: 12 } },
 
   // HARD
-  { key: "big_win_3k",   kind: "daily", difficulty: "hard", title: "一発の華",              description: "1勝で ◉3,000 以上獲得する",            metric: { kind: "win_amount_max" },              target: 3000, reward: { coins: 1500, exp: 20 } },
-  { key: "wager_20k",    kind: "daily", difficulty: "hard", title: "賭場の常客",            description: "累計 ◉20,000 を賭ける",                metric: { kind: "wager_sum" },                   target: 20000,reward: { coins: 1800, exp: 22 } },
+  { key: "big_win_3k",   kind: "daily", difficulty: "hard", title: "一発の華",              description: "1勝で ◈3,000 以上獲得する",            metric: { kind: "win_amount_max" },              target: 3000, reward: { coins: 1500, exp: 20 } },
+  { key: "wager_20k",    kind: "daily", difficulty: "hard", title: "賭場の常客",            description: "累計 ◈20,000 を賭ける",                metric: { kind: "wager_sum" },                   target: 20000,reward: { coins: 1800, exp: 22 } },
   { key: "win_5",        kind: "daily", difficulty: "hard", title: "五勝のリズム",          description: "本日 5 勝する",                         metric: { kind: "win_count" },                   target: 5,    reward: { coins: 2000, exp: 25 } },
-  { key: "distinct_5",   kind: "daily", difficulty: "hard", title: "百鬼夜行",              description: "5 種類のゲームで遊ぶ",                  metric: { kind: "distinct_games" },              target: 5,    reward: { coins: 2000, exp: 25 } },
+  { key: "distinct_5",   kind: "daily", difficulty: "hard", title: "星巡り",              description: "5 種類のゲームで遊ぶ",                  metric: { kind: "distinct_games" },              target: 5,    reward: { coins: 2000, exp: 25 } },
 ];
 
 export const QUEST_CATALOG: Record<string, QuestDef> = Object.fromEntries(
@@ -277,6 +277,6 @@ export function formatProgress(progress: number, target: number): string {
   const bar = "█".repeat(filled) + "░".repeat(10 - filled);
   const pct = Math.floor(ratio * 100);
   // 大きな目標値は通貨フォーマット
-  const showNum = (n: number) => n >= 1000 ? `◉${n.toLocaleString()}` : String(n);
+  const showNum = (n: number) => n >= 1000 ? `◈${n.toLocaleString()}` : String(n);
   return `\`${bar}\` ${showNum(progress)} / ${showNum(target)} (${pct}%)`;
 }

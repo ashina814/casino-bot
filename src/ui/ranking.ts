@@ -82,12 +82,12 @@ export async function handleRankingCommand(interaction: ChatInputCommandInteract
       const tierInfo = getTierByKey(r.tier);
       let stat = "";
       switch (type) {
-        case "balance":      stat = `◉${r.balance.toLocaleString()}`; break;
+        case "balance":      stat = `◈${r.balance.toLocaleString()}`; break;
         case "winrate":      stat = `${r.winrate.toFixed(1)}% (${r.total_games}戦)`; break;
         case "streak":       stat = `${r.best_win_streak}連勝`; break;
-        case "biggest_win":  stat = `◉${r.biggest_win.toLocaleString()}`; break;
-        case "total_earned": stat = `◉${r.total_earned.toLocaleString()}`; break;
-        case "total_wagered":stat = `◉${r.total_wagered.toLocaleString()}`; break;
+        case "biggest_win":  stat = `◈${r.biggest_win.toLocaleString()}`; break;
+        case "total_earned": stat = `◈${r.total_earned.toLocaleString()}`; break;
+        case "total_wagered":stat = `◈${r.total_wagered.toLocaleString()}`; break;
       }
       return `${medal} <@${r.user_id}>  ${stat}  ${tierInfo.emoji}${tierInfo.name}`;
     });
@@ -108,7 +108,7 @@ export async function handleRankingCommand(interaction: ChatInputCommandInteract
       if (rank) userRank = `${rank.rank}位 / ${total.c}人中`;
     }
 
-    return baseEmbed(`🏮 座敷童の賭場 — ${title}`, COLORS.GOLD)
+    return baseEmbed(`✦ 星約の賭場 — ${title}`, COLORS.GOLD)
       .setDescription(
         [
           lines.length === 0 ? "*対象者なし*" : lines.join("\n"),
@@ -133,12 +133,14 @@ export async function handleRankingCommand(interaction: ChatInputCommandInteract
   const reply = await interaction.reply({
     embeds: [buildEmbed("balance")],
     components: [row1, row2],
+    ephemeral: true,
     fetchReply: true,
   });
 
   const collector = reply.createMessageComponentCollector({
     componentType: ComponentType.Button,
     time: 60_000,
+    filter: (i: ButtonInteraction) => i.user.id === interaction.user.id,
   });
 
   collector.on("collect", async (btn: ButtonInteraction) => {

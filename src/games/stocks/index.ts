@@ -1,9 +1,9 @@
 /**
- * 📈 龍脈相場（株式投資）
+ * 📈 株（株式投資）
  *
- * 龍脈の力を「銘柄」として売買する投資ゲーム。
+ * 星脈の力を「銘柄」として売買する投資ゲーム。
  * 1時間ごとに値動き。ランダムウォーク + イベント。
- * 余剰小判のマネーシンク & 長期戦略コンテンツ。
+ * 余剰エテルのマネーシンク & 長期戦略コンテンツ。
  */
 import {
   SlashCommandBuilder,
@@ -22,8 +22,16 @@ import {
 } from "discord.js";
 import { db, getServerConfig, runTransaction } from "../../core/db";
 import { adjustBalance, getBalance, ensureUser, validateBet, getProfile } from "../../core/bank";
+import { effectiveBetCap } from "../../core/vip";
+import { consumeInsider } from "../../core/items";
 import { getTierByKey } from "../../core/economy";
 import { baseEmbed, COLORS, infoEmbed, errorEmbed, successEmbed } from "../../ui/embeds";
+
+// 株の1回投資上限。投資は単発の賭けと別物なので、賭け上限(betCap)に下限を被せる。
+const STOCK_TX_FLOOR = 3_000;
+function stockTxMax(betCap: number): number {
+  return Math.max(betCap, STOCK_TX_FLOOR);
+}
 
 // ─── Types ─────────────────────────────────────────────
 
@@ -42,7 +50,11 @@ type Holding = {
   stock_id: string;
   shares: number;
   avg_cost: number;
+  bought_at: string | null;
 };
+
+/** 保有上限日数。これを過ぎたら強制売却（長期保有によるインフレ・印刷機化を防ぐ） */
+export const STOCK_HOLD_DAYS = 3;
 
 // ─── DB Init ───────────────────────────────────────────
 
@@ -63,6 +75,7 @@ export function initStockTables(): void {
       stock_id TEXT NOT NULL,
       shares INTEGER NOT NULL DEFAULT 0 CHECK(shares >= 0),
       avg_cost INTEGER NOT NULL DEFAULT 0,
+      bought_at TEXT,
       PRIMARY KEY(user_id, stock_id)
     );
 
@@ -89,6 +102,9 @@ export function initStockTables(): void {
     CREATE INDEX IF NOT EXISTS idx_stock_tx_user_time
       ON stock_transactions(user_id, created_at DESC);
   `);
+
+  // Migration: 既存DBの holdings に bought_at（強制売却の起算）を追加
+  try { db.exec("ALTER TABLE holdings ADD COLUMN bought_at TEXT"); } catch { /* exists */ }
 
   // Seed stocks if empty
   const count = db.prepare("SELECT COUNT(*) as c FROM stocks").get() as { c: number };
@@ -146,13 +162,13 @@ export function updateAllPrices(): { events: string[] } {
         const surge = 1.3 + Math.random() * 0.3;
         newPrice = Math.round(stock.price * surge);
         newTrend = 0.3;
-        events.push(`🐉 **龍脈噴出！** ${stock.emoji}${stock.name} が急騰！ (+${Math.round((surge - 1) * 100)}%)`);
+        events.push(`☄ **星脈噴出！** ${stock.emoji}${stock.name} が急騰！ (+${Math.round((surge - 1) * 100)}%)`);
       } else if (eventRoll < 0.04) {
         // Crash: -30-50%
         const crash = 0.5 + Math.random() * 0.2;
         newPrice = Math.round(stock.price * crash);
         newTrend = -0.3;
-        events.push(`💀 **龍脈枯渇！** ${stock.emoji}${stock.name} が急落！ (-${Math.round((1 - crash) * 100)}%)`);
+        events.push(`◑ **星脈枯渇！** ${stock.emoji}${stock.name} が急落！ (-${Math.round((1 - crash) * 100)}%)`);
       }
 
       // Floor
@@ -239,11 +255,68 @@ function changeEmoji(current: number, prev: number): string {
   return "➡️";
 }
 
+/**
+ * 保有期限（STOCK_HOLD_DAYS日）を過ぎた保有を現在価格で強制売却する。
+ * 長期保有によるインフレ（株＝印刷機化）を防ぐ。スケジューラから毎時実行。
+ * 売却益はユーザーのグローバル残高へ。本人にDM通知。
+ */
+export async function forceSellExpiredHoldings(client: import("discord.js").Client): Promise<number> {
+  const cutoff = Date.now() - STOCK_HOLD_DAYS * 86_400_000;
+  const rows = db.prepare("SELECT * FROM holdings WHERE shares > 0 AND bought_at IS NOT NULL").all() as Holding[];
+  let sold = 0;
+  for (const h of rows) {
+    if (!h.bought_at || new Date(h.bought_at).getTime() > cutoff) continue;
+    const stock = getStock(h.stock_id);
+    if (!stock) continue;
+    const revenue = h.shares * stock.price;
+    const profit = revenue - h.shares * h.avg_cost;
+    runTransaction(() => {
+      adjustBalance(h.user_id, revenue, "株: 保有期限による強制売却", "stocks");
+      db.prepare("DELETE FROM holdings WHERE user_id = ? AND stock_id = ?").run(h.user_id, h.stock_id);
+      try {
+        db.prepare(
+          "INSERT INTO stock_transactions (user_id, stock_id, action, shares, price, amount, profit_loss) VALUES (?, ?, 'sell', ?, ?, ?, ?)",
+        ).run(h.user_id, h.stock_id, h.shares, stock.price, revenue, profit);
+      } catch { /* ignore */ }
+    });
+    sold++;
+    try {
+      const user = await client.users.fetch(h.user_id);
+      const pl = profit >= 0 ? `+◈${profit.toLocaleString()}` : `-◈${Math.abs(profit).toLocaleString()}`;
+      await user.send(
+        `📈 保有期限（${STOCK_HOLD_DAYS}日）が来たので **${stock.emoji}${stock.name} ×${h.shares}株** を 1株◈${stock.price.toLocaleString()} で自動売却したよ。\n受取: **◈${revenue.toLocaleString()}**（損益 ${pl}）`,
+      ).catch(() => {});
+    } catch { /* DM拒否等は無視 */ }
+  }
+  if (sold > 0) console.log(`[stocks] force-sold ${sold} expired holding(s)`);
+  return sold;
+}
+
+/** 株価速報の embed（全銘柄サマリー＋イベント）。スケジューラから3時間ごとに投稿。 */
+export function buildMarketBroadcast(events: string[] = []) {
+  const stocks = getAllStocks();
+  const lines = stocks.map((s) => {
+    const pct = s.prev_price > 0 ? (((s.price - s.prev_price) / s.prev_price) * 100).toFixed(1) : "0.0";
+    const sign = s.price >= s.prev_price ? "+" : "";
+    return `${s.emoji} **${s.name}** — ◈${s.price.toLocaleString()} ${changeEmoji(s.price, s.prev_price)} ${sign}${pct}%`;
+  });
+  return baseEmbed("📈 株価速報", COLORS.EVENT)
+    .setDescription(
+      [
+        "*「いまの相場、こんな感じ。どう動くか、見極めてね。」*",
+        "",
+        ...lines,
+        events.length > 0 ? "\n" + events.join("\n") : "",
+      ].filter(Boolean).join("\n"),
+    )
+    .setFooter({ text: "3時間ごとに更新 ・ /株 で売買" });
+}
+
 // ─── Command ───────────────────────────────────────────
 
 export const stocksCommand = new SlashCommandBuilder()
-  .setName("龍脈")
-  .setDescription("📈 龍脈相場 — 龍脈の力に投資する");
+  .setName("株")
+  .setDescription("📈 株 — 銘柄に投資して値動きで稼ぐ");
 
 export async function handleStocksCommand(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
   const guildId = interaction.guildId!;
@@ -272,13 +345,13 @@ export async function renderDashboard(
     const spark = sparkline(getPriceHistory(s.id, 24));
     const meter = trendMeter(s.trend);
     return (
-      `${s.emoji} **${s.name}** — ◉${s.price.toLocaleString()} ${changeEmoji(s.price, s.prev_price)} ${sign}${pct}%\n` +
+      `${s.emoji} **${s.name}** — ◈${s.price.toLocaleString()} ${changeEmoji(s.price, s.prev_price)} ${sign}${pct}%\n` +
       `　\`${spark}\`  気運: ${meter}`
     );
   });
 
   // Portfolio string
-  let pfLines = ["まだ何も持っておらぬ。"];
+  let pfLines = ["まだ何も持ってないよ。"];
   let totalValue = 0;
   let totalCost = 0;
 
@@ -295,18 +368,30 @@ export async function renderDashboard(
       totalCost += cost;
 
       const emoji = profit >= 0 ? "📈" : "📉";
+      // 保有期限（強制売却まで）
+      let deadlineLine = "";
+      if (h.bought_at) {
+        const leftMs = new Date(h.bought_at).getTime() + STOCK_HOLD_DAYS * 86_400_000 - Date.now();
+        if (leftMs > 0) {
+          const h2 = Math.floor(leftMs / 3_600_000);
+          deadlineLine = `　　⏳ 強制売却まで 約${h2 >= 24 ? `${Math.floor(h2 / 24)}日` : `${h2}時間`}`;
+        } else {
+          deadlineLine = "　　⏳ まもなく強制売却";
+        }
+      }
       return `${stock.emoji} **${stock.name}** × ${h.shares}株\n` +
-             `　　評価: ◉${value.toLocaleString()} (${emoji} ${profit >= 0 ? "+" : ""}${pct}%)`;
+             `　　評価: ◈${value.toLocaleString()} (${emoji} ${profit >= 0 ? "+" : ""}${pct}%)` +
+             (deadlineLine ? `\n${deadlineLine}` : "");
     }).filter(l => l.length > 0);
   }
 
   const totalProfit = totalValue - totalCost;
   const totalPct = totalCost > 0 ? ((totalProfit / totalCost) * 100).toFixed(1) : "0.0";
 
-  const embed = baseEmbed("📈 龍脈相場（投資）", COLORS.GOLD)
+  const embed = baseEmbed("📈 株（投資）", COLORS.GOLD)
     .setDescription(
       [
-        `*「龍脈の力は日々変わる。見極めるのじゃ。」*`,
+        `*「相場の流れは日々変わる。見極めてね。」*`,
         "",
         `**【 銘柄一覧 】**`,
         ...marketLines,
@@ -315,11 +400,24 @@ export async function renderDashboard(
         ...pfLines,
         ...(holdings.length > 0 ? [
           `━━━━━━━━━━━━━━`,
-          `💰 総評価額: ◉${totalValue.toLocaleString()}`,
-          `${totalProfit >= 0 ? "📈" : "📉"} 総損益: ${totalProfit >= 0 ? "+" : ""}◉${totalProfit.toLocaleString()} (${totalProfit >= 0 ? "+" : ""}${totalPct}%)`,
+          `💰 総評価額: ◈${totalValue.toLocaleString()}`,
+          `${totalProfit >= 0 ? "📈" : "📉"} 総損益: ${totalProfit >= 0 ? "+" : ""}◈${totalProfit.toLocaleString()} (${totalProfit >= 0 ? "+" : ""}${totalPct}%)`,
         ] : []),
       ].join("\n"),
     );
+
+  // インサイダーの噂（装備中なら消費して、いちばん動きそうな銘柄をこっそり開示）
+  if (consumeInsider(userId)) {
+    const sorted = [...stocks].sort((a, b) => Math.abs(b.trend) - Math.abs(a.trend));
+    const top = sorted[0];
+    if (top) {
+      embed.addFields({
+        name: "🕵 インサイダーの噂",
+        value: `*「ここだけの話。『${top.emoji}${top.name}』が、これから${top.trend >= 0 ? "上がりそう" : "落ちそう"}だよ。……誰にも言わないでね？」*`,
+        inline: false,
+      });
+    }
+  }
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("stocks_buy_menu").setLabel("💰 購入する").setStyle(ButtonStyle.Success),
@@ -358,9 +456,9 @@ export async function handleStocksButton(interaction: ButtonInteraction): Promis
     const stocks = getAllStocks();
     const select = new StringSelectMenuBuilder()
       .setCustomId("stocks_buy_select")
-      .setPlaceholder("購入する銘柄を選ぶのじゃ")
+      .setPlaceholder("購入する銘柄を選んでね")
       .addOptions(stocks.map(s => ({
-        label: `${s.name} (◉${s.price.toLocaleString()})`,
+        label: `${s.name} (◈${s.price.toLocaleString()})`,
         value: s.id,
         emoji: s.emoji,
       })));
@@ -374,7 +472,7 @@ export async function handleStocksButton(interaction: ButtonInteraction): Promis
     const stocks = getAllStocks();
     const select = new StringSelectMenuBuilder()
       .setCustomId("stocks_sell_select")
-      .setPlaceholder("売却する銘柄を選ぶのじゃ")
+      .setPlaceholder("売却する銘柄を選んでね")
       .addOptions(holdings.map(h => {
         const s = stocks.find(x => x.id === h.stock_id);
         return {
@@ -394,23 +492,27 @@ export async function handleStocksSelect(interaction: StringSelectMenuInteractio
   const stockId = interaction.values[0];
   const stock = getStock(stockId);
   if (!stock) {
-    await interaction.reply({ content: "銘柄が見つからぬ。", ephemeral: true });
+    await interaction.reply({ content: "その銘柄、見つからないや。", ephemeral: true });
     return;
   }
 
   if (action === "buy_select") {
     const profile = getProfile(interaction.user.id, interaction.guildId!);
     const tier = getTierByKey(profile.tier);
+    const txMax = stockTxMax(effectiveBetCap(tier.betCap, interaction.user.id, interaction.guildId!));
+    const bal = getBalance(interaction.user.id, interaction.guildId!);
+    const maxShares = Math.max(0, Math.min(Math.floor(txMax / stock.price), Math.floor(bal / stock.price)));
     const modal = new ModalBuilder()
       .setCustomId(`stocks_buy_modal_${stockId}`)
       .setTitle(`${stock.name} を購入`)
       .addComponents(
         new ActionRowBuilder<TextInputBuilder>().addComponents(
           new TextInputBuilder()
-            .setCustomId("amount")
-            .setLabel(`投資額 (1株◉${stock.price} / 上限◉${tier.betCap.toLocaleString()})`)
+            .setCustomId("shares")
+            .setLabel("何株買う？（空欄なら買えるだけ）")
+            .setPlaceholder(`1株 ◈${stock.price.toLocaleString()} ／ いまは最大 ${maxShares}株`)
             .setStyle(TextInputStyle.Short)
-            .setRequired(true)
+            .setRequired(false)
         )
       );
     await interaction.showModal(modal);
@@ -439,52 +541,75 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
   
   if (interaction.customId.startsWith("stocks_buy_modal_")) {
     const stockId = interaction.customId.replace("stocks_buy_modal_", "");
-    const amountStr = interaction.fields.getTextInputValue("amount");
+    const stock = getStock(stockId);
+    if (!stock) { await interaction.reply({ content: "その銘柄、見つからないや。", ephemeral: true }); return; }
 
-    // tier に応じた1回投資の上限を適用（他ゲームの賭け上限と整合）
+    // いま買える最大株数 = 所持金と1回投資上限の小さい方
     const profile = getProfile(userId, guildId);
     const tier = getTierByKey(profile.tier);
-    const txMax = tier.betCap;
+    const txMax = stockTxMax(effectiveBetCap(tier.betCap, userId, guildId));
+    const bal = getBalance(userId, guildId);
+    const maxByTx = Math.floor(txMax / stock.price);
+    const maxByBal = Math.floor(bal / stock.price);
+    const maxShares = Math.max(0, Math.min(maxByTx, maxByBal));
 
-    const validated = validateBet(amountStr.trim(), 100, txMax);
-    if (!validated.ok) {
-      const reason = validated.reason;
-      const msg =
-        reason === "TOO_LARGE"
-          ? `1回の投資額は **◉${txMax.toLocaleString()}** までじゃ（${tier.emoji}${tier.name} の上限）。`
-          : reason === "TOO_SMALL"
-            ? "投資額は **100以上** で指定するのじゃ。"
-            : "投資額は整数で指定するのじゃ。";
-      await interaction.reply({ content: msg, ephemeral: true });
+    // 株数入力（空欄なら最大株数）
+    const sharesStr = interaction.fields.getTextInputValue("shares").trim();
+    let shares: number;
+    if (sharesStr === "") {
+      shares = maxShares;
+    } else {
+      const n = Number(sharesStr);
+      if (!Number.isInteger(n) || n <= 0) {
+        await interaction.reply({ content: "株数は1以上の整数で入れてね。（空欄なら買えるだけ買うよ）", ephemeral: true });
+        return;
+      }
+      shares = n;
+    }
+
+    if (maxShares < 1) {
+      // 1株も買えない → 何が足りないかを具体的に案内
+      const limitedByTx = maxByTx < maxByBal;
+      await interaction.reply({
+        content:
+          `いまは1株も買えないみたい。\n` +
+          `**${stock.name}** は 1株 ◈${stock.price.toLocaleString()}。` +
+          (limitedByTx
+            ? `1回の投資上限が ◈${txMax.toLocaleString()} だから届かないんだ。星位が上がると上限も増えるよ。`
+            : `きみの所持金が ◈${bal.toLocaleString()} だから、もう少し貯めてからにしよ。`),
+        ephemeral: true,
+      });
       return;
     }
-    const amount = validated.value;
-
-    const stock = getStock(stockId);
-    if (!stock) return;
-
-    const shares = Math.floor(amount / stock.price);
-    if (shares < 1) {
-      await interaction.reply({ content: `◉${amount} では1株も買えぬ（1株 = ◉${stock.price.toLocaleString()}）`, ephemeral: true });
+    if (shares > maxShares) {
+      const limitedByTx = maxByTx < maxByBal;
+      await interaction.reply({
+        content:
+          `いまは最大 **${maxShares}株**（◈${(maxShares * stock.price).toLocaleString()}）まで買えるよ。\n` +
+          (limitedByTx ? `1回の投資上限 ◈${txMax.toLocaleString()} が効いてるんだ。` : `所持金 ◈${bal.toLocaleString()} の範囲だね。`),
+        ephemeral: true,
+      });
       return;
     }
 
     const totalCost = shares * stock.price;
     const result = adjustBalance(userId, -totalCost, "stock_buy", "stocks", guildId);
     if (!result.ok) {
-      await interaction.reply({ content: "小判が足りぬぞ…。", ephemeral: true });
+      await interaction.reply({ content: "エテルが足りないみたい。", ephemeral: true });
       return;
     }
 
     const existing = getHolding(userId, stockId);
-    if (existing) {
+    if (existing && existing.shares > 0) {
+      // 追加購入（ナンピン）: 期限(bought_at)は最初の購入のまま延ばさない
       const newShares = existing.shares + shares;
       const newAvg = Math.floor((existing.avg_cost * existing.shares + totalCost) / newShares);
       db.prepare("UPDATE holdings SET shares = ?, avg_cost = ? WHERE user_id = ? AND stock_id = ?")
         .run(newShares, newAvg, userId, stockId);
     } else {
-      db.prepare("INSERT INTO holdings (user_id, stock_id, shares, avg_cost) VALUES (?, ?, ?, ?)")
-        .run(userId, stockId, shares, stock.price);
+      // 新規ポジション: bought_at を今に設定（3日後に強制売却）
+      db.prepare("INSERT INTO holdings (user_id, stock_id, shares, avg_cost, bought_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id, stock_id) DO UPDATE SET shares = ?, avg_cost = ?, bought_at = ?")
+        .run(userId, stockId, shares, stock.price, new Date().toISOString(), shares, stock.price, new Date().toISOString());
     }
 
     // 取引履歴に記録
@@ -494,13 +619,11 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
       ).run(userId, stockId, shares, stock.price, totalCost);
     } catch { /* ignore */ }
 
-    const unused = amount - totalCost;
-    const unusedLine = unused > 0 ? `\n（入力 ◉${amount.toLocaleString()} のうち ◉${unused.toLocaleString()} は端数のため未使用 — 残高に保持）` : "";
-
     await interaction.reply({
       embeds: [successEmbed(
-        `${stock.emoji} **${stock.name}** を **${shares}株** 購入！\n` +
-        `投資額: ◉${totalCost.toLocaleString()} (1株 ◉${stock.price.toLocaleString()})${unusedLine}`
+        `${stock.emoji} **${stock.name}** を **${shares}株** 買ったよ。\n` +
+        `支払い: ◈${totalCost.toLocaleString()}（1株 ◈${stock.price.toLocaleString()}）／ 残り: ◈${getBalance(userId, guildId).toLocaleString()}\n` +
+        `*※ 株は最初の購入から ${STOCK_HOLD_DAYS}日 で自動売却されるよ（塩漬け防止）。*`
       )],
       ephemeral: true
     });
@@ -513,7 +636,7 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     const holding = getHolding(userId, stockId);
 
     if (!stock || !holding || holding.shares <= 0) {
-      await interaction.reply({ content: "保有しておらぬぞ。", ephemeral: true });
+      await interaction.reply({ content: "持ってないよ。", ephemeral: true });
       return;
     }
 
@@ -524,13 +647,13 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
     } else {
       const v = validateBet(sharesStr, 1, holding.shares);
       if (!v.ok) {
-        await interaction.reply({ content: `1〜${holding.shares}株の範囲で整数指定するのじゃ。`, ephemeral: true });
+        await interaction.reply({ content: `1〜${holding.shares}株の範囲で整数を指定してね。`, ephemeral: true });
         return;
       }
       shares = v.value;
     }
     if (shares > holding.shares) {
-      await interaction.reply({ content: `${holding.shares}株しか持っておらぬ。`, ephemeral: true });
+      await interaction.reply({ content: `${holding.shares}株しか持ってないよ。`, ephemeral: true });
       return;
     }
 
@@ -555,13 +678,13 @@ export async function handleStocksModal(interaction: ModalSubmitInteraction): Pr
       ).run(userId, stockId, shares, stock.price, revenue, profit);
     } catch { /* ignore */ }
 
-    const profitStr = profit >= 0 ? `+◉${profit.toLocaleString()}` : `-◉${Math.abs(profit).toLocaleString()}`;
+    const profitStr = profit >= 0 ? `+◈${profit.toLocaleString()}` : `-◈${Math.abs(profit).toLocaleString()}`;
     const emoji = profit >= 0 ? "📈" : "📉";
 
     await interaction.reply({
       embeds: [successEmbed(
         `${stock.emoji} **${stock.name}** を **${shares}株** 売却！\n` +
-        `売却額: ◉${revenue.toLocaleString()} / 損益: ${emoji} ${profitStr}`
+        `売却額: ◈${revenue.toLocaleString()} / 損益: ${emoji} ${profitStr}`
       )],
       ephemeral: true
     });

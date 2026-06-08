@@ -21,7 +21,7 @@ export function getFukuWeightLabel(balance: number): string | null {
   return `${Math.round(rate * 100)}%`;
 }
 
-// ─── 動的ハウスエッジ（妖気の潮流） ────────────────────
+// ─── 動的ハウスエッジ（星気の潮流） ────────────────────
 
 export type EconomyState = "inflation" | "normal" | "deflation";
 
@@ -46,19 +46,19 @@ export function getEconomyState(guildId: string): {
 
   if (healthyLine === 0) {
     state = "normal";
-    label = "妖気は穏やか";
+    label = "星気は穏やか";
     emoji = "🟡";
   } else if (total > healthyLine * 1.5) {
     state = "inflation";
-    label = "妖気が満ちておる";
+    label = "星気が満ちておる";
     emoji = "🟢";
   } else if (total < healthyLine * 0.5) {
     state = "deflation";
-    label = "妖気が薄い";
+    label = "星気が薄い";
     emoji = "🔴";
   } else {
     state = "normal";
-    label = "妖気は穏やか";
+    label = "星気は穏やか";
     emoji = "🟡";
   }
 
@@ -107,7 +107,7 @@ export function getEffectiveHouseEdge(guildId: string, baseEdge: number): number
 // ─── ジャックポットプール管理 ──────────────────────────
 
 /**
- * ハウスが吸収した小判を各プールに分配する。
+ * ハウスが吸収したエテルを各プールに分配する。
  * 吸収額の 20% → JPプール, 30% → 底辺保護, 50% → 消滅
  */
 export function distributeHouseEarnings(guildId: string, absorbed: number): void {
@@ -123,6 +123,20 @@ export function distributeHouseEarnings(guildId: string, absorbed: number): void
         relief_pool = relief_pool + ?
     WHERE guild_id = ?
   `).run(toJP, toRelief, guildId);
+}
+
+/**
+ * 巡りの光（救済プール）から施しを引き出す。困窮者の福分け上乗せに使う。
+ * プール残高を上限に want を引き出し、実際に引き出した額を返す（プールは減算）。
+ */
+export function drawFromReliefPool(guildId: string, want: number): number {
+  if (want <= 0) return 0;
+  const row = db.prepare("SELECT relief_pool FROM server_config WHERE guild_id = ?").get(guildId) as { relief_pool: number } | undefined;
+  const pool = row?.relief_pool ?? 0;
+  const grant = Math.min(pool, want);
+  if (grant <= 0) return 0;
+  db.prepare("UPDATE server_config SET relief_pool = relief_pool - ? WHERE guild_id = ?").run(grant, guildId);
+  return grant;
 }
 
 /**
@@ -171,11 +185,11 @@ export type TierInfo = {
 };
 
 const TIERS: TierInfo[] = [
-  { key: "human",    name: "人間",  emoji: "👤", betCap: 500 },
-  { key: "half",     name: "半妖",  emoji: "🌗", betCap: 2_000 },
-  { key: "yokai",    name: "妖",    emoji: "👹", betCap: 10_000 },
-  { key: "daiyokai", name: "大妖",  emoji: "🐉", betCap: 50_000 },
-  { key: "kami",     name: "神",    emoji: "⛩️", betCap: 100_000 },
+  { key: "human",    name: "漂着者", emoji: "✦", betCap: 1_000 },
+  { key: "half",     name: "星拾い", emoji: "✧", betCap: 2_000 },
+  { key: "yokai",    name: "星約者", emoji: "✶", betCap: 10_000 },
+  { key: "daiyokai", name: "星詠み", emoji: "✷", betCap: 50_000 },
+  { key: "kami",     name: "北極星", emoji: "✹", betCap: 100_000 },
 ];
 
 export function getTierForLevel(level: number): TierInfo {
@@ -191,11 +205,12 @@ export function getTierByKey(key: string): TierInfo {
 }
 
 export function expForNextLevel(level: number): number {
-  return Math.floor(100 * Math.pow(level, 1.3));
+  // 序盤の解放テンポを速めるため係数を 100→75 に緩和（段位昇格が約25%早まる）
+  return Math.floor(75 * Math.pow(level, 1.3));
 }
 
 /**
- * 妖力（経験値）を加算し、レベルアップがあればtierも更新する。
+ * 星の力（経験値）を加算し、レベルアップがあればtierも更新する。
  * 戻り値: レベルアップしたかどうか
  */
 export function addExp(userId: string, amount: number): boolean {

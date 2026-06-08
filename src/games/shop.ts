@@ -1,22 +1,21 @@
-import { ChatInputCommandInteraction, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuInteraction, ComponentType } from "discord.js";
+import { ChatInputCommandInteraction, ButtonInteraction, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuInteraction } from "discord.js";
 import { adjustBalance, ensureUser, getBalance } from "../core/bank";
 import { db, runTransaction } from "../core/db";
 import { infoEmbed, errorEmbed, successEmbed, COLORS } from "../ui/embeds";
+import { CONSUMABLES, grantItem } from "../core/items";
 
 const SHOP_ITEMS = [
   // 称号
-  { id: "title_patron", type: "title", name: "【称号】賭場のパトロン", cost: 100_000, desc: "賭場を支える太客の証。" },
-  { id: "title_gold", type: "title", name: "【称号】黄金の成金", cost: 500_000, desc: "黄金のオーラを纏う金持ちの証。" },
-  { id: "title_zashiki", type: "title", name: "【称号】座敷童の飼い主", cost: 1_000_000, desc: "座敷童すら手なずける大富豪。" },
-  // 実用品
-  { id: "hint_stock", type: "consumable", name: "【秘匿】龍脈相場の裏情報", cost: 5_000, desc: "現在の相場のトレンドをこっそり教えてもらう。" },
-  // プレゼント（好感度）
-  { id: "present_dango", type: "present", name: "🍡 三色団子（座敷童へ）", cost: 1_000, desc: "座敷童にプレゼントする。少しだけ喜ぶ。（好感度+1）", affection: 1 },
-  { id: "present_sake", type: "present", name: "🍶 特上お神酒（座敷童へ）", cost: 10_000, desc: "座敷童にプレゼントする。かなり喜ぶ。（好感度+15）", affection: 15 },
-  { id: "present_kimono", type: "present", name: "👘 絹の着物（座敷童へ）", cost: 100_000, desc: "座敷童にプレゼントする。飛び跳ねて喜ぶ。（好感度+200）", affection: 200 },
+  // 価格は為替OFF（Gil流入なし）でも到達可能な帯に調整。最上位=残高上限◈300,000を頂点に。
+  { id: "title_patron", type: "title", name: "【称号】賭場のパトロン", cost: 30_000, desc: "賭場を支える太客の証。" },
+  { id: "title_gold", type: "title", name: "【称号】黄金の成金", cost: 100_000, desc: "黄金のオーラを纏う金持ちの証。" },
+  { id: "title_zashiki", type: "title", name: "【称号】アステルの寵児", cost: 300_000, desc: "アステルすら手なずける大富豪。" },
+  // 使い切り景品（在庫に入る。/商店 使う で装備）
+  ...CONSUMABLES.map((c) => ({ id: c.key, type: "consumable" as const, name: `🎴 ${c.name}`, cost: c.price, desc: `${c.desc}（/商店 使う で装備）` })),
+  // ※ アステルへの贈り物は /アステル 贈り物 に移設
 ];
 
-export async function handleShopCommand(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleShopCommand(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const userId = interaction.user.id;
   ensureUser(userId, guildId);
@@ -25,112 +24,64 @@ export async function handleShopCommand(interaction: ChatInputCommandInteraction
 
   const embed = infoEmbed(
     "🛍️ 奉納ショップ",
-    "「ようこそ、客人。余った小判で特別な品と交換してやろう。\nただし、一度買ったものは返品できぬぞ？」",
+    "「いらっしゃい。余ったエテルで、特別な品と交換できるよ。\nただし、一度買ったものは返品できないからね？」",
     COLORS.GOLD
   ).addFields({
-    name: `あなたの所持金: ◉${balance.toLocaleString()}`,
-    value: "購入したい品を下のメニューから選ぶのじゃ。",
+    name: `あなたの所持金: ◈${balance.toLocaleString()}`,
+    value: "買いたい品を下のメニューから選んでね。",
   });
 
   const options = SHOP_ITEMS.map((item) => ({
-    label: `${item.name} (◉${item.cost.toLocaleString()})`,
+    label: `${item.name} (◈${item.cost.toLocaleString()})`,
     value: item.id,
     description: item.desc,
   }));
 
   const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
-      .setCustomId(`shop_select_${userId}`)
+      .setCustomId("shop_select")
       .setPlaceholder("購入する品を選択...")
       .addOptions(options)
   );
 
-  const reply = await interaction.reply({ embeds: [embed], components: [row] });
+  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+}
 
-  const collector = reply.createMessageComponentCollector({
-    componentType: ComponentType.StringSelect,
-    time: 60_000,
-    filter: (i) => i.user.id === userId,
-  });
+/** 商店セレクト（グローバル処理・コレクター不使用で堅牢に） */
+export async function handleShopSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const guildId = interaction.guildId!;
+  const userId = interaction.user.id;
+  const itemId = interaction.values[0];
+  const item = SHOP_ITEMS.find((x) => x.id === itemId);
+  if (!item) { await interaction.reply({ embeds: [errorEmbed("その品は見つからないや。")], ephemeral: true }); return; }
 
-  collector.on("collect", async (i: StringSelectMenuInteraction) => {
-    const itemId = i.values[0];
-    const item = SHOP_ITEMS.find((x) => x.id === itemId)!;
+  const result = runTransaction<{ ok: boolean; reason?: string }>(() => {
+    const currentBalance = (db.prepare("SELECT balance FROM users WHERE user_id = ?").get(userId) as { balance: number } | undefined)?.balance ?? 0;
+    if (currentBalance < item.cost) return { ok: false, reason: "INSUFFICIENT_FUNDS" };
 
-    await i.deferUpdate();
-
-    try {
-      const result = runTransaction(() => {
-        // 残高チェック
-        const currentBalance = (db.prepare("SELECT balance FROM users WHERE user_id = ?").get(userId) as { balance: number }).balance;
-        if (currentBalance < item.cost) {
-          return { ok: false, reason: "INSUFFICIENT_FUNDS" };
-        }
-
-        if (item.type === "title") {
-          // すでに持っているかチェック
-          const hasTitle = db.prepare("SELECT 1 FROM titles WHERE user_id = ? AND title_key = ?").get(userId, item.id);
-          if (hasTitle) {
-            return { ok: false, reason: "ALREADY_OWNED" };
-          }
-          // 購入処理
-          adjustBalance(userId, -item.cost, "shop_buy");
-          db.prepare("INSERT INTO titles (user_id, title_key, title_name) VALUES (?, ?, ?)").run(userId, item.id, item.name.replace("【称号】", ""));
-        } else if (item.type === "consumable") {
-          adjustBalance(userId, -item.cost, "shop_buy");
-        } else if (item.type === "present") {
-          adjustBalance(userId, -item.cost, "shop_present");
-          const { addAffection } = require("../core/db");
-          addAffection(userId, item.affection!);
-          
-          // 愛弟子称号の自動付与チェック
-          const { getAffection } = require("../core/db");
-          if (getAffection(userId) >= 500) {
-             db.prepare("INSERT OR IGNORE INTO titles (user_id, title_key, title_name) VALUES (?, ?, ?)").run(userId, "title_disciple", "座敷童の愛弟子");
-          }
-        }
-
-        return { ok: true };
-      });
-
-      if (!result.ok) {
-        if (result.reason === "INSUFFICIENT_FUNDS") {
-          await i.followUp({ embeds: [errorEmbed("小判が足りぬぞ。冷やかしなら帰るのじゃ。")], ephemeral: true });
-        } else if (result.reason === "ALREADY_OWNED") {
-          await i.followUp({ embeds: [errorEmbed("それはすでに持っておるじゃろ。")], ephemeral: true });
-        }
-        return;
-      }
-
-      // 購入成功の演出
-      if (item.id === "hint_stock") {
-        const stocks = db.prepare("SELECT name, emoji, trend FROM stocks ORDER BY ABS(trend) DESC LIMIT 1").all() as { name: string; emoji: string; trend: number }[];
-        let hintMsg = "今は特に動きがないようじゃの。";
-        if (stocks.length > 0) {
-          const target = stocks[0];
-          hintMsg = `「…いいじゃろう。『${target.emoji}${target.name}』が${target.trend > 0 ? "これから上がる" : "これから落ちる"}はずじゃ。誰にも言うなよ？」`;
-        }
-        await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** を購入しました！\n\n${hintMsg}`)] });
-      } else if (item.type === "present") {
-        let zashikiReply = "";
-        if (item.id === "present_dango") zashikiReply = "「おや、団子か。ありがたく貰っておこう。…むぐむぐ。悪くない味じゃ。」";
-        if (item.id === "present_sake") zashikiReply = "「おおっ！これは上等な酒じゃな！…かぁ～っ！五臓六腑に染み渡るわい！お主、分かっておるのう！」";
-        if (item.id === "present_kimono") zashikiReply = "「こ、これは…絹の着物！？こんな高価なものをわしに…！？\n……あ、ありがと、な。大切に着させてもらうぞ。」";
-        
-        await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** を座敷童に贈りました！\n\n${zashikiReply}`)] });
-      } else {
-        await reply.edit({ components: [] });
-        await i.followUp({ embeds: [successEmbed(`**${item.name}** を購入しました！\n\n「毎度あり！ /通行証 で確認できるぞ。」`)] });
-      }
-    } catch (error) {
-      console.error("[shop] Error:", error);
-      await i.followUp({ embeds: [errorEmbed("処理に失敗したぞ。")], ephemeral: true });
+    if (item.type === "title") {
+      const hasTitle = db.prepare("SELECT 1 FROM titles WHERE user_id = ? AND title_key = ?").get(userId, item.id);
+      if (hasTitle) return { ok: false, reason: "ALREADY_OWNED" };
+      adjustBalance(userId, -item.cost, "shop_buy", undefined, guildId);
+      db.prepare("INSERT INTO titles (user_id, title_key, title_name) VALUES (?, ?, ?)").run(userId, item.id, item.name.replace("【称号】", ""));
+    } else if (item.type === "consumable") {
+      adjustBalance(userId, -item.cost, "shop_buy", undefined, guildId);
+      grantItem(userId, item.id, 1);
     }
+    return { ok: true };
   });
 
-  collector.on("end", async () => {
-    try { await reply.edit({ components: [] }); } catch {}
-  });
+  if (!result.ok) {
+    const msg = result.reason === "INSUFFICIENT_FUNDS" ? "エテルが足りないよ。冷やかしなら、また今度ね。"
+      : result.reason === "ALREADY_OWNED" ? "それはもう持ってるよ。" : "処理に失敗しちゃった。";
+    await interaction.reply({ embeds: [errorEmbed(msg)], ephemeral: true });
+    return;
+  }
+
+  const text = item.type === "consumable"
+    ? `**${item.name}** を手に入れたよ。\n\n商店の **「使う」** で装備すると、次の勝負で効くよ。`
+    : `**${item.name}** を購入しました！\n\n「毎度あり。/通行証 で確認できるよ。」`;
+  // 元のセレクトを消費済みにする（任意・失敗は無視）
+  await interaction.update({ components: [] }).catch(() => {});
+  await interaction.followUp({ embeds: [successEmbed(text)], ephemeral: true });
 }

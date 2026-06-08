@@ -3,14 +3,19 @@ import { config } from "./config";
 import { asobuCommand } from "./games/asobu";
 import { raceCommand } from "./games/keiba/command";
 import { stocksCommand } from "./games/stocks/index";
-import { dailyCommand } from "./games/daily";
 import { profileCommand } from "./games/profile";
-import { thanksCommand } from "./games/thanks";
 import { casinoCommand } from "./ui/home";
-import { rankingCommand } from "./ui/ranking";
 import { adminCommand } from "./admin/commands";
+import { ownerCommand } from "./admin/owner";
+import { shakaCommand } from "./admin/shaka";
+import { seppouCommand } from "./admin/seppou";
 import { shoutenCommand } from "./games/shouten";
 import { zashikiCommand } from "./games/zashiki";
+import { exchangeCommand } from "./games/exchange";
+import { shoubuCommand } from "./games/shoubu";
+import { tipCommand } from "./games/tip";
+import { vipCommand } from "./games/vip";
+import { nagareCommand } from "./games/nagareboshi";
 
 async function deployCommands(): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.discordToken);
@@ -18,14 +23,19 @@ async function deployCommands(): Promise<void> {
     asobuCommand.toJSON(),
     raceCommand.toJSON(),
     stocksCommand.toJSON(),
-    dailyCommand.toJSON(),
     profileCommand.toJSON(),
-    rankingCommand.toJSON(),
     casinoCommand.toJSON(),
     adminCommand.toJSON(),
+    ownerCommand.toJSON(),
+    shakaCommand.toJSON(),
+    seppouCommand.toJSON(),
     shoutenCommand.toJSON(),
     zashikiCommand.toJSON(),
-    thanksCommand.toJSON(),
+    exchangeCommand.toJSON(),
+    shoubuCommand.toJSON(),
+    tipCommand.toJSON(),
+    vipCommand.toJSON(),
+    nagareCommand.toJSON(),
   ];
   if (config.guildId) {
     // 開発用: 特定 guild に即時デプロイ

@@ -3,7 +3,7 @@ import { db, getSystemStatus } from "../../core/db";
 
 export const raceCommand = new SlashCommandBuilder()
   .setName("競馬")
-  .setDescription("🏇 妖狐競馬 — レース関連コマンド")
+  .setDescription("🏇 競馬 — レース関連コマンド")
   .addSubcommand((sub) => sub.setName("start").setDescription("競馬レースを今すぐ開始"))
   .addSubcommand((sub) => sub.setName("audit").setDescription("資金監査サマリーを表示"));
 
@@ -33,14 +33,14 @@ export async function handleRaceCommand(interaction: ChatInputCommandInteraction
         content: [
           "📒 資金監査サマリー",
           `- ユーザー数: ${users.count}`,
-          `- users残高合計: ${formatNum(users.total)} ベル`,
+          `- users残高合計: ${formatNum(users.total)} エテル`,
           `- transaction_logs件数: ${logs.count}`,
-          `- transaction_logs金額合計: ${formatNum(logs.total)} ベル`,
+          `- transaction_logs金額合計: ${formatNum(logs.total)} エテル`,
           `- 未精算賭け件数: ${bets.count}`,
-          `- 未精算賭け金合計: ${formatNum(bets.total)} ベル`,
+          `- 未精算賭け金合計: ${formatNum(bets.total)} エテル`,
           `- 進行中フラグ(is_racing): ${status.is_racing}`,
-          `- 単勝キャリー: ${formatNum(status.keiba_carryover_win)} ベル`,
-          `- 複勝キャリー: ${formatNum(status.keiba_carryover_place)} ベル`
+          `- 単勝キャリー: ${formatNum(status.keiba_carryover_win)} エテル`,
+          `- 複勝キャリー: ${formatNum(status.keiba_carryover_place)} エテル`
         ].join("\n")
       });
     } catch (error) {
@@ -61,7 +61,8 @@ export async function handleRaceCommand(interaction: ChatInputCommandInteraction
     await startRace(interaction.client, {
       channelId: interaction.channelId,
       initiatedBy: interaction.user.tag,
-      isScheduled: false
+      isScheduled: false,
+      hostUserId: interaction.user.id,
     });
     await interaction.editReply("レース受付パネルを作成しました。");
   } catch (error) {

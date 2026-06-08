@@ -4,8 +4,8 @@
  * サブコマンド構成：
  *   📊 監視  — 経済監視ダッシュボード（オーナー除外）
  *   ⚙️ 設定  — 設定パネル（経済・チャンネル）
- *   💰 発行  — 小判発行 (mint)
- *   🔥 焼却  — 小判焼却 (burn)
+ *   💰 発行  — エテル発行 (mint)
+ *   🔥 焼却  — エテル焼却 (burn)
  *   ♻️ 返金  — ユーザー返金（理由必須）
  *   🔍 調査  — ユーザー取引履歴
  *   📢 通知  — 座敷童アナウンス
@@ -23,8 +23,10 @@ import {
   TextInputStyle,
   ComponentType,
   EmbedBuilder,
+  StringSelectMenuBuilder,
+  Client,
 } from "discord.js";
-import { db, getServerConfig, updateServerConfig } from "../core/db";
+import { db, getServerConfig, updateServerConfig, runTransaction } from "../core/db";
 import { adjustBalance, ensureUser } from "../core/bank";
 import { getEconomyState } from "../core/economy";
 import { infoEmbed, errorEmbed, successEmbed, baseEmbed, COLORS } from "../ui/embeds";
@@ -38,7 +40,19 @@ export const adminCommand = new SlashCommandBuilder()
   .setDescription("管理者パネル")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sub) =>
-    sub.setName("監視").setDescription("📊 経済監視ダッシュボード（オーナー除く）")
+    sub
+      .setName("監視")
+      .setDescription("📊 経済監視ダッシュボード（オーナー除く）")
+      .addStringOption((o) =>
+        o.setName("区分").setDescription("見たいセクションだけに絞る（既定: 全て）").setRequired(false)
+          .addChoices(
+            { name: "全て", value: "all" },
+            { name: "流通（量・プール・lifetime動量）", value: "flow" },
+            { name: "動き（24hプレイ・大型取引）", value: "activity" },
+            { name: "ランキング（残高TOP・流入/流出TOP）", value: "ranking" },
+            { name: "分布（資産分布）", value: "dist" },
+          ),
+      )
   )
   .addSubcommand((sub) =>
     sub.setName("設定").setDescription("⚙️ サーバー設定パネル")
@@ -46,7 +60,7 @@ export const adminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("発行")
-      .setDescription("💰 小判を発行する")
+      .setDescription("💰 エテルを発行する")
       .addUserOption((opt) =>
         opt.setName("user").setDescription("対象ユーザー").setRequired(true)
       )
@@ -60,7 +74,7 @@ export const adminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("焼却")
-      .setDescription("🔥 小判を焼却する")
+      .setDescription("🔥 エテルを焼却する")
       .addUserOption((opt) =>
         opt.setName("user").setDescription("対象ユーザー").setRequired(true)
       )
@@ -99,14 +113,59 @@ export const adminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("通知")
-      .setDescription("📢 座敷童の口調でアナウンスを送信")
+      .setDescription("📢 アステルの口調でアナウンスを送信")
       .addStringOption((opt) =>
         opt.setName("message").setDescription("通知内容").setRequired(true)
       )
       .addRoleOption((opt) =>
         opt.setName("role").setDescription("メンションするロール（任意）")
       )
+  )
+  .addSubcommand((sub) =>
+    sub.setName("株速報").setDescription("📈 株価速報を今すぐ株式市場チャンネルに投稿（テスト用）")
+  )
+  .addSubcommand((sub) =>
+    sub.setName("案内設置").setDescription("📌 このチャンネルに常設の案内パネルを置く")
+  )
+  .addSubcommand((sub) =>
+    sub.setName("商店設置").setDescription("📌 このチャンネルに常設の商店パネルを置く")
+  )
+  .addSubcommand((sub) =>
+    sub.setName("板一覧").setDescription("📋 進行中の議題を一覧（選択で取消可）")
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("板掃除")
+      .setDescription("🧹 長期放置された進行中議題をまとめて無効化＋全員返金")
+      .addIntegerOption((opt) =>
+        opt.setName("古さ").setDescription("これより古い議題を対象（日数・既定 7）").setRequired(false).setMinValue(1).setMaxValue(180)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("通貨ログ")
+      .setDescription("📒 エテル取引ログを出力（直近N日・任意ユーザー/絞り込み）")
+      .addIntegerOption((opt) =>
+        opt.setName("日数").setDescription("対象期間（既定 1日・最大 30）").setRequired(false).setMinValue(1).setMaxValue(30)
+      )
+      .addUserOption((opt) =>
+        opt.setName("user").setDescription("特定ユーザーで絞り込み（任意）").setRequired(false)
+      )
+      .addStringOption((opt) =>
+        opt.setName("絞り込み").setDescription("reason に含まれる文字列で絞り込み（任意・例: 心付け）").setRequired(false).setMaxLength(60)
+      )
   );
+
+// ─── Admin Role Mention Helper ─────────────────────────
+/**
+ * 運営ロールメンション文字列を返す。未設定なら空文字。
+ * 異議・トラブル通知時に content 先頭に差し込んで使う:
+ *   await msg.send(`${mentionAdminRole(guildId)} 異議が出たよ...`)
+ */
+export function mentionAdminRole(guildId: string): string {
+  const cfg = getServerConfig(guildId);
+  return cfg.admin_role_id ? `<@&${cfg.admin_role_id}>` : "";
+}
 
 // ─── Owner Exclusion Helper ────────────────────────────
 
@@ -138,6 +197,40 @@ export async function handleAdminCommand(interaction: ChatInputCommandInteractio
     case "返金":  return handleRefund(interaction, guildId);
     case "調査":  return handleInspect(interaction, guildId);
     case "通知":  return handleAnnounce(interaction, guildId);
+    case "株速報": return handleStockBroadcast(interaction, guildId);
+    case "板一覧": return handleBoardList(interaction, guildId);
+    case "板掃除": return handleBoardSweep(interaction, guildId);
+    case "通貨ログ": return handleTxLog(interaction, guildId);
+    case "案内設置": {
+      const { postHomePanel } = require("../ui/home");
+      return postHomePanel(interaction);
+    }
+    case "商店設置": {
+      const { postShopPanel } = require("../games/shouten");
+      return postShopPanel(interaction);
+    }
+  }
+}
+
+// ─── 📈 株速報（手動投稿・テスト用） ──────────────────────
+async function handleStockBroadcast(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const cfg = getServerConfig(guildId);
+  if (!cfg.stock_channel_id) {
+    await interaction.reply({ embeds: [errorEmbed("株 速報チャンネルが未設定だよ。`/管理 設定` → 📢 チャンネルを編集 で設定してね。")], ephemeral: true });
+    return;
+  }
+  const { buildMarketBroadcast } = require("../games/stocks/index");
+  try {
+    const channel = await interaction.client.channels.fetch(cfg.stock_channel_id);
+    if (!channel || !channel.isTextBased()) {
+      await interaction.reply({ embeds: [errorEmbed("設定されたチャンネルが見つからない/テキストチャンネルじゃないみたい。")], ephemeral: true });
+      return;
+    }
+    await (channel as any).send({ embeds: [buildMarketBroadcast([])] });
+    await interaction.reply({ content: `📈 <#${cfg.stock_channel_id}> に株価速報を投稿したよ。`, ephemeral: true });
+  } catch (e) {
+    console.error("[admin] stock broadcast failed:", e);
+    await interaction.reply({ embeds: [errorEmbed("投稿に失敗しちゃった。Botにそのチャンネルへの送信権限があるか確認してね。")], ephemeral: true });
   }
 }
 
@@ -203,7 +296,7 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
   `).all(...owner.params) as Array<{ game: string; plays: number; wagered: number }>;
   const activityLine = activityRows.length === 0
     ? "*（直近24hの賭けなし）*"
-    : activityRows.map((r) => `\`${r.game.padEnd(10)}\` ${r.plays}回 / 賭け ◉${r.wagered.toLocaleString()}`).join("\n");
+    : activityRows.map((r) => `\`${r.game.padEnd(10)}\` ${r.plays}回 / 賭け ◈${r.wagered.toLocaleString()}`).join("\n");
 
   // 残高 TOP 5
   const topRows = db.prepare(`
@@ -212,7 +305,7 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
   `).all(...owner.params) as Array<{ user_id: string; balance: number }>;
   const topLine = topRows.length === 0
     ? "*（プレイヤーなし）*"
-    : topRows.map((r, i) => `${i + 1}. <@${r.user_id}> — ◉${r.balance.toLocaleString()}`).join("\n");
+    : topRows.map((r, i) => `${i + 1}. <@${r.user_id}> — ◈${r.balance.toLocaleString()}`).join("\n");
 
   // 大型取引（直近48h、絶対値5万以上）
   const bigTxRows = db.prepare(`
@@ -228,59 +321,108 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
     : bigTxRows.map((r) => {
         const ts = r.created_at.slice(5, 16).replace("T", " ");
         const sign = r.amount >= 0 ? "+" : "";
-        return `\`${ts}\` <@${r.user_id}> ${sign}◉${r.amount.toLocaleString()} (${r.reason})`;
+        return `\`${ts}\` <@${r.user_id}> ${sign}◈${r.amount.toLocaleString()} (${r.reason})`;
       }).join("\n");
+
+  // Lifetime 取引動量集計（旧 /管理 流通 から統合）
+  const flowAgg = db.prepare(`
+    SELECT
+      IFNULL(SUM(CASE WHEN amount > 0 THEN amount END), 0) AS total_in,
+      IFNULL(SUM(CASE WHEN amount < 0 THEN -amount END), 0) AS total_out,
+      COUNT(*) AS tx_count
+    FROM transaction_logs
+    WHERE currency = 'currency2'
+  `).get() as { total_in: number; total_out: number; tx_count: number };
+  const flowNet = flowAgg.total_in - flowAgg.total_out;
+  const accountedFor = agg.total + cfg.jackpot_pool + cfg.relief_pool;
+  const drift = flowNet - accountedFor;
+
+  type RC = { reason: string; total: number; count: number };
+  const inflowTop = db.prepare(`
+    SELECT reason, SUM(amount) AS total, COUNT(*) AS count
+    FROM transaction_logs
+    WHERE currency = 'currency2' AND amount > 0
+    GROUP BY reason ORDER BY total DESC LIMIT 5
+  `).all() as RC[];
+  const outflowTop = db.prepare(`
+    SELECT reason, SUM(-amount) AS total, COUNT(*) AS count
+    FROM transaction_logs
+    WHERE currency = 'currency2' AND amount < 0
+    GROUP BY reason ORDER BY total DESC LIMIT 5
+  `).all() as RC[];
+  const fmtRC = (rows: RC[]) =>
+    rows.length === 0
+      ? "*（記録なし）*"
+      : rows.map((r) => `\`${r.reason.slice(0, 26).padEnd(26)}\` ◈${r.total.toLocaleString().padStart(10)} (${r.count}回)`).join("\n");
 
   const ownerNote = config.ownerId
     ? `*<@${config.ownerId}> をオーナーとして集計から除外*`
     : "*オーナーID 未設定（全ユーザーを集計）*";
 
-  const embed = baseEmbed("📊 経済監視ダッシュボード", COLORS.MAIN)
-    .setDescription(ownerNote)
-    .addFields(
+  // 区分フィルタ
+  const section = (interaction.options.getString("区分") as "all" | "flow" | "activity" | "ranking" | "dist" | null) ?? "all";
+  const show = {
+    flow: section === "all" || section === "flow",
+    dist: section === "all" || section === "dist",
+    activity: section === "all" || section === "activity",
+    ranking: section === "all" || section === "ranking",
+  };
+
+  const titleSuffix = section === "all" ? "" : `（${{ flow: "流通", activity: "動き", ranking: "ランキング", dist: "分布" }[section]}）`;
+  const embed = baseEmbed(`📊 経済監視ダッシュボード${titleSuffix}`, COLORS.MAIN).setDescription(ownerNote);
+
+  if (show.flow) {
+    embed.addFields(
       {
         name: "🏛 流通量",
         value: [
-          `総発行: **◉${agg.total.toLocaleString()}** (${agg.c}人)`,
-          `平均: ◉${Math.round(agg.avg).toLocaleString()} / 中央: ◉${median.toLocaleString()}`,
-          `最大: ◉${agg.max.toLocaleString()} / 最小: ◉${agg.min.toLocaleString()}`,
+          `総発行: **◈${agg.total.toLocaleString()}** (${agg.c}人)`,
+          `平均: ◈${Math.round(agg.avg).toLocaleString()} / 中央: ◈${median.toLocaleString()}`,
+          `最大: ◈${agg.max.toLocaleString()} / 最小: ◈${agg.min.toLocaleString()}`,
         ].join("\n"),
         inline: false,
       },
       {
         name: `${eco.emoji} 経済状態`,
-        value: `**${eco.label}** （${eco.healthyLine.toLocaleString()} ベル基準）`,
+        value: `**${eco.label}** （${eco.healthyLine.toLocaleString()} エテル基準）`,
         inline: false,
       },
       {
         name: "🏆 プール",
         value: [
-          `JP: ◉${cfg.jackpot_pool.toLocaleString()}`,
-          `救済: ◉${cfg.relief_pool.toLocaleString()}`,
+          `JP: ◈${cfg.jackpot_pool.toLocaleString()}`,
+          `救済: ◈${cfg.relief_pool.toLocaleString()}`,
         ].join("　"),
         inline: false,
       },
       {
-        name: "📈 資産分布",
-        value: chartLines,
-        inline: false,
-      },
-      {
-        name: "🎰 直近24h アクティビティ",
-        value: activityLine,
-        inline: false,
-      },
-      {
-        name: "👑 残高 TOP 5",
-        value: topLine,
-        inline: false,
-      },
-      {
-        name: "💸 大型取引（直近48h・5万以上）",
-        value: bigTxLine,
+        name: "📈 取引動量（lifetime）",
+        value: [
+          `流入合計: ◈${flowAgg.total_in.toLocaleString()}　/　流出合計: ◈${flowAgg.total_out.toLocaleString()}`,
+          `純増減: **${flowNet >= 0 ? "+" : ""}◈${flowNet.toLocaleString()}**　|　取引: ${flowAgg.tx_count.toLocaleString()}件`,
+          `所在合計: ◈${accountedFor.toLocaleString()}（プレイヤー残高+プール）`,
+          drift === 0 ? "✅ 整合 OK" : `⚠️ 差分: ${drift >= 0 ? "+" : ""}◈${drift.toLocaleString()}（要監査）`,
+        ].join("\n"),
         inline: false,
       },
     );
+  }
+  if (show.dist) {
+    embed.addFields({ name: "📊 資産分布", value: chartLines, inline: false });
+  }
+  if (show.activity) {
+    embed.addFields(
+      { name: "🎰 直近24h アクティビティ", value: activityLine, inline: false },
+      { name: "💸 大型取引（直近48h・5万以上）", value: bigTxLine, inline: false },
+    );
+  }
+  if (show.ranking) {
+    embed.addFields(
+      { name: "👑 残高 TOP 5", value: topLine, inline: false },
+      { name: "📥 流入TOP5（reason別・lifetime）", value: fmtRC(inflowTop), inline: false },
+      { name: "📤 流出TOP5（reason別・lifetime）", value: fmtRC(outflowTop), inline: false },
+    );
+  }
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
@@ -294,21 +436,23 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
     {
       name: "💰 経済",
       value: [
-        `初期支給: ◉${cfg.initial_balance.toLocaleString()}`,
-        `デイリー基本: ◉${cfg.daily_base}`,
-        `破産保護: ◉${cfg.bankruptcy_aid}`,
-        `所持金上限: ◉${cfg.balance_cap.toLocaleString()}`,
+        `初期支給: ◈${cfg.initial_balance.toLocaleString()}`,
+        `デイリー基本: ◈${cfg.daily_base}`,
+        `破産保護: ◈${cfg.bankruptcy_aid}`,
+        `所持金上限: ◈${cfg.balance_cap.toLocaleString()}`,
         `ハウスエッジ補正: ${cfg.house_edge_offset >= 0 ? "+" : ""}${cfg.house_edge_offset}%`,
-        `最低ベット: ◉${cfg.min_bet}`,
+        `最低ベット: ◈${cfg.min_bet}`,
       ].join("\n"),
       inline: true,
     },
     {
       name: "📢 チャンネル",
       value: [
-        `遊戯場: ${cfg.casino_channel_id ? `<#${cfg.casino_channel_id}>` : "*未設定*"}`,
+        `アステル通知先: ${cfg.casino_channel_id ? `<#${cfg.casino_channel_id}>` : "*未設定*"}`,
         `大勝ち速報: ${cfg.jackpot_channel_id ? `<#${cfg.jackpot_channel_id}>` : "*未設定*"}`,
-        `龍脈相場: ${cfg.stock_channel_id ? `<#${cfg.stock_channel_id}>` : "*未設定*"}`,
+        `株 速報: ${cfg.stock_channel_id ? `<#${cfg.stock_channel_id}>` : "*未設定*"}`,
+        `競馬（定期競馬の発火先）: ${cfg.race_channel_id ? `<#${cfg.race_channel_id}>` : "*未設定*"}`,
+        `通貨ログ: ${cfg.tx_feed_channel_id ? `<#${cfg.tx_feed_channel_id}>` : "*未設定*"}`,
       ].join("\n"),
       inline: true,
     },
@@ -317,6 +461,8 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("admin_economy").setLabel("💰 経済を編集").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("admin_channels").setLabel("📢 チャンネルを編集").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("admin_roles").setLabel("🎭 ロールを編集").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("admin_logs").setLabel("📒 ログ設定").setStyle(ButtonStyle.Secondary),
   );
 
   const reply = await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
@@ -357,7 +503,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
         const balance_cap = parseInt(m.fields.getTextInputValue("balance_cap")) || cfg.balance_cap;
         updateServerConfig(guildId, { daily_base, min_bet, house_edge_offset, balance_cap });
         await m.reply({
-          embeds: [successEmbed(`設定を更新しました。\nデイリー: ◉${daily_base} / 最低ベット: ◉${min_bet} / エッジ補正: ${house_edge_offset}% / 上限: ◉${balance_cap.toLocaleString()}`)],
+          embeds: [successEmbed(`設定を更新しました。\nデイリー: ◈${daily_base} / 最低ベット: ◈${min_bet} / エッジ補正: ${house_edge_offset}% / 上限: ◈${balance_cap.toLocaleString()}`)],
           ephemeral: true,
         });
       } catch { /* timeout */ }
@@ -367,13 +513,16 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
         .setTitle("📢 チャンネル設定")
         .addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("casino_channel").setLabel("遊戯場チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.casino_channel_id ?? "").setRequired(false),
+            new TextInputBuilder().setCustomId("casino_channel").setLabel("アステル通知先 チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.casino_channel_id ?? "").setRequired(false),
           ),
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("jackpot_channel").setLabel("大勝ち速報チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.jackpot_channel_id ?? "").setRequired(false),
+            new TextInputBuilder().setCustomId("jackpot_channel").setLabel("大勝ち速報 チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.jackpot_channel_id ?? "").setRequired(false),
           ),
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("stock_channel").setLabel("龍脈相場チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.stock_channel_id ?? "").setRequired(false),
+            new TextInputBuilder().setCustomId("stock_channel").setLabel("株 速報 チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.stock_channel_id ?? "").setRequired(false),
+          ),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("race_channel").setLabel("競馬（定期競馬の発火先） チャンネルID").setStyle(TextInputStyle.Short).setValue(cfg.race_channel_id ?? "").setRequired(false),
           ),
         );
 
@@ -384,8 +533,47 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
           casino_channel_id: m.fields.getTextInputValue("casino_channel") || null,
           jackpot_channel_id: m.fields.getTextInputValue("jackpot_channel") || null,
           stock_channel_id: m.fields.getTextInputValue("stock_channel") || null,
+          race_channel_id: m.fields.getTextInputValue("race_channel") || null,
         });
         await m.reply({ embeds: [successEmbed("チャンネル設定を更新しました。")], ephemeral: true });
+      } catch { /* timeout */ }
+    } else if (btn.customId === "admin_roles") {
+      const modal = new ModalBuilder()
+        .setCustomId("admin_roles_modal")
+        .setTitle("🎭 ロール設定")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("vip_role").setLabel("VIPロールID（奥座敷）").setStyle(TextInputStyle.Short).setValue(cfg.vip_role_id ?? "").setRequired(false),
+          ),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("admin_role").setLabel("運営ロールID（異議・通知のメンション先）").setStyle(TextInputStyle.Short).setValue(cfg.admin_role_id ?? "").setRequired(false),
+          ),
+        );
+      await btn.showModal(modal);
+      try {
+        const m = await btn.awaitModalSubmit({ time: 60_000 });
+        updateServerConfig(guildId, {
+          vip_role_id: m.fields.getTextInputValue("vip_role") || null,
+          admin_role_id: m.fields.getTextInputValue("admin_role") || null,
+        });
+        await m.reply({ embeds: [successEmbed("ロール設定を更新しました。")], ephemeral: true });
+      } catch { /* timeout */ }
+    } else if (btn.customId === "admin_logs") {
+      const modal = new ModalBuilder()
+        .setCustomId("admin_logs_modal")
+        .setTitle("📒 ログ設定")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("tx_feed_channel").setLabel("通貨ログ送信先チャンネルID（空欄で無効）").setStyle(TextInputStyle.Short).setValue(cfg.tx_feed_channel_id ?? "").setRequired(false),
+          ),
+        );
+      await btn.showModal(modal);
+      try {
+        const m = await btn.awaitModalSubmit({ time: 60_000 });
+        updateServerConfig(guildId, {
+          tx_feed_channel_id: m.fields.getTextInputValue("tx_feed_channel") || null,
+        });
+        await m.reply({ embeds: [successEmbed("ログ設定を更新しました。次回の取引から反映されるよ。")], ephemeral: true });
       } catch { /* timeout */ }
     }
   });
@@ -410,7 +598,7 @@ async function handleMint(interaction: ChatInputCommandInteraction, guildId: str
     .run(interaction.user.id, target.id, amount, memo);
 
   await interaction.reply({
-    embeds: [successEmbed(`**${target.displayName}** に ◉${amount.toLocaleString()} を発行しました。${memo ? `\nメモ: ${memo}` : ""}`)],
+    embeds: [successEmbed(`**${target.displayName}** に ◈${amount.toLocaleString()} を発行しました。${memo ? `\nメモ: ${memo}` : ""}`)],
     ephemeral: true,
   });
 }
@@ -434,7 +622,7 @@ async function handleBurn(interaction: ChatInputCommandInteraction, guildId: str
     .run(interaction.user.id, target.id, amount, memo);
 
   await interaction.reply({
-    embeds: [successEmbed(`**${target.displayName}** から ◉${amount.toLocaleString()} を焼却しました。${memo ? `\nメモ: ${memo}` : ""}`)],
+    embeds: [successEmbed(`**${target.displayName}** から ◈${amount.toLocaleString()} を焼却しました。${memo ? `\nメモ: ${memo}` : ""}`)],
     ephemeral: true,
   });
 }
@@ -457,7 +645,7 @@ async function handleRefund(interaction: ChatInputCommandInteraction, guildId: s
     .run(interaction.user.id, target.id, amount, reason);
 
   await interaction.reply({
-    embeds: [successEmbed(`**${target.displayName}** に ◉${amount.toLocaleString()} を返金しました。\n理由: ${reason}`)],
+    embeds: [successEmbed(`**${target.displayName}** に ◈${amount.toLocaleString()} を返金しました。\n理由: ${reason}`)],
     ephemeral: true,
   });
 }
@@ -484,7 +672,7 @@ async function handleInspect(interaction: ChatInputCommandInteraction, guildId: 
         const sign = r.amount >= 0 ? "+" : "";
         const ts = r.created_at.slice(5, 16).replace("T", " ");
         const game = r.game ? ` [${r.game}]` : "";
-        return `\`${ts}\` ${sign}◉${r.amount.toLocaleString()}　${r.reason}${game}`;
+        return `\`${ts}\` ${sign}◈${r.amount.toLocaleString()}　${r.reason}${game}`;
       }).join("\n");
 
   await interaction.reply({
@@ -492,8 +680,8 @@ async function handleInspect(interaction: ChatInputCommandInteraction, guildId: 
       infoEmbed(
         `🔍 ${target.displayName} の調査`,
         [
-          `💰 残高: ◉${profile.balance.toLocaleString()}`,
-          `📈 ${profile.total_wins.toLocaleString()}勝 / ${profile.total_losses.toLocaleString()}敗 ・ 累計賭け ◉${profile.total_wagered.toLocaleString()}`,
+          `💰 残高: ◈${profile.balance.toLocaleString()}`,
+          `📈 ${profile.total_wins.toLocaleString()}勝 / ${profile.total_losses.toLocaleString()}敗 ・ 累計賭け ◈${profile.total_wagered.toLocaleString()}`,
           "",
           `**直近 ${rows.length} 件**`,
           lines,
@@ -519,7 +707,7 @@ async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId:
     return;
   }
 
-  const embed = infoEmbed("🏮 座敷童からのお知らせ", `*「${message}」*`, COLORS.GOLD);
+  const embed = infoEmbed("✦ アステルからのお知らせ", `*「${message}」*`, COLORS.GOLD);
 
   const zashiki = getZashikiAttachment("idle");
   if (zashiki) {
@@ -538,3 +726,265 @@ async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId:
     ephemeral: true,
   });
 }
+
+// ─── 📋 板救済 ────────────────────────────────────────
+
+type BoardAdminRow = {
+  id: number;
+  guild_id: string;
+  creator_id: string;
+  title: string;
+  status: string;
+  channel_id: string | null;
+  message_id: string | null;
+  thread_id: string | null;
+  created_at: string;
+};
+
+type BoardBetAdminRow = { user_id: string; amount: number };
+
+async function handleBoardList(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const rows = db.prepare(
+    `SELECT id, creator_id, title, status, created_at
+     FROM betting_markets
+     WHERE guild_id = ? AND status IN ('open','closed','reported','disputed')
+     ORDER BY id DESC LIMIT 25`,
+  ).all(guildId) as Array<Pick<BoardAdminRow, "id" | "creator_id" | "title" | "status" | "created_at">>;
+
+  if (rows.length === 0) {
+    await interaction.reply({ embeds: [infoEmbed("📋 板", "進行中の議題は無いよ。", COLORS.GOLD)], ephemeral: true });
+    return;
+  }
+
+  const statusLabel: Record<string, string> = { open: "受付中", closed: "締切", reported: "承認待ち", disputed: "異議・裁定待ち" };
+  const lines = rows.map((r) => {
+    const ts = r.created_at.slice(5, 16).replace("T", " ");
+    return `\`#${r.id}\` ${statusLabel[r.status] ?? r.status} — **${r.title}** / 立てた人: <@${r.creator_id}> (${ts})`;
+  });
+
+  const sel = new StringSelectMenuBuilder()
+    .setCustomId("admin_board_cancel_pick")
+    .setPlaceholder("🗑 取消する議題を選ぶ（任意）")
+    .setMinValues(1).setMaxValues(1)
+    .addOptions(
+      rows.map((r) => ({
+        label: `#${r.id} ${r.title}`.slice(0, 100),
+        description: `${statusLabel[r.status] ?? r.status} — 立て主: ${r.creator_id}`.slice(0, 100),
+        value: String(r.id),
+      })),
+    );
+
+  const reply = await interaction.reply({
+    embeds: [baseEmbed(`📋 板 — 進行中 ${rows.length}件`, COLORS.GOLD).setDescription(lines.join("\n"))],
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(sel)],
+    ephemeral: true,
+  });
+
+  try {
+    const picked = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: 120_000 });
+    const marketId = Number(picked.values[0]);
+
+    const modal = new ModalBuilder()
+      .setCustomId(`admin_board_cancel_modal_${marketId}`)
+      .setTitle(`📋 議題 #${marketId} を取消`)
+      .addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(
+          new TextInputBuilder().setCustomId("reason").setLabel("取消理由").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(200),
+        ),
+      );
+    await picked.showModal(modal);
+    const mod = await picked.awaitModalSubmit({ time: 120_000 });
+    const reason = mod.fields.getTextInputValue("reason");
+    const result = await executeBoardCancel(mod.client, guildId, marketId, reason);
+    await mod.reply({ embeds: [result.ok ? successEmbed(result.msg) : errorEmbed(result.msg)], ephemeral: true });
+  } catch { /* timeout or user closed */ }
+}
+
+/** 板取消のコア。slash 直接 / 一覧→セレクト→モーダル の両方から呼ばれる。 */
+async function executeBoardCancel(client: Client, guildId: string, marketId: number, reason: string): Promise<{ ok: boolean; msg: string }> {
+  const m = db.prepare("SELECT * FROM betting_markets WHERE id = ? AND guild_id = ?").get(marketId, guildId) as BoardAdminRow | undefined;
+  if (!m) return { ok: false, msg: `market #${marketId} が見つからないよ。` };
+  if (m.status === "settled" || m.status === "void") {
+    return { ok: false, msg: `market #${marketId} は既に終了（${m.status}）。取り消せないよ。` };
+  }
+
+  const bets = db.prepare("SELECT user_id, amount FROM market_bets WHERE market_id = ?").all(marketId) as BoardBetAdminRow[];
+  const refunded = bets.length;
+  runTransaction(() => {
+    for (const b of bets) {
+      adjustBalance(b.user_id, b.amount, `板取消(管理者): ${reason}`, "board", m.guild_id);
+    }
+    db.prepare("UPDATE betting_markets SET status = 'void', settled_at = datetime('now') WHERE id = ?").run(marketId);
+  });
+
+  // 紐付きVCのデポジットも保護返金
+  let depositRefunded = false;
+  try {
+    const { refundLinkedVCDeposit } = require("../games/takutate");
+    depositRefunded = refundLinkedVCDeposit("board", String(marketId));
+  } catch (err) { console.warn("[admin board cancel] deposit refund failed:", err); }
+
+  // 元メッセージ書き換え
+  if (m.channel_id && m.message_id) {
+    try {
+      const ch = await client.channels.fetch(m.channel_id).catch(() => null);
+      if (ch && "messages" in ch) {
+        const msg = await (ch as any).messages.fetch(m.message_id).catch(() => null);
+        if (msg) {
+          await msg.edit({
+            content: "",
+            embeds: [baseEmbed(`📋 議題 #${marketId} — 取消（管理者）`, COLORS.LOSE).setDescription(`管理者により無効化されたよ。\n**理由**: ${reason}\n賭けた **${refunded}人** に全額返金したよ。`)],
+            components: [],
+          }).catch(() => {});
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  return {
+    ok: true,
+    msg: `市場 #${marketId} を取り消したよ。${refunded}人に全額返金。${depositRefunded ? "\n紐付きVCのデポジットも返金。" : ""}`,
+  };
+}
+
+
+// ─── 🧹 板掃除（長期放置議題の一括 void） ─────────────
+
+async function handleBoardSweep(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const days = interaction.options.getInteger("古さ") ?? 7;
+  await interaction.deferReply({ ephemeral: true });
+
+  // 対象 = 進行中（open/closed/reported/disputed）かつ created_at が days日より古い
+  const cutoffSql = `datetime('now', '-${days} days')`;
+  const stale = db.prepare(
+    `SELECT id, creator_id, title, status, channel_id, message_id
+     FROM betting_markets
+     WHERE guild_id = ?
+       AND status IN ('open','closed','reported','disputed')
+       AND created_at < ${cutoffSql}`,
+  ).all(guildId) as Array<{ id: number; creator_id: string; title: string; status: string; channel_id: string | null; message_id: string | null }>;
+
+  if (stale.length === 0) {
+    await interaction.editReply({ embeds: [infoEmbed("🧹 板掃除", `${days}日より古い進行中議題は無いよ。`, COLORS.GOLD)] });
+    return;
+  }
+
+  let totalRefunds = 0;
+  let totalAmount = 0;
+
+  // 紐付きVCのデポジット保護返金（admin sweep の責はユーザーにない）
+  const { refundLinkedVCDeposit } = require("../games/takutate");
+
+  for (const m of stale) {
+    const bets = db.prepare("SELECT user_id, amount FROM market_bets WHERE market_id = ?").all(m.id) as Array<{ user_id: string; amount: number }>;
+    runTransaction(() => {
+      for (const b of bets) {
+        adjustBalance(b.user_id, b.amount, `板掃除(管理者・${days}日超): 返金`, "board", guildId);
+        totalRefunds += 1;
+        totalAmount += b.amount;
+      }
+      db.prepare("UPDATE betting_markets SET status = 'void', settled_at = datetime('now') WHERE id = ?").run(m.id);
+    });
+    try { refundLinkedVCDeposit("board", String(m.id)); } catch (err) { console.warn("[admin board sweep] deposit refund failed:", err); }
+
+    // 元メッセージ書き換え（あれば）
+    if (m.channel_id && m.message_id) {
+      try {
+        const ch = await interaction.client.channels.fetch(m.channel_id).catch(() => null);
+        if (ch && "messages" in ch) {
+          const msg = await (ch as any).messages.fetch(m.message_id).catch(() => null);
+          if (msg) {
+            await msg.edit({
+              content: "",
+              embeds: [baseEmbed(`📋 議題 #${m.id} — 掃除`, COLORS.LOSE).setDescription(`${days}日以上動きが無いため管理者が無効化したよ。\n賭けてた人には全額返金済み。`)],
+              components: [],
+            }).catch(() => {});
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  const lines = stale.map((m) => `\`#${m.id}\` **${m.title}** (${m.status})`);
+  await interaction.editReply({
+    embeds: [successEmbed(`🧹 **${stale.length}件** の議題を掃除したよ。\n返金: **${totalRefunds}件** / 計 ◈${totalAmount.toLocaleString()}\n\n${lines.join("\n")}`)],
+  });
+}
+
+// ─── 📒 通貨ログ ─────────────────────────────────────
+
+async function handleTxLog(interaction: ChatInputCommandInteraction, _guildId: string): Promise<void> {
+  const days = interaction.options.getInteger("日数") ?? 1;
+  const targetUser = interaction.options.getUser("user");
+  const filter = (interaction.options.getString("絞り込み") ?? "").trim();
+
+  await interaction.deferReply({ ephemeral: true });
+
+  // 条件構築
+  const where: string[] = [`created_at >= datetime('now', '-${days} days')`];
+  const params: any[] = [];
+  if (targetUser) {
+    where.push("user_id = ?");
+    params.push(targetUser.id);
+  }
+  if (filter) {
+    where.push("reason LIKE ?");
+    params.push(`%${filter}%`);
+  }
+  const whereSql = where.length ? "WHERE " + where.join(" AND ") : "";
+
+  type TxRow = { id: number; user_id: string; amount: number; reason: string; game: string | null; currency: string; created_at: string };
+  const rows = db.prepare(
+    `SELECT id, user_id, amount, reason, game, currency, created_at
+     FROM transaction_logs ${whereSql}
+     ORDER BY id DESC`,
+  ).all(...params) as TxRow[];
+
+  if (rows.length === 0) {
+    await interaction.editReply({ embeds: [infoEmbed("📒 通貨ログ", "対象期間内に取引が無いよ。", COLORS.GOLD)] });
+    return;
+  }
+
+  // 集計
+  let totalIn = 0, totalOut = 0;
+  for (const r of rows) {
+    if (r.amount >= 0) totalIn += r.amount;
+    else totalOut += -r.amount;
+  }
+  const net = totalIn - totalOut;
+
+  const targetLabel = targetUser ? `<@${targetUser.id}>` : "全ユーザー";
+  const filterLabel = filter ? `\nフィルタ: \`${filter}\`` : "";
+  const summary = [
+    `**対象**: ${targetLabel}　|　**期間**: 直近 ${days}日　|　**件数**: ${rows.length}`,
+    `**流入合計**: ◈${totalIn.toLocaleString()}　/　**流出合計**: ◈${totalOut.toLocaleString()}`,
+    `**純増減**: ${net >= 0 ? "+" : ""}◈${net.toLocaleString()}${filterLabel}`,
+  ].join("\n");
+
+  // テキスト行（直近20件）
+  const LINE_MAX = 20;
+  const head = rows.slice(0, LINE_MAX);
+  const lines = head.map((r) => {
+    const ts = r.created_at.slice(5, 16).replace("T", " ");
+    const sign = r.amount >= 0 ? "+" : "";
+    const game = r.game ? `[${r.game}]` : "";
+    return `\`${ts}\` ${sign}◈${r.amount.toLocaleString().padStart(8)} <@${r.user_id}> ${game} ${r.reason}`;
+  }).join("\n");
+
+  const embed = baseEmbed("📒 通貨ログ", COLORS.MAIN)
+    .setDescription([summary, "", lines || "*(表示行なし)*"].join("\n"))
+    .setFooter({ text: rows.length > LINE_MAX ? `…他 ${rows.length - LINE_MAX}件は添付ファイルを見て` : "全件表示" });
+
+  // 全件は CSV っぽい TSV で添付
+  let files: { attachment: Buffer; name: string }[] | undefined;
+  if (rows.length > LINE_MAX) {
+    const tsv = [
+      "id\tcreated_at\tuser_id\tamount\tcurrency\tgame\treason",
+      ...rows.map((r) => `${r.id}\t${r.created_at}\t${r.user_id}\t${r.amount}\t${r.currency}\t${r.game ?? ""}\t${r.reason}`),
+    ].join("\n");
+    files = [{ attachment: Buffer.from(tsv, "utf-8"), name: `tx_log_${days}d_${Date.now()}.tsv` }];
+  }
+
+  await interaction.editReply({ embeds: [embed], ...(files ? { files } : {}) });
+}
+

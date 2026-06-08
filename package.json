@@ -1,8 +1,8 @@
 {
-  "name": "kabu-casino-bot",
-  "version": "1.0.0",
+  "name": "casino-bot",
+  "version": "2.0.0-alpha",
   "private": true,
-  "description": "Discord casino bot with keiba game",
+  "description": "二種目通貨カジノ Bot — 第二通貨で完結する Discord カジノ経済圏 (v2)",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -10,9 +10,9 @@
     "dev": "ts-node src/index.ts",
     "deploy": "ts-node src/deploy-commands.ts",
     "pm2:start": "pm2 start ecosystem.config.js",
-    "pm2:restart": "pm2 restart kabu-casino --update-env",
-    "pm2:logs": "pm2 logs kabu-casino",
-    "pm2:stop": "pm2 stop kabu-casino",
+    "pm2:restart": "pm2 restart casino-bot --update-env",
+    "pm2:logs": "pm2 logs casino-bot",
+    "pm2:stop": "pm2 stop casino-bot",
     "backup": "bash scripts/backup.sh"
   },
   "dependencies": {

@@ -22,20 +22,20 @@ export const TITLES_CATALOG: TitleDef[] = [
   { key: "ushimitsudoki", name: "丑三つ時の常連", hint: "深夜の刻にこの賭場を訪れる", rarity: "rare", category: "easter_egg" },
   { key: "zorome", name: "粋人", hint: "粋な賭け方をする者に", rarity: "rare", category: "easter_egg" },
   { key: "lose_100", name: "不屈の魂", hint: "百度敗れてもなお立ち上がる者", rarity: "rare", category: "easter_egg" },
-  { key: "thanks", name: "座敷童の心友", hint: "感謝の言葉を重ねる", rarity: "legend", category: "easter_egg" },
-  { key: "alone", name: "座敷童の秘密を知る者", hint: "誰もいない時に来てみよ", rarity: "myth", category: "easter_egg" },
-  { key: "shichifukujin", name: "七福神の寵愛", hint: "七日続けての勝ち", rarity: "legend", category: "easter_egg" },
-  { key: "millionaire", name: "大富豪", hint: "百万ベルを所持した者", rarity: "legend", category: "easter_egg" },
+  { key: "thanks", name: "アステルの心友", hint: "感謝の言葉を重ねる", rarity: "legend", category: "easter_egg" },
+  { key: "alone", name: "アステルの秘密を知る者", hint: "誰もいない夜に来てみて", rarity: "myth", category: "easter_egg" },
+  { key: "shichifukujin", name: "七星の寵愛", hint: "七日続けての勝ち", rarity: "legend", category: "easter_egg" },
+  { key: "millionaire", name: "大富豪", hint: "エテル百万を所持した者", rarity: "legend", category: "easter_egg" },
   { key: "bankrupt", name: "すってんてん", hint: "残高がゼロになりし者", rarity: "rare", category: "easter_egg" },
   { key: "lucky7", name: "幸運児", hint: "縁起のいい数字で賭ける", rarity: "rare", category: "easter_egg" },
 
   // ─── Shop (奉納) ──────────────────────────────────
-  { key: "title_patron", name: "賭場のパトロン", hint: "商店で奉納（◉100,000）", rarity: "rare", category: "shop" },
-  { key: "title_gold", name: "黄金の成金", hint: "商店で奉納（◉500,000）", rarity: "legend", category: "shop" },
-  { key: "title_zashiki", name: "座敷童の飼い主", hint: "商店で奉納（◉1,000,000）", rarity: "myth", category: "shop" },
+  { key: "title_patron", name: "賭場のパトロン", hint: "商店で奉納（◈100,000）", rarity: "rare", category: "shop" },
+  { key: "title_gold", name: "黄金の成金", hint: "商店で奉納（◈500,000）", rarity: "legend", category: "shop" },
+  { key: "title_zashiki", name: "アステルの寵児", hint: "商店で奉納（◈1,000,000）", rarity: "myth", category: "shop" },
 
   // ─── Tribute（特別な人へ） ─────────────────────────
-  { key: "second_zashiki", name: "二代目", hint: "わしが留守の間…代わりにこの場を守りし者へ", rarity: "myth", category: "tribute" },
+  { key: "second_zashiki", name: "二代目", hint: "わたしが眠る前、この場所を守ってくれた人へ", rarity: "myth", category: "tribute" },
 ];
 
 export const RARITY_LABEL: Record<TitleRarity, string> = {

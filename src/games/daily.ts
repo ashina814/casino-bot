@@ -1,6 +1,6 @@
 /**
  * /daily — デイリー福分け
- * 座敷童から毎日の小判を受け取る。連続ログインでセリフが変化。
+ * 座敷童から毎日のエテルを受け取る。連続ログインでセリフが変化。
  * 覚醒システム統合: 段階ボーナス、減衰、レアイベント、段階UP通知
  */
 import {
@@ -13,10 +13,10 @@ import {
 } from "discord.js";
 import { db } from "../core/db";
 import { adjustBalance, ensureUser } from "../core/bank";
-import { calculateDailyBonus, addExp } from "../core/economy";
+import { calculateDailyBonus, addExp, drawFromReliefPool } from "../core/economy";
 import { dialogueDaily } from "../core/dialogue";
+import { addressOwner } from "../core/ownerAddress";
 import { gameResultEmbed, infoEmbed, COLORS } from "../ui/embeds";
-import { getZashikiAttachment } from "../core/zashikiAsset";
 import {
   getStage,
   getNextStage,
@@ -32,7 +32,7 @@ import type { ZashikiStageLevel } from "../core/zashikiStage";
 
 export const dailyCommand = new SlashCommandBuilder()
   .setName("福分け")
-  .setDescription("📅 座敷童から毎日の福分けを受け取る");
+  .setDescription("📅 アステルから毎日の福分けを受け取る");
 
 export async function handleDailyCommand(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
@@ -43,7 +43,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   const today = new Date().toISOString().slice(0, 10);
   if (profile.last_daily === today) {
     await interaction.reply({
-      content: "今日の福分けはもう受け取っておるぞ。また明日来るのじゃ。",
+      content: "今日の福分けは、もう渡したよ。また明日来てね。",
       ephemeral: true,
     });
     return;
@@ -86,7 +86,11 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   // ─── Calculate Daily Bonus ───────────────────────────
   const baseAmount = Math.floor(calculateDailyBonus(guildId, userId) * stageAfter.dailyMultiplier);
   const streakBonus = Math.min(Math.floor(newStreak / 7) * 50, 200);
-  let totalAmount = baseAmount + streakBonus;
+
+  // 巡りの光（救済）: 困窮者（残高 ≤ 1,000）には救済プールから施しが回る
+  const reliefBonus = profile.balance <= 1_000 ? drawFromReliefPool(guildId, 500) : 0;
+
+  let totalAmount = baseAmount + streakBonus + reliefBonus;
 
   // Apply
   adjustBalance(userId, totalAmount, "daily_bonus", "daily", guildId);
@@ -99,7 +103,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   addExp(userId, 20);
 
   // ─── Dialogue ────────────────────────────────────────
-  let dialogue = dialogueDaily(newStreak, affection, userId, mode as any);
+  let dialogue = addressOwner(dialogueDaily(newStreak, affection, userId, mode as any), userId);
 
   // ─── Insider Info (20% chance) ───────────────────────
   if (Math.random() < 0.2) {
@@ -108,7 +112,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
       if (stocks.length > 0) {
         const target = stocks[0];
         const isUp = target.trend > 0;
-        dialogue += `\n\n*(こっそりと)*\n「…ここだけの話じゃが、次の刻は『${target.emoji}${target.name}』が${isUp ? "熱い" : "落ちる"}らしいぞ。誰にも言うでないぞ？」`;
+        dialogue += `\n\n*(こっそりと)*\n「ここだけの話。次の刻は『${target.emoji}${target.name}』が${isUp ? "熱い" : "落ちる"}らしいよ。誰にも言わないでね？」`;
       }
     } catch {
       // ignore
@@ -123,7 +127,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
     if (rareEvent.effect === "bonus_coins") {
       adjustBalance(userId, rareEvent.value, "rare_event_bonus", "daily", guildId);
       totalAmount += rareEvent.value;
-      rareEventText += `\n💰 +◉${rareEvent.value.toLocaleString()} ボーナス！`;
+      rareEventText += `\n💰 +◈${rareEvent.value.toLocaleString()} ボーナス！`;
     } else if (rareEvent.effect === "affection_surge") {
       addAffection(userId, rareEvent.value);
       rareEventText += `\n💖 好感度 +${rareEvent.value}！`;
@@ -137,9 +141,10 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   const descLines = [
     `*${dialogue}*`,
     "",
-    `💰 +◉${totalAmount.toLocaleString()}`,
-    `  ├ 基本: ◉${baseAmount}${stageAfter.dailyMultiplier > 1.0 ? ` (覚醒ボーナス x${stageAfter.dailyMultiplier})` : ""}`,
-    streakBonus > 0 ? `  └ 連続ボーナス: +◉${streakBonus}` : "",
+    `💰 +◈${totalAmount.toLocaleString()}`,
+    `  ├ 基本: ◈${baseAmount}${stageAfter.dailyMultiplier > 1.0 ? ` (覚醒ボーナス x${stageAfter.dailyMultiplier})` : ""}`,
+    streakBonus > 0 ? `  ├ 連続ボーナス: +◈${streakBonus}` : "",
+    reliefBonus > 0 ? `  └ 🕊 巡りの光（救済）: +◈${reliefBonus.toLocaleString()}` : "",
     "",
     `🔥 連続ログイン: **${newStreak}日**`,
     `${stageAfter.emoji} 覚醒: **${stageAfter.title}**`,
@@ -148,17 +153,12 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
   ].filter(Boolean).join("\n");
 
   const embed = gameResultEmbed({
-    title: "📅 座敷童の福分け",
+    title: "📅 アステルの福分け",
     description: descLines,
     result: "win",
     userId,
     guildId,
   });
-
-  const zashiki = getZashikiAttachment("idle");
-  if (zashiki) {
-    embed.setImage(zashiki.thumbnailUrl);
-  }
 
   const embeds: EmbedBuilder[] = [embed];
 
@@ -182,7 +182,6 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
       const newModes = stageAfter.unlockedModes.filter((m) => !(stageBefore.unlockedModes ?? []).includes(m));
       if (newModes.length > 0) unlocks.push(`🎭 新モード解放: **${newModes.join(" / ")}**`);
     }
-    if (stageAfter.level === 3) unlocks.push("🪷 **五行属性** が選べるようになった！ `/座敷童 element`");
 
     const stageUpEmbed = new EmbedBuilder()
       .setColor(0xffd700)
@@ -195,7 +194,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
           unlocks.length > 0 ? "\n── 解放されたもの ──\n" + unlocks.join("\n") : "",
         ].filter(Boolean).join("\n"),
       )
-      .setFooter({ text: "詳細は /座敷童 status で確認できる" });
+      .setFooter({ text: "詳細は /アステル status で確認できる" });
     embeds.push(stageUpEmbed);
   } else if (stageAfter.level < stageBefore.level) {
     // Stage DOWN
@@ -203,7 +202,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
       .setColor(0x555555)
       .setTitle(`${stageAfter.emoji} 覚醒低下 — ${stageAfter.title}`)
       .setDescription(getStageDownDialogue(stageAfter.level as ZashikiStageLevel))
-      .setFooter({ text: `座敷童の覚醒段階が ${stageBefore.name} → ${stageAfter.name} に下がった…` });
+      .setFooter({ text: `アステルとの星約が ${stageBefore.name} → ${stageAfter.name} に下がった…` });
     embeds.push(stageDownEmbed);
   }
 
@@ -214,7 +213,7 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
 
   await interaction.reply({
     embeds,
-    files: zashiki ? [zashiki.attachment] : [],
     components: [row],
+    ephemeral: true,
   });
 }

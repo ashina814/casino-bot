@@ -1,5 +1,5 @@
 /**
- * 🎡 運命の水鏡（ルーレット）
+ * 🎡 ルーレット（ルーレット）
  *
  * みんなで参加する共有型ゲーム。
  * 60秒の受付 → 一斉結果発表。ソーシャル体験の核。
@@ -17,6 +17,8 @@ import {
   TextChannel,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { awardChain } from "../../core/chain";
+import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -27,6 +29,8 @@ import {
   getTierByKey,
 } from "../../core/economy";
 import { baseEmbed, gameResultEmbed, COLORS } from "../../ui/embeds";
+import { broadcastBigWin } from "../../core/bigwin";
+import { effectiveBetCap } from "../../core/vip";
 
 // ─── Roulette Layout ───────────────────────────────────
 
@@ -77,7 +81,7 @@ export async function handleRouletteCommand(interaction: ChatInputCommandInterac
 
   // Check if session already running in this channel
   if (activeSessions.get(channelId)) {
-    await interaction.reply({ content: "この水鏡は既に揺れておる。結果を待つのじゃ。", ephemeral: true });
+    await interaction.reply({ content: "この星盤、もう揺れてる。結果を待ってね。", ephemeral: true });
     return;
   }
 
@@ -88,11 +92,12 @@ export async function handleRouletteCommand(interaction: ChatInputCommandInterac
   const tier = getTierByKey(profile.tier);
 
   if (bet < cfg.min_bet) {
-    await interaction.reply({ content: `最低ベットは ◉${cfg.min_bet} じゃ。`, ephemeral: true });
+    await interaction.reply({ content: `最低ベットは ◈${cfg.min_bet} からだよ。`, ephemeral: true });
     return;
   }
-  if (bet > tier.betCap) {
-    await interaction.reply({ content: `お主の格では ◉${tier.betCap.toLocaleString()} まで。`, ephemeral: true });
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
+  if (bet > betCap) {
+    await interaction.reply({ content: `きみの賭け上限は ◈${betCap.toLocaleString()}${betCap > tier.betCap ? "（💎VIP×2）" : ""} までだよ。`, ephemeral: true });
     return;
   }
 
@@ -120,16 +125,16 @@ export async function runRouletteSession(
 
   const buildLobbyEmbed = (secondsLeft: number) => {
     const betSummary = bets.length > 0
-      ? bets.map((b) => `<@${b.userId}>: ${BET_LABELS[b.betType]} ◉${b.amount.toLocaleString()}`).join("\n")
-      : "まだ誰も賭けておらぬ…";
+      ? bets.map((b) => `<@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount.toLocaleString()}`).join("\n")
+      : "まだ誰も賭けてないよ……";
     const totalBet = bets.reduce((s, b) => s + b.amount, 0);
 
-    return baseEmbed(`🎡 運命の水鏡 — 受付中（残り${secondsLeft}秒）`, COLORS.GOLD)
+    return baseEmbed(`🎡 ルーレット — 受付中（残り${secondsLeft}秒）`, COLORS.GOLD)
       .setDescription(
         [
-          `*「水鏡に数字が映る…さぁ、何処に賭ける？」*`,
+          `*「星盤に数字が浮かぶ……さあ、どこに賭ける？」*`,
           "",
-          `参加者: ${bets.length}人 / 総ベット: ◉${totalBet.toLocaleString()}`,
+          `参加者: ${bets.length}人 / 総ベット: ◈${totalBet.toLocaleString()}`,
           "",
           betSummary,
         ].join("\n"),
@@ -169,26 +174,26 @@ export async function runRouletteSession(
 
     // Check if already bet
     if (bets.find((b) => b.userId === userId)) {
-      await btn.reply({ content: "もう賭けておるぞ。1回の水鏡につき1つじゃ。", ephemeral: true });
+      await btn.reply({ content: "もう賭けてるよ。1回の星盤につき1つだけね。", ephemeral: true });
       return;
     }
 
     const cfg = getServerConfig(guildId);
     const profile = ensureUser(userId, guildId);
     const tier = getTierByKey(profile.tier);
-    const betAmount = Math.min(defaultBet, tier.betCap);
+    const betAmount = Math.min(defaultBet, effectiveBetCap(tier.betCap, userId, guildId));
 
     // Deduct
     const result = adjustBalance(userId, -betAmount, "roulette_bet", "roulette");
     if (!result.ok) {
-      await btn.reply({ content: "小判が足りぬぞ…。", ephemeral: true });
+      await btn.reply({ content: "エテルが足りないみたい。", ephemeral: true });
       return;
     }
     recordWager(userId, betAmount);
     try { require("../../core/db").addGamePlayAffection(userId); } catch {}
 
     bets.push({ userId, betType: betTypeKey, amount: betAmount });
-    await btn.reply({ content: `${BET_LABELS[betTypeKey]} に ◉${betAmount.toLocaleString()} を賭けたぞ！`, ephemeral: true });
+    await btn.reply({ content: `${BET_LABELS[betTypeKey]} に ◈${betAmount.toLocaleString()} を賭けたぞ！`, ephemeral: true });
 
     // Update lobby
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -204,15 +209,15 @@ export async function runRouletteSession(
 
   if (bets.length === 0) {
     await reply.edit({
-      embeds: [baseEmbed("🎡 運命の水鏡 — 中止", COLORS.BASE).setDescription("誰も賭けなかったので水鏡は閉じたぞ。")],
+      embeds: [baseEmbed("🎡 ルーレット — 中止", COLORS.BASE).setDescription("誰も賭けなかったから、ルーレットは閉じたよ。")],
       components: [],
     });
     return;
   }
 
   // ── Spin ──
-  const spinEmbed = baseEmbed("🎡 運命の水鏡 — 回転中…", COLORS.EVENT)
-    .setDescription("*「水鏡が揺れる……」*\n\n✨ ？？？ ✨");
+  const spinEmbed = baseEmbed("🎡 ルーレット — 回転中…", COLORS.EVENT)
+    .setDescription("*「星盤が回る……」*\n\n✨ ？？？ ✨");
   await reply.edit({ embeds: [spinEmbed], components: [] });
 
   await sleep(2000);
@@ -232,7 +237,10 @@ export async function runRouletteSession(
     const profile = getProfile(b.userId, guildId);
 
     if (won) {
-      const rawPayout = Math.floor(b.amount * PAYOUTS[b.betType]);
+      let rawPayout = Math.floor(b.amount * PAYOUTS[b.betType]);
+      const wb = consumeWinBonus(b.userId);
+      let itemTag = "";
+      if (wb.mult !== 1) { rawPayout = Math.floor(rawPayout * wb.mult); itemTag = " ✨"; }
       const net = rawPayout - b.amount;
       const newBal = getBalance(b.userId, guildId) + rawPayout;
       const fukuRate = getFukuWeight(newBal);
@@ -240,30 +248,41 @@ export async function runRouletteSession(
       const actualPayout = rawPayout - fukuTax;
 
       adjustBalance(b.userId, actualPayout, "roulette_win", "roulette", guildId);
+      const chain = awardChain(b.userId, net - fukuTax, "roulette", guildId);
       recordWin(b.userId, net - fukuTax);
       if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
       addExp(b.userId, 15);
+      broadcastBigWin(interaction.client, guildId, { userId: b.userId, game: "ルーレット", bet: b.amount, payout: actualPayout });
 
       const emoji = b.betType === "green" ? "🎯" : "👑";
-      results.push(`${emoji} <@${b.userId}>: ${BET_LABELS[b.betType]} ◉${b.amount} → **+◉${(net - fukuTax).toLocaleString()}**`);
+      const chainSuffix = chain.line ? `\n　${chain.line}` : "";
+      results.push(`${emoji} <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → **+◈${(net - fukuTax).toLocaleString()}**${itemTag}${chainSuffix}`);
     } else {
-      recordLoss(b.userId);
-      distributeHouseEarnings(guildId, b.amount);
+      const prot = consumeLossProtection(b.userId);
+      if (prot.refundRate > 0) {
+        const refund = Math.floor(b.amount * prot.refundRate);
+        adjustBalance(b.userId, refund, "item_refund", "roulette", guildId);
+        if (prot.refundRate < 1) { recordLoss(b.userId); distributeHouseEarnings(guildId, b.amount - refund); }
+        results.push(`🛡 <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → 返金 +◈${refund.toLocaleString()}（${prot.note}）`);
+      } else {
+        recordLoss(b.userId);
+        distributeHouseEarnings(guildId, b.amount);
+        results.push(`😭 <@${b.userId}>: ${BET_LABELS[b.betType]} ◈${b.amount} → -◈${b.amount.toLocaleString()}`);
+      }
       addExp(b.userId, 5);
-      results.push(`😭 <@${b.userId}>: ${BET_LABELS[b.betType]} ◉${b.amount} → -◉${b.amount.toLocaleString()}`);
     }
   }
 
-  const resultEmbed = baseEmbed("🎡 運命の水鏡 — 結果発表", winningNumber === 0 ? COLORS.WIN : isRed ? COLORS.MAIN : COLORS.BASE)
+  const resultEmbed = baseEmbed("🎡 ルーレット — 結果発表", winningNumber === 0 ? COLORS.WIN : isRed ? COLORS.MAIN : COLORS.BASE)
     .setDescription(
       [
-        `*「水鏡が揺れる……映ったのは…」*`,
+        `*「星盤が回る……映ったのは…」*`,
         "",
         `✨ **【 ${winningNumber} — ${colorEmoji} ${colorLabel} 】** ✨`,
         "",
         ...results,
         "",
-        `次の水鏡: \`/遊ぶ 輪盤\` または \`/案内\` から開始`,
+        `次の星盤: \`/遊ぶ ルーレット\` または \`/案内\` から開始`,
       ].join("\n"),
     );
 
@@ -287,9 +306,9 @@ function checkWin(betType: BetType, number: number): boolean {
 // ─── Paytable ──────────────────────────────────────────
 
 function roulettePaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 百鬼輪盤 — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 ルーレット — ルール", COLORS.GOLD).setDescription(
     [
-      "*「水鏡に映る数字に賭けよ。皆で参加できる遊びじゃ。」*",
+      "*「星盤に浮かぶ数字に賭けてね。みんなで参加できる遊びだよ。」*",
       "",
       "**遊び方**",
       "・**45秒間** の受付中、各自が1つだけ賭けられる",

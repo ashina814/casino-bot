@@ -38,7 +38,7 @@ function fetchPage(userId: string, page: number): { rows: LogRow[]; total: numbe
 
 function formatRow(r: LogRow): string {
   const sign = r.amount >= 0 ? "+" : "";
-  const amountStr = `${sign}◉${r.amount.toLocaleString()}`;
+  const amountStr = `${sign}◈${r.amount.toLocaleString()}`;
   const timestamp = r.created_at.slice(5, 16).replace("T", " "); // MM-DD HH:MM
   const game = r.game ? ` [${r.game}]` : "";
   return `\`${timestamp}\` ${amountStr}　${r.reason}${game}`;
@@ -73,7 +73,7 @@ export async function showHistoryPanel(interaction: ButtonInteraction, page = 0)
   const embed = baseEmbed("📋 取引履歴", COLORS.GOLD)
     .setDescription(
       rows.length === 0
-        ? "*まだ取引履歴は無いようじゃ。*"
+        ? "*まだ取引の履歴はないみたい。*"
         : rows.map(formatRow).join("\n"),
     )
     .setFooter({ text: `直近 ${Math.min(total, PAGE_SIZE * MAX_PAGES)} 件まで表示` });
@@ -97,7 +97,7 @@ export async function handleHistoryButton(interaction: ButtonInteraction): Promi
   if (!m) return;
   const targetUser = m[1];
   if (targetUser !== interaction.user.id) {
-    await safeReply(interaction, { content: "他人の履歴は覗けぬぞ。", ephemeral: true });
+    await safeReply(interaction, { content: "ほかの人の履歴は覗けないよ。", ephemeral: true });
     return;
   }
   await interaction.deferUpdate();

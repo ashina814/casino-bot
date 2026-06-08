@@ -1,5 +1,5 @@
 /**
- * 📈 龍脈昇り（クラッシュ）
+ * 📈 クラッシュ（クラッシュ）
  *
  * 倍率が上がり続け、いつ「崩壊」するか分からない。
  * 降りるタイミングを見極めるチキンレース。
@@ -15,6 +15,8 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { awardChain } from "../../core/chain";
+import { consumeWinBonus, consumeLossProtection } from "../../core/items";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -26,6 +28,9 @@ import {
 } from "../../core/economy";
 import { dialogueWin, dialogueLose, type DialogueContext } from "../../core/dialogue";
 import { gameResultEmbed, baseEmbed, COLORS } from "../../ui/embeds";
+import { broadcastBigWin } from "../../core/bigwin";
+import { effectiveBetCap } from "../../core/vip";
+import { WORLD } from "../../world.config";
 
 // ─── Crash Point Generation ────────────────────────────
 
@@ -62,7 +67,7 @@ export async function handleCrashCommand(interaction: ChatInputCommandInteractio
   const userId = interaction.user.id;
 
   if (!acquireGameLock(userId, "crash")) {
-    await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+    await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
     return;
   }
 
@@ -101,17 +106,18 @@ export async function playCrash(
   };
 
   if (bet < cfg.min_bet) {
-    await reply(`最低ベットは ◉${cfg.min_bet} じゃ。`);
+    await reply(`最低ベットは ◈${cfg.min_bet} からだよ。`);
     return;
   }
-  if (bet > tier.betCap) {
-    await reply(`お主の格(${tier.emoji}${tier.name})では ◉${tier.betCap.toLocaleString()} まで。`);
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
+  if (bet > betCap) {
+    await reply(`きみの賭け上限は ◈${betCap.toLocaleString()}（${tier.emoji}${tier.name}${betCap > tier.betCap ? "・💎VIP×2" : ""}）までだね。`);
     return;
   }
 
   const deduct = adjustBalance(userId, -bet, "crash_bet", "crash");
   if (!deduct.ok) {
-    await reply("小判が足りぬぞ…。");
+    await reply("エテルが足りないみたい。");
     return;
   }
   recordWager(userId, bet);
@@ -138,14 +144,14 @@ export async function playCrash(
   const makeEmbed = (multi: number) => {
     const currentValue = Math.floor(bet * multi);
     const canCashOut = multi >= MIN_CASHOUT;
-    return baseEmbed("📈 龍脈昇り", COLORS.GOLD).setDescription(
+    return baseEmbed("📈 クラッシュ", COLORS.GOLD).setDescription(
       [
-        `*「龍脈が昇っておる…いつ降りる？」*`,
+        `*「星が昇っていく……いつ墜ちる？」*`,
         "",
         `📈 現在: **${multi.toFixed(2)}x**` + (canCashOut ? " 🟢" : ` 🔒 (最低降車 **${MIN_CASHOUT.toFixed(2)}x** まで待て)`),
         buildProgressBar(multi),
         "",
-        `ベット: ◉${bet.toLocaleString()} → 現在価値: ◉${currentValue.toLocaleString()}`,
+        `ベット: ◈${bet.toLocaleString()} → 現在価値: ◈${currentValue.toLocaleString()}`,
         `*(※内部はリアルタイムで上昇中。押した瞬間の倍率が適用されるぞ)*`
       ].join("\n"),
     );
@@ -157,7 +163,7 @@ export async function playCrash(
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId("crash_cashout")
-        .setLabel(ready ? `💰 降りる (◉${val.toLocaleString()})` : `🔒 ${MIN_CASHOUT.toFixed(2)}x まで降りれぬ`)
+        .setLabel(ready ? `💰 降りる (◈${val.toLocaleString()})` : `🔒 ${MIN_CASHOUT.toFixed(2)}x まで降りれぬ`)
         .setStyle(ready ? ButtonStyle.Success : ButtonStyle.Secondary)
         .setDisabled(!ready),
     );
@@ -190,7 +196,7 @@ export async function playCrash(
 
     // 1. 最低降車ライン到達前のクリックは弾く（UI で disabled だが念のためサーバー側検証）
     if (clickTime < MIN_CASHOUT_TIME) {
-      await btn.reply({ content: `🔒 まだ ${MIN_CASHOUT.toFixed(2)}x に届いておらぬ。`, ephemeral: true });
+      await btn.reply({ content: `🔒 まだ ${MIN_CASHOUT.toFixed(2)}x に届いてないよ。`, ephemeral: true });
       return;
     }
     // 2. 既にクラッシュ済みかチェック
@@ -255,11 +261,11 @@ export async function playCrash(
   const minB = cfg.min_bet;
   const buildRetryRow = () => {
     const balance = getBalance(userId, guildId);
-    const maxB = Math.min(tier.betCap, balance);
+    const maxB = Math.min(betCap, balance);
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`crash_retry_${minB}_min`).setLabel(`最低 ◉${minB.toLocaleString()}`).setStyle(ButtonStyle.Secondary).setDisabled(balance < minB),
-      new ButtonBuilder().setCustomId(`crash_retry_${bet}_same`).setLabel(`🎰 もう一回 ◉${bet.toLocaleString()}`).setStyle(ButtonStyle.Primary).setDisabled(balance < bet),
-      new ButtonBuilder().setCustomId(`crash_retry_${maxB}_max`).setLabel(`最大 ◉${maxB.toLocaleString()}`).setStyle(ButtonStyle.Secondary).setDisabled(maxB < minB),
+      new ButtonBuilder().setCustomId(`crash_retry_${minB}_min`).setLabel(`最低 ◈${minB.toLocaleString()}`).setStyle(ButtonStyle.Secondary).setDisabled(balance < minB),
+      new ButtonBuilder().setCustomId(`crash_retry_${bet}_same`).setLabel(`🎰 もう一回 ◈${bet.toLocaleString()}`).setStyle(ButtonStyle.Primary).setDisabled(balance < bet),
+      new ButtonBuilder().setCustomId(`crash_retry_${maxB}_max`).setLabel(`最大 ◈${maxB.toLocaleString()}`).setStyle(ButtonStyle.Secondary).setDisabled(maxB < minB),
       new ButtonBuilder().setCustomId("crash_paytable").setLabel("📖 配当表").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("crash_quit").setLabel("🚪 退席").setStyle(ButtonStyle.Secondary),
     );
@@ -267,7 +273,10 @@ export async function playCrash(
 
   if (cashedOut) {
     // Player won
-    const rawPayout = Math.floor(bet * cashOutMultiplier);
+    let rawPayout = Math.floor(bet * cashOutMultiplier);
+    let itemNote = "";
+    const wb = consumeWinBonus(userId);
+    if (wb.mult !== 1) { rawPayout = Math.floor(rawPayout * wb.mult); itemNote = wb.note ?? ""; }
     const net = rawPayout - bet;
     const newBal = getBalance(userId, guildId) + rawPayout;
     const fukuRate = getFukuWeight(newBal);
@@ -275,39 +284,56 @@ export async function playCrash(
     const actualPayout = rawPayout - fukuTax;
 
     adjustBalance(userId, actualPayout, "crash_win", "crash", guildId);
+    const chain = awardChain(userId, net - fukuTax, "crash", guildId);
     recordWin(userId, net - fukuTax);
     if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
     addExp(userId, 15);
 
-    const dialogue = dialogueWin(ctx, net, bet);
+    let dialogue = dialogueWin(ctx, net, bet);
+    if (itemNote) dialogue += `\n（${itemNote}）`;
     const embed = gameResultEmbed({
-      title: "📈 龍脈昇り — 離脱成功！",
+      title: "📈 クラッシュ — 離脱成功！",
       description: [
         `*${dialogue}*`,
         "",
         `📈 離脱: **${cashOutMultiplier.toFixed(2)}x** / 崩壊: ${crashPoint.toFixed(2)}x`,
-        `💰 +◉${(net - fukuTax).toLocaleString()}`,
-      ].join("\n"),
+        `💰 +◈${(net - fukuTax).toLocaleString()}`,
+        chain.line,
+      ].filter(Boolean).join("\n"),
       result: "win",
       userId,
       guildId,
     });
 
     await replyMsg.edit({ embeds: [embed], components: [buildRetryRow()] });
+
+    broadcastBigWin(replyMsg.client, guildId, {
+      userId, game: WORLD.GAME_CRASH, bet, payout: actualPayout,
+    });
   } else {
     // Crashed
-    recordLoss(userId);
-    distributeHouseEarnings(guildId, bet);
+    let lossNote = "";
+    const prot = consumeLossProtection(userId);
+    if (prot.refundRate > 0) {
+      const refund = Math.floor(bet * prot.refundRate);
+      adjustBalance(userId, refund, "item_refund", "crash", guildId);
+      lossNote = prot.note ?? "";
+      if (prot.refundRate < 1) { recordLoss(userId); distributeHouseEarnings(guildId, bet - refund); }
+    } else {
+      recordLoss(userId);
+      distributeHouseEarnings(guildId, bet);
+    }
     addExp(userId, 5);
 
-    const dialogue = dialogueLose(ctx, bet);
+    let dialogue = dialogueLose(ctx, bet);
+    if (lossNote) dialogue += `\n（${lossNote}）`;
     const embed = gameResultEmbed({
-      title: "💥 龍脈昇り — 崩壊！",
+      title: "💥 クラッシュ — 燃え尽き！",
       description: [
         `*${dialogue}*`,
         "",
         `📉 崩壊: **${crashPoint.toFixed(2)}x**`,
-        `💸 -◉${bet.toLocaleString()}`,
+        `💸 -◈${bet.toLocaleString()}`,
       ].join("\n"),
       result: "lose",
       userId,
@@ -351,7 +377,7 @@ export async function playCrash(
           releaseGameLock(userId);
         }
       } else {
-        await btn.followUp({ content: "既にゲーム中じゃ。", ephemeral: true });
+        await btn.followUp({ content: "もう遊んでる最中だよ。", ephemeral: true });
       }
     }
   });
@@ -366,9 +392,9 @@ export async function playCrash(
 // ─── Paytable ──────────────────────────────────────────
 
 function crashPaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 龍脈昇り — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 クラッシュ — ルール", COLORS.GOLD).setDescription(
     [
-      "*「龍脈は天井知らずに昇るが、いつ崩れるかは分からぬ。降りたら倍率で買い取ろう。」*",
+      "*「星は天井知らずに昇るけど、いつ燃え尽きるかは分からない。墜ちる前に降りれば、倍率で買い取るよ。」*",
       "",
       "**遊び方**",
       "・賭けると倍率が **1.00x** から指数的に上昇",

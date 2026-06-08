@@ -1,5 +1,5 @@
 /**
- * 🎴 丁半博打（ハイ＆ロー）
+ * 🎴 丁半（ハイ＆ロー）
  *
  * テンポ重視。5秒で1ゲーム。連勝チャレンジ。
  * 倍プッシュと勝ち逃げの判断が熱い。
@@ -14,6 +14,9 @@ import {
   ComponentType,
 } from "discord.js";
 import { adjustBalance, getBalance, recordWin, recordLoss, recordWager, ensureUser, getProfile } from "../../core/bank";
+import { awardChain } from "../../core/chain";
+import { consumeWinBonus, consumeLossProtection } from "../../core/items";
+import { effectiveBetCap } from "../../core/vip";
 import { getServerConfig, acquireGameLock, releaseGameLock } from "../../core/db";
 import {
   getEffectiveHouseEdge,
@@ -50,7 +53,7 @@ export async function handleHighlowCommand(interaction: ChatInputCommandInteract
   const userId = interaction.user.id;
 
   if (!acquireGameLock(userId, "chohan")) {
-    await interaction.reply({ content: "既にゲーム中じゃ。", ephemeral: true });
+    await interaction.reply({ content: "もう遊んでる最中だよ。", ephemeral: true });
     return;
   }
 
@@ -80,29 +83,30 @@ export async function startChohan(
   };
 
   if (bet < cfg.min_bet) {
-    await replyText(`最低ベットは ◉${cfg.min_bet} じゃ。`);
+    await replyText(`最低ベットは ◈${cfg.min_bet} からだよ。`);
     return;
   }
-  if (bet > tier.betCap) {
-    await replyText(`お主の格(${tier.emoji}${tier.name})では ◉${tier.betCap.toLocaleString()} まで。`);
+  const betCap = effectiveBetCap(tier.betCap, userId, guildId);
+  if (bet > betCap) {
+    await replyText(`きみの賭け上限は ◈${betCap.toLocaleString()}（${tier.emoji}${tier.name}${betCap > tier.betCap ? "・💎VIP×2" : ""}）までだね。`);
     return;
   }
 
   // Deduct bet
   const deductResult = adjustBalance(userId, -bet, "chohan_bet", "chohan");
   if (!deductResult.ok) {
-    await replyText("小判が足りぬぞ…。");
+    await replyText("エテルが足りないみたい。");
     return;
   }
   recordWager(userId, bet);
   try { require("../../core/db").addGamePlayAffection(userId); } catch {}
 
   // Show betting UI
-  const betEmbed = baseEmbed("🎴 丁半博打", COLORS.GOLD)
+  const betEmbed = baseEmbed("🎴 丁半", COLORS.GOLD)
     .setDescription(
       `*「丁か、半か。さぁ張りな。」*\n\n` +
       `🎲🎲 サイコロの出目は…？\n\n` +
-      `ベット: ◉${bet.toLocaleString()}`
+      `ベット: ◈${bet.toLocaleString()}`
     );
 
   const choiceRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -161,15 +165,20 @@ export async function startChohan(
     };
 
     let isBlessed = false;
+    let itemNote = "";
 
     if (won) {
-      const rawPayout = Math.floor(bet * 2 * (1 - houseEdge));
+      let rawPayout = Math.floor(bet * 2 * (1 - houseEdge));
+      const wb = consumeWinBonus(userId);
+      if (wb.mult !== 1) { rawPayout = Math.floor(rawPayout * wb.mult); itemNote = wb.note ?? ""; }
       const newBalance = getBalance(userId, guildId) + rawPayout;
       const fukuRate = getFukuWeight(newBalance);
       fukuTax = Math.floor(rawPayout * fukuRate);
       payout = rawPayout - fukuTax;
 
       adjustBalance(userId, payout, "chohan_win", "chohan", guildId);
+      const chain = awardChain(userId, payout, "chohan", guildId);
+      if (chain.line) itemNote = (itemNote ? itemNote + "\n" : "") + chain.line;
       recordWin(userId, payout);
       if (fukuTax > 0) distributeFukuTax(guildId, fukuTax);
     } else {
@@ -178,8 +187,16 @@ export async function startChohan(
         adjustBalance(userId, bet, "blessing_refund", "chohan", guildId);
         isBlessed = true;
       } else {
-        recordLoss(userId);
-        distributeHouseEarnings(guildId, bet);
+        const prot = consumeLossProtection(userId);
+        if (prot.refundRate > 0) {
+          const refund = Math.floor(bet * prot.refundRate);
+          adjustBalance(userId, refund, "item_refund", "chohan", guildId);
+          itemNote = prot.note ?? "";
+          if (prot.refundRate < 1) { recordLoss(userId); distributeHouseEarnings(guildId, bet - refund); }
+        } else {
+          recordLoss(userId);
+          distributeHouseEarnings(guildId, bet);
+        }
       }
     }
 
@@ -189,9 +206,11 @@ export async function startChohan(
     let dialogue = won
       ? dialogueWin(ctx, payout, bet)
       : dialogueLose(ctx, bet);
-    
+
     if (isBlessed) {
-      dialogue = "「…しゃーないのう、今回だけじゃぞ？（身代わりの加護が発動し、掛け金が返還された！）」";
+      dialogue = "「あぶない。……今のは、わたしが庇っといたよ。（身代わりの加護で賭け金が戻った！）」";
+    } else if (itemNote) {
+      dialogue += `\n（${itemNote}）`;
     }
 
     const choLabel = result === "cho" ? "丁（偶数）" : "半（奇数）";
@@ -201,14 +220,14 @@ export async function startChohan(
       : "";
 
     const resultEmbed = gameResultEmbed({
-      title: `🎴 丁半博打${won ? " — 的中！" : ""}`,
+      title: `🎴 丁半${won ? " — 的中！" : ""}`,
       description: [
         `*${dialogue}*`,
         "",
         `🎲${DICE_EMOJI[d1]} + 🎲${DICE_EMOJI[d2]} = ${total} → **${choLabel}**`,
         "",
         `あなたの賭け: ${playerLabel} → ${won ? "✅ 的中！" : "❌ 外れ"}`,
-        won ? `💰 +◉${payout.toLocaleString()}` : (isBlessed ? `✨ ◉${bet.toLocaleString()} が返還された` : `💸 -◉${bet.toLocaleString()}`),
+        won ? `💰 +◈${payout.toLocaleString()}` : (isBlessed ? `✨ ◈${bet.toLocaleString()} が返還された` : `💸 -◈${bet.toLocaleString()}`),
         streakText,
       ].join("\n"),
       result: won || isBlessed ? "win" : "lose",
@@ -222,11 +241,11 @@ export async function startChohan(
     const nextRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`chohan_retry_${nextBet}`)
-        .setLabel(`🎰 もう一回 ◉${nextBet.toLocaleString()}`)
+        .setLabel(`🎰 もう一回 ◈${nextBet.toLocaleString()}`)
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(`chohan_retry_${doubleBet}`)
-        .setLabel(`⚡ 倍プッシュ ◉${doubleBet.toLocaleString()}`)
+        .setLabel(`⚡ 倍プッシュ ◈${doubleBet.toLocaleString()}`)
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
         .setCustomId("chohan_paytable")
@@ -284,7 +303,7 @@ export async function startChohan(
     if (reason === "time" && !chosen) {
       // Refund on timeout
       adjustBalance(userId, bet, "chohan_timeout_refund", "chohan", guildId);
-      try { await reply.edit({ content: "時間切れじゃ…賭け金は返すぞ。", components: [] }); } catch { /* */ }
+      try { await reply.edit({ content: "時間切れだね。賭け金は返すよ。", components: [] }); } catch { /* */ }
     }
   });
 }
@@ -292,9 +311,9 @@ export async function startChohan(
 // ─── Paytable ──────────────────────────────────────────
 
 function chohanPaytableEmbed(): import("discord.js").EmbedBuilder {
-  return baseEmbed("📖 丁半博打 — ルール", COLORS.GOLD).setDescription(
+  return baseEmbed("📖 丁半 — ルール", COLORS.GOLD).setDescription(
     [
-      "*「丁か半か。それだけじゃ。さあ、どっちじゃ？」*",
+      "*「丁か半か。それだけ。さあ、どっち？」*",
       "",
       "**遊び方**",
       "・サイコロ2つの合計が **丁（偶数）** か **半（奇数）** かを当てる",

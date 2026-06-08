@@ -8,11 +8,11 @@ import { getTierByKey, getTierForLevel, expForNextLevel, type TierInfo } from ".
 import type { UserProfile } from "../core/db";
 
 const TIER_THRESHOLDS: Array<{ level: number; key: string; name: string; emoji: string }> = [
-  { level: 0,   key: "human",    name: "人間",  emoji: "👤" },
-  { level: 10,  key: "half",     name: "半妖",  emoji: "🌗" },
-  { level: 25,  key: "yokai",    name: "妖",    emoji: "👹" },
-  { level: 50,  key: "daiyokai", name: "大妖",  emoji: "🐉" },
-  { level: 100, key: "kami",     name: "神",    emoji: "⛩️" },
+  { level: 0,   key: "human",    name: "漂着者", emoji: "✦" },
+  { level: 10,  key: "half",     name: "星拾い", emoji: "✧" },
+  { level: 25,  key: "yokai",    name: "星約者", emoji: "✶" },
+  { level: 50,  key: "daiyokai", name: "星詠み", emoji: "✷" },
+  { level: 100, key: "kami",     name: "北極星", emoji: "✹" },
 ];
 
 function nextTierInfo(currentLevel: number): { name: string; emoji: string; levelsTo: number } | null {
@@ -29,20 +29,22 @@ function progressBar(current: number, max: number, width = 10): string {
 }
 
 // ─── Colors (テーマカラー) ─────────────────────────────
+// 寒色（青・紫）メインへ統一。金だけ暖色アクセントとして温存。
+// ※キー名（MAIN/WIN/LOSE 等）は後方互換のため据え置き、値だけ寒色系に。
 
 export const COLORS = {
-  /** 朱色 — メイン / 勝利 / アクション */
-  MAIN: 0xC0392B,
-  /** 金色 — アクセント / 小判 / ジャックポット */
+  /** 深青紫 — メイン / パネル */
+  MAIN: 0x4338CA,
+  /** 星金 — アクセント / エテル / ジャックポット（暖色1色だけ温存） */
   GOLD: 0xF1C40F,
-  /** 墨色 — ベース / 通常状態 */
-  BASE: 0x2C2C2C,
+  /** 紺墨 — ベース / 通常状態 */
+  BASE: 0x1E293B,
   /** 藤色 — 特別イベント */
   EVENT: 0x8E44AD,
-  /** 翡翠 — ポジティブ / 利益 / 勝ち */
-  WIN: 0x27AE60,
-  /** 紅 — ネガティブ / 損失 / 負け */
-  LOSE: 0xE74C3C,
+  /** 水色 — ポジティブ / 利益 / 勝ち（旧:翠） */
+  WIN: 0x38BDF8,
+  /** 紫紅 — ネガティブ / 損失 / 負け（旧:紅） */
+  LOSE: 0x9333EA,
   /** 暗紫 — 丑三つ時 */
   USHIMITSU: 0x2C003E,
 } as const;
@@ -104,117 +106,70 @@ export function gameResultEmbed(opts: {
       name: "💸 賭場の救済",
       value: [
         "*「むぅ…、すっからかんになってしまったか。」*",
-        "・明日の **`/福分け`** で復帰できる（連続ボーナス継続）",
+        "・明日の **福分け**（`/案内` のボタン）で復帰できる（連続ボーナス継続）",
         "・破産しても **段位・好感度・二つ名** は失わぬ",
-        "・たまには `/感謝` でわしに声を掛けてみよ",
+        "・たまには `/アステル お礼` でわたしに声を掛けてみて",
       ].join("\n"),
       inline: false,
     });
   }
 
-  embed.setFooter({ text: `${opts.footer ? opts.footer + " | " : ""}所持金: ◉${balance.toLocaleString()}${questBadge}` });
+  embed.setFooter({ text: `${opts.footer ? opts.footer + " | " : ""}所持金: ◈${balance.toLocaleString()}${questBadge}` });
 
   return embed;
 }
 
 // ─── Profile Embed ─────────────────────────────────────
 
-export function profileEmbed(profile: UserProfile, activeTitle?: string): EmbedBuilder {
+export function profileEmbed(profile: UserProfile, activeTitle?: string, vip = false): EmbedBuilder {
   const tier = getTierByKey(profile.tier);
   const totalGames = profile.total_wins + profile.total_losses;
   const winRate = totalGames > 0 ? ((profile.total_wins / totalGames) * 100).toFixed(1) : "0.0";
 
-  // 座敷童の覚醒情報
+  // アステルとの星約（覚醒）情報
   let zashikiLine = "";
   try {
-    const { getAffection, getAffectionFull } = require("../core/db");
-    const { getStage, GOGYO } = require("../core/zashikiStage");
+    const { getAffection } = require("../core/db");
+    const { getStage } = require("../core/zashikiStage");
     const affection = getAffection(profile.user_id);
     const stage = getStage(affection);
-    const row = getAffectionFull(profile.user_id);
-    const element = row.element;
-
     zashikiLine = `${stage.emoji} ${stage.name}（Lv${stage.level}）`;
     if (affection > 0) zashikiLine += `\n💖 好感度: ${affection}`;
-    if (element && GOGYO[element]) {
-      const info = GOGYO[element];
-      zashikiLine += `\n${info.emoji} ${info.name}`;
-      if (stage.level >= 6) {
-        zashikiLine += ` → ✨ ${info.shinchu}`;
-      }
-    }
   } catch {
-    zashikiLine = "🫥 幽か";
+    zashikiLine = "◌ 暗";
   }
 
-  // レベル/段位 表示
+  // レベル/星位 表示
   const expNext = expForNextLevel(profile.level);
   const expBar = progressBar(profile.exp, expNext, 10);
   const nextTier = nextTierInfo(profile.level);
   const tierProgress = nextTier
     ? `\n${nextTier.emoji} あと Lv${nextTier.levelsTo} で **${nextTier.name}** に昇格（賭け上限解放）`
-    : "\n⛩️ 最上位「神」に到達";
+    : "\n✹ 最上位「北極星」に到達";
 
-  const embed = baseEmbed("🏮 座敷童の賭場 — 通行証", COLORS.GOLD)
+  const curStreak = profile.current_win_streak > 0
+    ? `🔥 ${profile.current_win_streak}連勝中`
+    : profile.current_lose_streak > 0 ? `💧 ${profile.current_lose_streak}連敗中` : "—";
+  const betCapEff = tier.betCap * (vip ? 2 : 1);
+
+  const embed = baseEmbed("✦ 通行証", COLORS.GOLD)
+    .setDescription(
+      [
+        vip ? "💎 **VIP会員**" : "",
+        activeTitle ? `🏷️ 「${activeTitle}」` : "",
+        `${tier.emoji} **${tier.name}**　Lv.${profile.level}　\`${expBar}\``,
+        tierProgress.replace(/^\n/, ""),
+      ].filter(Boolean).join("\n"),
+    )
     .addFields(
-      {
-        name: "👤 プレイヤー",
-        value: [
-          activeTitle ? `🏷️ 「${activeTitle}」` : "",
-          `${tier.emoji} **${tier.name}** （Lv.${profile.level}）`,
-          `妖力 \`${expBar}\` ${profile.exp.toLocaleString()} / ${expNext.toLocaleString()}`,
-          `賭け上限: ◉${tier.betCap.toLocaleString()}${tierProgress}`,
-        ].filter(Boolean).join("\n"),
-        inline: false,
-      },
-      {
-        name: "💰 資産",
-        value: `◉${profile.balance.toLocaleString()}`,
-        inline: true,
-      },
-      {
-        name: "🏮 座敷童",
-        value: zashikiLine,
-        inline: true,
-      },
-      {
-        name: "📈 戦績",
-        value: [
-          `勝率: **${winRate}%** （${profile.total_wins.toLocaleString()}勝 / ${profile.total_losses.toLocaleString()}敗、${totalGames.toLocaleString()}戦）`,
-          `最大勝ち: ◉${profile.biggest_win.toLocaleString()}`,
-          `最長連勝: ${profile.best_win_streak}回`,
-          `現在: ${profile.current_win_streak > 0 ? `🔥 ${profile.current_win_streak}連勝中` : profile.current_lose_streak > 0 ? `💧 ${profile.current_lose_streak}連敗中` : "（無印）"}`,
-        ].join("\n"),
-        inline: false,
-      },
-      {
-        name: "💴 累計",
-        value: [
-          `賭け額: ◉${profile.total_wagered.toLocaleString()}`,
-          `稼ぎ: ◉${profile.total_earned.toLocaleString()}`,
-        ].join("\n"),
-        inline: true,
-      },
-      {
-        name: "📅 ログイン",
-        value: `🔥 連続: ${profile.daily_streak}日`,
-        inline: true,
-      },
-    );
-
-  // 称号取得数
-  try {
-    const { db } = require("../core/db");
-    const { TITLES_CATALOG } = require("../core/titlesCatalog");
-    const row = db.prepare("SELECT COUNT(*) AS c FROM titles WHERE user_id = ?").get(profile.user_id) as { c: number };
-    embed.addFields({
-      name: "📜 二つ名",
-      value: `${row.c} / ${TITLES_CATALOG.length}`,
-      inline: true,
-    });
-  } catch { /* ignore */ }
-
-  embed.setFooter({ text: "妖力(EXP)はゲームをプレイすると貯まる。レベルが上がると段位も昇格し、賭け上限が解放される。" });
+      { name: "💰 所持金", value: `◈${profile.balance.toLocaleString()}`, inline: true },
+      { name: "🎲 賭け上限", value: `◈${betCapEff.toLocaleString()}${vip ? "（×2）" : ""}`, inline: true },
+      { name: "🔥 連続ログイン", value: `${profile.daily_streak}日`, inline: true },
+      { name: "✦ アステル", value: zashikiLine, inline: true },
+      { name: "📈 勝率", value: `${winRate}%（${profile.total_wins}勝${profile.total_losses}敗）`, inline: true },
+      { name: "🏆 自己ベスト", value: `最高 ◈${profile.biggest_win.toLocaleString()}\n最長 ${profile.best_win_streak}連勝`, inline: true },
+    )
+    .setFooter({ text: `現在: ${curStreak}　|　ゲームで星の力が貯まり、段位が上がると賭け上限が解放される` });
 
   return embed;
 }
@@ -232,24 +187,24 @@ export function economyEmbed(opts: {
 }): EmbedBuilder {
   const avg = opts.playerCount > 0 ? Math.floor(opts.totalSupply / opts.playerCount) : 0;
 
-  return baseEmbed("🔧 座敷童の賭場 — 管理パネル", COLORS.MAIN)
+  return baseEmbed("🔧 星約の賭場 — 管理パネル", COLORS.MAIN)
     .addFields(
       {
         name: "📊 経済状況",
         value: [
           `${opts.emoji} ${opts.label}`,
-          `総流通量: ◉${opts.totalSupply.toLocaleString()}`,
+          `総流通量: ◈${opts.totalSupply.toLocaleString()}`,
           `プレイヤー数: ${opts.playerCount}人`,
-          `1人あたり平均: ◉${avg.toLocaleString()}`,
-          `健全ライン: ◉${opts.healthyLine.toLocaleString()}`,
+          `1人あたり平均: ◈${avg.toLocaleString()}`,
+          `健全ライン: ◈${opts.healthyLine.toLocaleString()}`,
         ].join("\n"),
         inline: true,
       },
       {
         name: "🏦 プール",
         value: [
-          `JPプール: ◉${opts.jackpotPool.toLocaleString()}`,
-          `底辺保護: ◉${opts.reliefPool.toLocaleString()}`,
+          `JPプール: ◈${opts.jackpotPool.toLocaleString()}`,
+          `底辺保護: ◈${opts.reliefPool.toLocaleString()}`,
         ].join("\n"),
         inline: true,
       },

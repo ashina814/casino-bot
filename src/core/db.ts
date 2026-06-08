@@ -17,7 +17,26 @@ export type KeibaHorse = {
 
 export type UserProfile = {
   user_id: string;
+  /**
+   * v2: カジノコイン（第二通貨）残高。
+   * 既存の `balance` カラムをそのまま再解釈し、カジノコインとして扱う。
+   * すべてのゲーム・福分け・商店はこのカラムで動作する。
+   */
   balance: number;
+  /**
+   * v2 新規: 第一通貨残高。
+   * サーバー全体経済の通貨。従業員給与（Iter.4）で初めて入る予定。
+   * 両替（/両替）で出入りする。Iter.1 時点ではゼロのまま運用される想定。
+   */
+  currency1_balance: number;
+  /**
+   * v2 新規: 累計両替量（第一→第二）。換金マイル称号判定用。
+   */
+  exchange_in_total: number;
+  /**
+   * v2 新規: 累計両替量（第二→第一）。換金マイル称号判定用。
+   */
+  exchange_out_total: number;
   level: number;
   exp: number;
   tier: string;
@@ -31,6 +50,20 @@ export type UserProfile = {
   current_win_streak: number;
   current_lose_streak: number;
   best_win_streak: number;
+  created_at: string;
+};
+
+/** v2: 両替方向 */
+export type ExchangeDirection = "in" | "out"; // in = 第一→第二, out = 第二→第一
+
+export type CurrencyExchange = {
+  id: number;
+  user_id: string;
+  direction: ExchangeDirection;
+  source_amount: number;   // 投入した側の額
+  received_amount: number; // 受け取った側の額
+  fee_amount: number;      // 奉納された額（第二通貨基準）
+  rate: number;            // 適用された為替レート
   created_at: string;
 };
 
@@ -51,6 +84,26 @@ export type ServerConfig = {
   games_enabled: string;
   lucky_game: string | null;
   lucky_game_date: string | null;
+  /**
+   * v2 新規: 為替レート手動補正（管理者介入）。
+   * 自動レート = 基準10.0 × (1 + 動的補正) + exchange_rate_offset。
+   * 例: 暴落イベントで -2.0 を設定すると、コイン安に強制誘導される。
+   */
+  exchange_rate_offset: number;
+  /** v2 Iter.2: 賭場の板の議題立て手数料 */
+  board_fee: number;
+  /** v2 為替: この額以上の両替は管理者承認を要する */
+  exchange_threshold: number;
+  /** v2 為替: 承認ボタンを流すチャンネル（未設定なら実行チャンネル） */
+  exchange_approval_channel_id: string | null;
+  /** v2 VIP: 入場権購入で付与するVIPロールのID（未設定ならロール付与スキップ） */
+  vip_role_id: string | null;
+  /** 賭場運営ロール: 異議・トラブル通知でメンションするロール。/管理 本体はオーナーのみ。 */
+  admin_role_id: string | null;
+  /** 通貨ログのライブフィード送信先（adjustBalance のたびに1行流れる）。未設定なら無効。 */
+  tx_feed_channel_id: string | null;
+  /** 定期競馬（土日21時 cron）の発火先チャンネル。未設定なら .env の RACE_CHANNEL_ID を fallback。 */
+  race_channel_id: string | null;
 };
 
 export type Title = {
@@ -150,9 +203,14 @@ export function runTransaction<T>(fn: () => T): T {
 export function initializeDatabase(): void {
   db.exec(`
     -- ═══ Core: User Profiles ═══
+    -- v2: balance = カジノコイン（第二通貨）残高
+    --     currency1_balance = 第一通貨残高（Iter.4 で従業員給与から流入予定）
     CREATE TABLE IF NOT EXISTS users (
       user_id TEXT PRIMARY KEY,
       balance INTEGER NOT NULL DEFAULT 3000 CHECK(balance >= 0),
+      currency1_balance INTEGER NOT NULL DEFAULT 0 CHECK(currency1_balance >= 0),
+      exchange_in_total INTEGER NOT NULL DEFAULT 0,
+      exchange_out_total INTEGER NOT NULL DEFAULT 0,
       level INTEGER NOT NULL DEFAULT 1,
       exp INTEGER NOT NULL DEFAULT 0,
       tier TEXT NOT NULL DEFAULT 'human',
@@ -170,12 +228,14 @@ export function initializeDatabase(): void {
     );
 
     -- ═══ Core: Transaction Logs ═══
+    -- v2: currency カラムで通貨を区別（'currency2' = カジノコイン、'currency1' = 第一通貨）
     CREATE TABLE IF NOT EXISTS transaction_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
       amount INTEGER NOT NULL,
       reason TEXT NOT NULL,
       game TEXT,
+      currency TEXT NOT NULL DEFAULT 'currency2' CHECK(currency IN ('currency1', 'currency2')),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -196,7 +256,22 @@ export function initializeDatabase(): void {
       stock_channel_id TEXT,
       games_enabled TEXT NOT NULL DEFAULT '{"slots":true,"blackjack":true,"crash":true,"highlow":true,"roulette":true,"keiba":true,"stocks":true}',
       lucky_game TEXT,
-      lucky_game_date TEXT
+      lucky_game_date TEXT,
+      exchange_rate_offset REAL NOT NULL DEFAULT 0.0,
+      vip_role_id TEXT
+    );
+
+    -- ═══ v2: Currency Exchange Log ═══
+    -- プレイヤーの両替履歴。exchange_logs（管理者 mint/burn）とは別。
+    CREATE TABLE IF NOT EXISTS currency_exchanges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      direction TEXT NOT NULL CHECK(direction IN ('in', 'out')),
+      source_amount INTEGER NOT NULL CHECK(source_amount > 0),
+      received_amount INTEGER NOT NULL CHECK(received_amount >= 0),
+      fee_amount INTEGER NOT NULL DEFAULT 0,
+      rate REAL NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     -- ═══ Progression: Titles (二つ名) ═══
@@ -299,6 +374,152 @@ export function initializeDatabase(): void {
       claimed_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (user_id, quest_key, period)
     );
+
+    -- ═══ v2 Iter.2: 賭場の板（公開市場） ═══
+    CREATE TABLE IF NOT EXISTS betting_markets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      creator_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      options TEXT NOT NULL,                 -- JSON string[]
+      payout_mode TEXT NOT NULL CHECK(payout_mode IN ('parimutuel','winner_take_all')),
+      status TEXT NOT NULL DEFAULT 'open'
+        CHECK(status IN ('open','closed','reported','settled','disputed','void')),
+      deadline TEXT,
+      result_option INTEGER,
+      channel_id TEXT,
+      message_id TEXT,
+      thread_id TEXT,
+      fee INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS market_bets (
+      market_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      option_index INTEGER NOT NULL,
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (market_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS market_approvals (
+      market_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      vote TEXT NOT NULL CHECK(vote IN ('approve','dispute')),
+      PRIMARY KEY (market_id, user_id)
+    );
+
+    -- ═══ v2 Iter.2: サシ星約（1v1 PvP） ═══
+    CREATE TABLE IF NOT EXISTS pvp_matches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      challenger_id TEXT NOT NULL,
+      opponent_id TEXT NOT NULL,
+      title TEXT,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','active','reported','settled','disputed','declined','void')),
+      reported_winner_id TEXT,
+      reported_by TEXT,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- ═══ v2: 為替API連携（Gil-bot）操作ログ ═══
+    -- direction: 'internal_to_external'(入庫 Gil→エテル) / 'external_to_internal'(出庫 エテル→Gil)
+    -- status: pending_approval / pending_commit / pending_credit / done / failed / cancelled
+    CREATE TABLE IF NOT EXISTS api_exchanges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      request_id TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending_approval',
+      external_amount INTEGER,
+      internal_amount INTEGER,
+      fee_internal INTEGER,
+      ether_delta INTEGER,
+      memo TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- ═══ v2: 使い切り景品 在庫 & 装備中効果 ═══
+    CREATE TABLE IF NOT EXISTS consumable_items (
+      user_id TEXT NOT NULL,
+      item_key TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 0 CHECK(quantity >= 0),
+      PRIMARY KEY (user_id, item_key)
+    );
+    CREATE TABLE IF NOT EXISTS active_effects (
+      user_id TEXT NOT NULL,
+      effect_key TEXT NOT NULL,
+      armed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, effect_key)
+    );
+
+    -- ═══ v2: 盆（多人数 丁半・BOT自動判定 PvP） ═══
+    -- status: open → settled / void。result: 'cho'(丁=偶) | 'han'(半=奇)
+    CREATE TABLE IF NOT EXISTS chohan_games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      host_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','void')),
+      deadline TEXT,
+      die1 INTEGER,
+      die2 INTEGER,
+      result TEXT CHECK(result IN ('cho','han')),
+      rake INTEGER NOT NULL DEFAULT 0,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS chohan_bets (
+      game_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      side TEXT NOT NULL CHECK(side IN ('cho','han')),
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (game_id, user_id)
+    );
+
+    -- ═══ v2: VIP（奥座敷・月課金エテル） ═══
+    -- expires_at を過ぎたら期限切れ（スケジューラがロール剥奪）。
+    CREATE TABLE IF NOT EXISTS vip_members (
+      user_id TEXT NOT NULL,
+      guild_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      since TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, guild_id)
+    );
+
+    -- ═══ v2: 賽勝負（1v1 チンチロ・BOT自動判定 PvP） ═══
+    -- status: pending(未承認・未徴収) → active(両者エスクロー) → settled / declined / void
+    CREATE TABLE IF NOT EXISTS dice_duels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      challenger_id TEXT NOT NULL,
+      opponent_id TEXT NOT NULL,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','active','settled','declined','void')),
+      winner_id TEXT,
+      rake INTEGER NOT NULL DEFAULT 0,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- ═══ v2 §7.4: 卓を立てる（複製VC） ═══
+    -- パネルから生成した一時VCを追跡。最後の1人退出 or 空のまま放置で自動削除。
+    CREATE TABLE IF NOT EXISTS temp_voice_channels (
+      channel_id TEXT PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      table_type TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // ─── Migration: exchange_logs CHECK 制約に 'refund' を許可 ──────
@@ -366,6 +587,145 @@ export function initializeDatabase(): void {
       // Column already exists — ignore
     }
   }
+
+  // ─── v2 Migration: users / transaction_logs / server_config ──
+  // 既存DBに対する追加カラム（空振り許容）。
+  const v2MigrationCols = [
+    "ALTER TABLE users ADD COLUMN currency1_balance INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN exchange_in_total INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN exchange_out_total INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE transaction_logs ADD COLUMN currency TEXT NOT NULL DEFAULT 'currency2'",
+    "ALTER TABLE server_config ADD COLUMN exchange_rate_offset REAL NOT NULL DEFAULT 0.0",
+    "ALTER TABLE server_config ADD COLUMN board_fee INTEGER NOT NULL DEFAULT 500",
+    "ALTER TABLE server_config ADD COLUMN exchange_threshold INTEGER NOT NULL DEFAULT 50000",
+    "ALTER TABLE server_config ADD COLUMN exchange_approval_channel_id TEXT",
+    "ALTER TABLE server_config ADD COLUMN vip_role_id TEXT",
+    // /心付け 1日1回 CD（折衷化）。null = まだ今日渡してない。
+    "ALTER TABLE users ADD COLUMN last_tip_date TEXT",
+    // takutate 紐付きVC（賭けと連動する卓）の追跡用。null = 直接立てた卓（既存）。
+    "ALTER TABLE temp_voice_channels ADD COLUMN link_type TEXT",
+    "ALTER TABLE temp_voice_channels ADD COLUMN link_id TEXT",
+    // サシ: 報告時刻（自動確定タイムアウトの起点）
+    "ALTER TABLE pvp_matches ADD COLUMN reported_at TEXT",
+    // 賭場運営ロール（メンション通知用・/管理 本体とは別軸）
+    "ALTER TABLE server_config ADD COLUMN admin_role_id TEXT",
+    // 紐付きVC のデポジット（◈500預け・1回でも勝負成立なら返却、無ければJP没収）
+    "ALTER TABLE temp_voice_channels ADD COLUMN deposit_holder TEXT",
+    "ALTER TABLE temp_voice_channels ADD COLUMN deposit_amount INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE temp_voice_channels ADD COLUMN settle_count INTEGER NOT NULL DEFAULT 0",
+    // 板: 精算/無効化された時刻（スレッド自動削除の起点）
+    "ALTER TABLE betting_markets ADD COLUMN settled_at TEXT",
+    // 通貨ログのライブフィード送信先
+    "ALTER TABLE server_config ADD COLUMN tx_feed_channel_id TEXT",
+    // /流れ星 占い 1日カウンタ
+    "ALTER TABLE users ADD COLUMN nagareboshi_date TEXT",
+    "ALTER TABLE users ADD COLUMN nagareboshi_count INTEGER NOT NULL DEFAULT 0",
+    // 定期競馬の発火先チャンネル（ギルド別・未設定は .env fallback）
+    "ALTER TABLE server_config ADD COLUMN race_channel_id TEXT",
+  ];
+
+  // ─── 5枚交換ポーカー ───
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS poker_games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      mode TEXT NOT NULL CHECK(mode IN ('sashi','open')),
+      host_id TEXT NOT NULL,
+      opponent_id TEXT,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','open','dealt','settled','declined','void')),
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      dealt_at TEXT,
+      settled_at TEXT
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS poker_players (
+      game_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      hand TEXT NOT NULL DEFAULT '[]',
+      discarded TEXT NOT NULL DEFAULT '[]',
+      discard_done INTEGER NOT NULL DEFAULT 0,
+      final_hand TEXT NOT NULL DEFAULT '[]',
+      rank_category INTEGER NOT NULL DEFAULT 0,
+      rank_tiebreak TEXT NOT NULL DEFAULT '[]',
+      rank_label TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (game_id, user_id)
+    )
+  `);
+
+  // ─── インディアンポーカー（1v1心理戦） ───
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS indian_duels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      challenger_id TEXT NOT NULL,
+      opponent_id TEXT NOT NULL,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','active','settled','declined','void')),
+      challenger_card INTEGER NOT NULL DEFAULT 0,
+      opponent_card INTEGER NOT NULL DEFAULT 0,
+      challenger_action TEXT,
+      opponent_action TEXT,
+      winner_id TEXT,
+      rake INTEGER NOT NULL DEFAULT 0,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  // ─── BJ 対人戦テーブル ───
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bj_duels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      challenger_id TEXT NOT NULL,
+      opponent_id TEXT NOT NULL,
+      stake INTEGER NOT NULL CHECK(stake > 0),
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','active','settled','declined','void')),
+      challenger_hand TEXT NOT NULL DEFAULT '[]',
+      opponent_hand TEXT NOT NULL DEFAULT '[]',
+      challenger_done INTEGER NOT NULL DEFAULT 0,
+      opponent_done INTEGER NOT NULL DEFAULT 0,
+      turn TEXT NOT NULL DEFAULT 'challenger' CHECK(turn IN ('challenger','opponent')),
+      winner_id TEXT,
+      rake INTEGER NOT NULL DEFAULT 0,
+      channel_id TEXT,
+      message_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  for (const sql of v2MigrationCols) {
+    try { db.exec(sql); } catch { /* column exists */ }
+  }
+
+  // ─── decisionPanel: 勝負終了後の 続行/やめる パネル ───
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS decision_panels (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id      TEXT NOT NULL,
+      channel_id      TEXT NOT NULL,
+      guild_id        TEXT NOT NULL,
+      vc_id           TEXT,
+      link_type       TEXT NOT NULL,
+      link_id         TEXT NOT NULL,
+      host_id         TEXT NOT NULL,
+      participant_ids TEXT NOT NULL DEFAULT '[]',
+      deadline_at     TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'open',
+      votes_continue  TEXT NOT NULL DEFAULT '[]',
+      votes_stop      TEXT NOT NULL DEFAULT '[]',
+      warned          INTEGER NOT NULL DEFAULT 0,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_panels_status ON decision_panels (status, deadline_at)`);
 }
 
 // ─── Server Config Helpers ─────────────────────────────
@@ -386,6 +746,10 @@ export function updateServerConfig(guildId: string, updates: Partial<Omit<Server
     "balance_cap", "house_edge_offset", "min_bet", "jackpot_pool", "relief_pool",
     "casino_channel_id", "jackpot_channel_id", "stock_channel_id",
     "games_enabled", "lucky_game", "lucky_game_date",
+    "exchange_rate_offset", "board_fee",
+    "exchange_threshold", "exchange_approval_channel_id",
+    "vip_role_id", "admin_role_id", "tx_feed_channel_id",
+    "race_channel_id",
   ] as const;
 
   for (const key of allowed) {

@@ -61,21 +61,21 @@ function buildEmbed(userId: string, guildId: string, period: string): { embed: E
         `${SLOT_LABELS[i]} **${q.title}**　${DIFFICULTY_LABEL[q.difficulty]}　${status}`,
         `*${desc}*`,
         formatProgress(prog.progress, prog.target),
-        `🎁 報酬: ◉${q.reward.coins.toLocaleString()} + 妖力 ${q.reward.exp}`,
+        `🎁 報酬: ◈${q.reward.coins.toLocaleString()} + 星の力 ${q.reward.exp}`,
       ].join("\n"),
     );
   }
 
   const footerNote = totalAvailable > 0
-    ? `💎 受領可能合計: ◉${totalAvailable.toLocaleString()} — 下のボタンで受け取れる`
+    ? `💎 受領可能合計: ◈${totalAvailable.toLocaleString()} — 下のボタンで受け取れる`
     : totalClaimed === quests.reduce((s, q) => s + q.reward.coins, 0)
       ? "🎉 今日の任務はすべて受領済み！"
-      : "進めて受領しよう。**当日中に受領しないと逸する**ぞ。";
+      : "進めて受領しよう。**当日中に受け取らないと消えちゃう**よ。";
 
   const embed = baseEmbed(`📋 今日の任務 — ${period}`, COLORS.GOLD)
     .setDescription(
       [
-        "*「これが今日の任務じゃ。果たして報酬を取りに来い。」*",
+        "*「これが今日の任務だよ。こなして、報酬を受け取りにきてね。」*",
         "",
         blocks.join("\n\n"),
       ].join("\n"),
@@ -158,7 +158,7 @@ export async function handleQuestButton(interaction: ButtonInteraction): Promise
     await interaction.update({ embeds: [fresh.embed], components: [buttons] });
     // 受領通知（follow-up）
     await interaction.followUp({
-      content: `✨ 受領完了：**${claimedTitles.join(" / ")}**\n💰 +◉${totalCoins.toLocaleString()}　🌀 +妖力 ${totalExp}`,
+      content: `✨ 受領完了：**${claimedTitles.join(" / ")}**\n💰 +◈${totalCoins.toLocaleString()}　🌀 +星の力 ${totalExp}`,
       ephemeral: true,
     });
     return;
@@ -168,14 +168,14 @@ export async function handleQuestButton(interaction: ButtonInteraction): Promise
   const key = interaction.customId.replace("quest_claim_", "");
   const q = quests.find((x) => x.key === key);
   if (!q) {
-    await interaction.reply({ content: "任務が見つからぬ。", ephemeral: true });
+    await interaction.reply({ content: "その任務、見つからないや。", ephemeral: true });
     return;
   }
   const r = claimQuest(userId, q, period, guildId);
   if (!r.ok) {
     const msg =
-      r.reason === "already_claimed" ? "既に受領済みじゃ。"
-        : r.reason === "not_completed" ? "まだ達成しておらぬぞ。"
+      r.reason === "already_claimed" ? "もう受け取り済みだよ。"
+        : r.reason === "not_completed" ? "まだ達成してないよ。"
           : "受領に失敗した（残高エラー等）。";
     await interaction.reply({ content: msg, ephemeral: true });
     return;
@@ -185,7 +185,7 @@ export async function handleQuestButton(interaction: ButtonInteraction): Promise
   const buttons = buildButtons(userId, guildId, period, fresh.quests);
   await interaction.update({ embeds: [fresh.embed], components: [buttons] });
   await interaction.followUp({
-    content: `✨ **${q.title}** を受領！\n💰 +◉${r.reward.coins.toLocaleString()}　🌀 +妖力 ${r.reward.exp}`,
+    content: `✨ **${q.title}** を受領！\n💰 +◈${r.reward.coins.toLocaleString()}　🌀 +星の力 ${r.reward.exp}`,
     ephemeral: true,
   });
 }
