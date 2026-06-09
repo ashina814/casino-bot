@@ -100,6 +100,12 @@ export async function handleDailyCommand(interaction: ChatInputCommandInteractio
     "UPDATE users SET daily_streak = ?, last_daily = ? WHERE user_id = ?"
   ).run(newStreak, today, userId);
 
+  // 連続ログイン系の称号（賭場の常連/通い詰める者）を冪等付与
+  try {
+    const { checkDailyMilestones } = require("../core/milestoneTitles");
+    checkDailyMilestones(userId);
+  } catch { /* silent */ }
+
   addExp(userId, 20);
 
   // ─── Dialogue ────────────────────────────────────────

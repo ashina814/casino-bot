@@ -5,12 +5,16 @@ import { infoEmbed, errorEmbed, successEmbed, COLORS } from "../ui/embeds";
 import { CONSUMABLES, grantItem } from "../core/items";
 
 const SHOP_ITEMS = [
-  // 称号
-  // 価格は為替OFF（Gil流入なし）でも到達可能な帯に調整。最上位=残高上限◈300,000を頂点に。
-  { id: "title_patron", type: "title", name: "【称号】賭場のパトロン", cost: 30_000, desc: "賭場を支える太客の証。" },
-  { id: "title_gold", type: "title", name: "【称号】黄金の成金", cost: 100_000, desc: "黄金のオーラを纏う金持ちの証。" },
-  { id: "title_zashiki", type: "title", name: "【称号】アステルの寵児", cost: 300_000, desc: "アステルすら手なずける大富豪。" },
-  // 使い切り景品（在庫に入る。/商店 使う で装備）
+  // ─── 称号（奉納 = 一度購入で恒久取得） ───
+  // 価格帯は新しいティア上限（北極星=◈500万）と連動。最上位は cap いっぱい。
+  { id: "title_patron",   type: "title", name: "【称号】賭場のパトロン",   cost:    30_000, desc: "賭場を支える太客の証。" },
+  { id: "title_gold",     type: "title", name: "【称号】黄金の成金",       cost:   100_000, desc: "黄金のオーラを纏う金持ちの証。" },
+  { id: "title_zashiki",  type: "title", name: "【称号】アステルの寵児",   cost:   300_000, desc: "アステルすら手なずける大富豪。" },
+  { id: "title_warden",   type: "title", name: "【称号】星溜まりの番人",   cost:   800_000, desc: "JPプールに大きく奉納し続けた者。" },
+  { id: "title_master",   type: "title", name: "【称号】賭場の主",         cost: 2_000_000, desc: "この賭場を支配せんとする太客。" },
+  { id: "title_polestar", type: "title", name: "【称号】北極星の使徒",     cost: 5_000_000, desc: "頂点に至りし者だけが纏える光。" },
+
+  // ─── 使い切り景品（在庫に入る。/商店 使う で装備） ───
   ...CONSUMABLES.map((c) => ({ id: c.key, type: "consumable" as const, name: `🎴 ${c.name}`, cost: c.price, desc: `${c.desc}（/商店 使う で装備）` })),
   // ※ アステルへの贈り物は /アステル 贈り物 に移設
 ];

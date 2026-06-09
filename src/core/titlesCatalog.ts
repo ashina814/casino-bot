@@ -17,6 +17,18 @@ export type TitleDef = {
   category: "easter_egg" | "shop" | "milestone" | "tribute";
 };
 
+// マイルストーン称号の判定閾値（milestoneTitles.ts と DRY）
+export const MILESTONE_THRESHOLDS = {
+  centurion: 100,           // total_wins >= 100
+  kilo_winner: 1000,         // total_wins >= 1000
+  jackpot_hit: 50_000,       // biggest_win >= ◈50,000
+  chain_keeper: 10,          // best_win_streak >= 10
+  chain_legend: 25,          // best_win_streak >= 25
+  regular_visitor: 30,       // daily_streak >= 30
+  devotee: 100,              // daily_streak >= 100
+  heavy_better: 1_000_000,   // total_wagered >= ◈1,000,000
+} as const;
+
 export const TITLES_CATALOG: TitleDef[] = [
   // ─── Easter Eggs ─────────────────────────────────
   { key: "ushimitsudoki", name: "丑三つ時の常連", hint: "深夜の刻にこの賭場を訪れる", rarity: "rare", category: "easter_egg" },
@@ -30,9 +42,22 @@ export const TITLES_CATALOG: TitleDef[] = [
   { key: "lucky7", name: "幸運児", hint: "縁起のいい数字で賭ける", rarity: "rare", category: "easter_egg" },
 
   // ─── Shop (奉納) ──────────────────────────────────
-  { key: "title_patron", name: "賭場のパトロン", hint: "商店で奉納（◈100,000）", rarity: "rare", category: "shop" },
-  { key: "title_gold", name: "黄金の成金", hint: "商店で奉納（◈500,000）", rarity: "legend", category: "shop" },
-  { key: "title_zashiki", name: "アステルの寵児", hint: "商店で奉納（◈1,000,000）", rarity: "myth", category: "shop" },
+  { key: "title_patron",   name: "賭場のパトロン",     hint: "商店で奉納（◈30,000）",   rarity: "rare",   category: "shop" },
+  { key: "title_gold",     name: "黄金の成金",         hint: "商店で奉納（◈100,000）",  rarity: "legend", category: "shop" },
+  { key: "title_zashiki",  name: "アステルの寵児",     hint: "商店で奉納（◈300,000）",  rarity: "myth",   category: "shop" },
+  { key: "title_warden",   name: "星溜まりの番人",     hint: "商店で奉納（◈800,000）",  rarity: "myth",   category: "shop" },
+  { key: "title_master",   name: "賭場の主",           hint: "商店で奉納（◈2,000,000）",rarity: "myth",   category: "shop" },
+  { key: "title_polestar", name: "北極星の使徒",       hint: "商店で奉納（◈5,000,000）",rarity: "myth",   category: "shop" },
+
+  // ─── Milestone（プレイ実績で自動付与） ─────────────
+  { key: "centurion",        name: "百戦錬磨",     hint: "通算 100 勝に到達",                rarity: "rare",   category: "milestone" },
+  { key: "kilo_winner",      name: "千勝の達人",   hint: "通算 1000 勝に到達",               rarity: "legend", category: "milestone" },
+  { key: "jackpot_hit",      name: "大穴的中",     hint: "1回の勝負で ◈50,000 以上獲得",     rarity: "rare",   category: "milestone" },
+  { key: "chain_keeper",     name: "連勝の灯",     hint: "10連勝を達成",                     rarity: "rare",   category: "milestone" },
+  { key: "chain_legend",     name: "燃え盛る炉",   hint: "25連勝を達成",                     rarity: "legend", category: "milestone" },
+  { key: "regular_visitor",  name: "賭場の常連",   hint: "連続ログイン 30日",                rarity: "rare",   category: "milestone" },
+  { key: "devotee",          name: "通い詰める者", hint: "連続ログイン 100日",               rarity: "legend", category: "milestone" },
+  { key: "heavy_better",     name: "太客",         hint: "累計賭け金 ◈1,000,000",             rarity: "legend", category: "milestone" },
 
   // ─── Tribute（特別な人へ） ─────────────────────────
   { key: "second_zashiki", name: "二代目", hint: "わたしが眠る前、この場所を守ってくれた人へ", rarity: "myth", category: "tribute" },

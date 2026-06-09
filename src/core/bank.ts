@@ -160,6 +160,12 @@ export function recordWin(userId: string, winAmount: number): void {
       current_lose_streak = 0
     WHERE user_id = ?
   `).run(v, v, userId);
+
+  // マイルストーン称号（百戦錬磨/千勝/大穴/連勝の灯 など）の冪等付与
+  try {
+    const { checkWinMilestones } = require("./milestoneTitles");
+    checkWinMilestones(userId);
+  } catch { /* silent */ }
 }
 
 export function recordLoss(userId: string): void {
@@ -229,6 +235,12 @@ export function recordWager(userId: string, amount: number): void {
   }
   db.prepare(`UPDATE users SET total_wagered = MIN(total_wagered + ?, ${Number.MAX_SAFE_INTEGER}) WHERE user_id = ?`)
     .run(v, userId);
+
+  // マイルストーン称号（太客）の冪等付与
+  try {
+    const { checkWagerMilestones } = require("./milestoneTitles");
+    checkWagerMilestones(userId);
+  } catch { /* silent */ }
 
   // Easter-egg: bet == 777 → 「幸運児」
   try {

@@ -24,11 +24,17 @@ export type ConsumableDef = {
 };
 
 export const CONSUMABLES: ConsumableDef[] = [
-  { key: "omamori", name: "福のお守り", desc: "次に勝った時、勝利金が +5% になる。", price: 4_000, kind: "armed_win", power: 0.05 },
-  { key: "hoken", name: "保険符", desc: "次に負けた時、賭け金の半分が戻る。", price: 3_000, kind: "armed_loss", power: 0.5 },
-  { key: "higo", name: "庇護の札", desc: "次の敗北を無効化（賭け金が全額戻る）。", price: 12_000, kind: "armed_loss", power: 1.0 },
-  { key: "reroll", name: "二度振りの権", desc: "チンチロでもう一度振り直せる（1回）。", price: 5_000, kind: "game_reroll", power: 0 },
-  { key: "insider", name: "インサイダーの噂", desc: "次に株を開いた時、トレンドをこっそり開示。", price: 5_000, kind: "stocks_insider", power: 0 },
+  // armed_win 系（power 大きいほど高グレード／consumeWinBonus で優先発動）
+  { key: "omamori",        name: "福のお守り",     desc: "次に勝った時、勝利金が +5% になる。",       price: 4_000,  kind: "armed_win",  power: 0.05 },
+  { key: "omamori_silver", name: "白銀のお守り",   desc: "次に勝った時、勝利金が +10% になる。",      price: 9_000,  kind: "armed_win",  power: 0.10 },
+  { key: "omamori_gold",   name: "黄金のお守り",   desc: "次に勝った時、勝利金が +20% になる。",      price: 22_000, kind: "armed_win",  power: 0.20 },
+  // armed_loss 系（power 大きいほど高グレード／consumeLossProtection で優先発動）
+  { key: "hoken",          name: "保険符",         desc: "次に負けた時、賭け金の半分が戻る。",         price: 3_000,  kind: "armed_loss", power: 0.50 },
+  { key: "hoken_dai",      name: "大保険符",       desc: "次に負けた時、賭け金の 75% が戻る。",        price: 7_500,  kind: "armed_loss", power: 0.75 },
+  { key: "higo",           name: "庇護の札",       desc: "次の敗北を無効化（賭け金が全額戻る）。",     price: 12_000, kind: "armed_loss", power: 1.00 },
+  // ゲーム固有
+  { key: "reroll",         name: "二度振りの権",   desc: "チンチロでもう一度振り直せる（1回）。",      price: 5_000,  kind: "game_reroll",    power: 0 },
+  { key: "insider",        name: "インサイダーの噂", desc: "次に株を開いた時、トレンドをこっそり開示。", price: 5_000,  kind: "stocks_insider", power: 0 },
 ];
 
 const BY_KEY = new Map(CONSUMABLES.map((c) => [c.key, c]));
@@ -82,9 +88,10 @@ function disarm(userId: string, key: string): void {
 
 // ─── 発動（ゲームから呼ぶ） ───────────────────────────
 
-/** 勝利時: armed_win があれば勝利金倍率を返して消費。 */
+/** 勝利時: armed_win があれば勝利金倍率を返して消費（高 power が先に発動）。 */
 export function consumeWinBonus(userId: string): { mult: number; note?: string } {
-  for (const def of CONSUMABLES.filter((c) => c.kind === "armed_win")) {
+  const wins = CONSUMABLES.filter((c) => c.kind === "armed_win").sort((a, b) => b.power - a.power);
+  for (const def of wins) {
     if (isArmed(userId, def.key)) {
       disarm(userId, def.key);
       return { mult: 1 + def.power, note: `${def.name} 発動（+${Math.round(def.power * 100)}%）` };
