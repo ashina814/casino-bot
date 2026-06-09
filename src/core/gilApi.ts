@@ -59,14 +59,29 @@ async function request<T>(method: "GET" | "POST", path: string, body?: unknown):
     let json: any = null;
     try { json = await res.json(); } catch { /* 非JSON応答 */ }
 
+    // Gil-bot の error は文字列。後方互換のため {code, message} 形式も受け付ける。
+    const parseErr = (): { code: string; message: string } => {
+      if (typeof json?.error === "string") {
+        return { code: `HTTP_${res.status}`, message: json.error };
+      }
+      if (json?.error && typeof json.error === "object") {
+        return {
+          code: json.error.code ?? `HTTP_${res.status}`,
+          message: json.error.message ?? `APIエラー (HTTP ${res.status})`,
+        };
+      }
+      return { code: `HTTP_${res.status}`, message: `APIエラー (HTTP ${res.status})` };
+    };
+
     if (!res.ok) {
-      const code = json?.error?.code ?? `HTTP_${res.status}`;
-      const message = json?.error?.message ?? `APIエラー (HTTP ${res.status})`;
+      const { code, message } = parseErr();
       return { ok: false, code, message, httpStatus: res.status };
     }
     if (json && json.ok === false) {
-      return { ok: false, code: json.error?.code ?? "UNKNOWN", message: json.error?.message ?? "APIエラー", httpStatus: res.status };
+      const { code, message } = parseErr();
+      return { ok: false, code, message, httpStatus: res.status };
     }
+    // 成功時はレスポンス全体を data に詰める（top-level に balance / operation 等がある）。
     return { ok: true, data: (json ?? {}) as T };
   } catch (err: any) {
     const aborted = err?.name === "AbortError";
@@ -78,31 +93,59 @@ async function request<T>(method: "GET" | "POST", path: string, body?: unknown):
 
 // ─── エンドポイント ───────────────────────────────────
 
-export async function gilHealth(): Promise<GilResult<{ ok?: boolean }>> {
+export type GilHealthBody = { ok: boolean; name?: string; time?: string };
+export async function gilHealth(): Promise<GilResult<GilHealthBody>> {
   return request("GET", "/api/v1/health");
 }
 
-export async function gilBalance(guildId: string, userId: string): Promise<GilResult<{ balance: number }>> {
+export type GilBalanceBody = {
+  ok: boolean;
+  guildId: string;
+  userId: string;
+  balance: number;
+  currency: string; // "Lux" など
+};
+export async function gilBalance(guildId: string, userId: string): Promise<GilResult<GilBalanceBody>> {
   const qs = `?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`;
   return request("GET", `/api/v1/balance${qs}`);
 }
 
-export type QuoteReq = { guildId: string; userId: string; direction: GilDirection; amount: number };
-export async function gilQuote(req: QuoteReq): Promise<GilResult<{ operation: GilOperation }>> {
+export type GilQuoteData = {
+  amount: number;
+  externalAmount: number;
+  grossInternal: number;
+  feeInternal: number;
+  internalAmount: number;
+  externalPayout: number;
+};
+export type GilSettings = {
+  externalCurrencyName: string;
+  rateExternalToInternal: number;
+  feePercent: number;
+};
+export type GilQuoteBody = {
+  ok: boolean;
+  guildId: string;
+  direction: GilDirection;
+  quote: GilQuoteData;
+  settings: GilSettings;
+};
+export type QuoteReq = { guildId: string; userId?: string; direction: GilDirection; amount: number };
+export async function gilQuote(req: QuoteReq): Promise<GilResult<GilQuoteBody>> {
   return request("POST", "/api/v1/exchange/quote", req);
 }
 
 export type CommitReq = { guildId: string; userId: string; direction: GilDirection; amount: number; requestId: string; memo?: string };
-export async function gilCommit(req: CommitReq): Promise<GilResult<{ operation: GilOperation }>> {
+export async function gilCommit(req: CommitReq): Promise<GilResult<{ ok: boolean; operation: GilOperation }>> {
   return request("POST", "/api/v1/exchange/commit", req);
 }
 
 export type CancelReq = { guildId: string; requestId: string; reason?: string; reverse?: boolean };
-export async function gilCancel(req: CancelReq): Promise<GilResult<{ operation?: GilOperation }>> {
+export async function gilCancel(req: CancelReq): Promise<GilResult<{ ok: boolean; operation?: GilOperation }>> {
   return request("POST", "/api/v1/exchange/cancel", req);
 }
 
-export async function gilTransactions(guildId: string, limit = 100): Promise<GilResult<{ transactions: any[] }>> {
+export async function gilTransactions(guildId: string, limit = 100): Promise<GilResult<{ ok: boolean; guildId: string; count: number; transactions: any[] }>> {
   const qs = `?guildId=${encodeURIComponent(guildId)}&limit=${limit}`;
   return request("GET", `/api/v1/exchange/transactions${qs}`);
 }
