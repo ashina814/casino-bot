@@ -450,7 +450,8 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
         `初期支給: ◈${cfg.initial_balance.toLocaleString()}`,
         `デイリー基本: ◈${cfg.daily_base}`,
         `破産保護: ◈${cfg.bankruptcy_aid}`,
-        `所持金上限: ◈${cfg.balance_cap.toLocaleString()}`,
+        `所持金上限(天井): ◈${cfg.balance_cap.toLocaleString()}`,
+        `※通常はレベル(星位)別の上限が優先`,
         `ハウスエッジ補正: ${cfg.house_edge_offset >= 0 ? "+" : ""}${cfg.house_edge_offset}%`,
         `最低ベット: ◈${cfg.min_bet}`,
       ].join("\n"),
@@ -467,11 +468,21 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
       ].join("\n"),
       inline: true,
     },
+    {
+      name: "💱 両替",
+      value: [
+        `承認しきい値: ◈${cfg.exchange_threshold.toLocaleString()} 以上`,
+        `承認チャンネル: ${cfg.exchange_approval_channel_id ? `<#${cfg.exchange_approval_channel_id}>` : "*未設定（申請chに表示）*"}`,
+        `還光率（出庫バーン）: ${Math.round((cfg.ryuko_rate ?? 0.5) * 100)}%`,
+      ].join("\n"),
+      inline: true,
+    },
   );
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId("admin_economy").setLabel("💰 経済を編集").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("admin_channels").setLabel("📢 チャンネルを編集").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("admin_exchange").setLabel("💱 両替を編集").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("admin_roles").setLabel("🎭 ロールを編集").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("admin_logs").setLabel("📒 ログ設定").setStyle(ButtonStyle.Secondary),
   );
@@ -499,7 +510,7 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
             new TextInputBuilder().setCustomId("house_edge_offset").setLabel("ハウスエッジ補正（%） 例: 2 / -1").setStyle(TextInputStyle.Short).setValue(String(cfg.house_edge_offset)).setRequired(false),
           ),
           new ActionRowBuilder<TextInputBuilder>().addComponents(
-            new TextInputBuilder().setCustomId("balance_cap").setLabel("所持金上限").setStyle(TextInputStyle.Short).setValue(String(cfg.balance_cap)).setRequired(false),
+            new TextInputBuilder().setCustomId("balance_cap").setLabel("所持金の最終上限（通常はレベル別が優先）").setStyle(TextInputStyle.Short).setValue(String(cfg.balance_cap)).setRequired(false),
           ),
         );
 
@@ -547,6 +558,37 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
           race_channel_id: m.fields.getTextInputValue("race_channel") || null,
         });
         await m.reply({ embeds: [successEmbed("チャンネル設定を更新しました。")], ephemeral: true });
+      } catch { /* timeout */ }
+    } else if (btn.customId === "admin_exchange") {
+      const modal = new ModalBuilder()
+        .setCustomId("admin_exchange_modal")
+        .setTitle("💱 両替設定")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("exchange_threshold").setLabel("承認が要る額（これ以上で承認待ち）").setStyle(TextInputStyle.Short).setValue(String(cfg.exchange_threshold)).setRequired(false),
+          ),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("exchange_approval_channel").setLabel("承認パネルのチャンネルID（空=申請ch）").setStyle(TextInputStyle.Short).setValue(cfg.exchange_approval_channel_id ?? "").setRequired(false),
+          ),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder().setCustomId("ryuko_rate").setLabel("還光率%（出庫バーン・0〜100）").setStyle(TextInputStyle.Short).setValue(String(Math.round((cfg.ryuko_rate ?? 0.5) * 100))).setRequired(false),
+          ),
+        );
+      await btn.showModal(modal);
+      try {
+        const m = await btn.awaitModalSubmit({ time: 60_000 });
+        const threshold = parseInt(m.fields.getTextInputValue("exchange_threshold")) || cfg.exchange_threshold;
+        const ratePct = parseFloat(m.fields.getTextInputValue("ryuko_rate"));
+        const ryuko_rate = Number.isFinite(ratePct) ? Math.min(1, Math.max(0, ratePct / 100)) : cfg.ryuko_rate;
+        updateServerConfig(guildId, {
+          exchange_threshold: threshold,
+          exchange_approval_channel_id: m.fields.getTextInputValue("exchange_approval_channel") || null,
+          ryuko_rate,
+        });
+        await m.reply({
+          embeds: [successEmbed(`両替設定を更新しました。\n承認しきい値: ◈${threshold.toLocaleString()} 以上 / 還光率: ${Math.round(ryuko_rate * 100)}%`)],
+          ephemeral: true,
+        });
       } catch { /* timeout */ }
     } else if (btn.customId === "admin_roles") {
       const modal = new ModalBuilder()

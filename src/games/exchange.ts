@@ -20,7 +20,7 @@ import {
 import { ensureUser, getBalance } from "../core/bank";
 import { getServerConfig, db } from "../core/db";
 import {
-  createExchange, executeExchange, getExchangeRow, isExchangeApiAvailable, RYUKO_RATE,
+  createExchange, executeExchange, getExchangeRow, isExchangeApiAvailable, DEFAULT_RYUKO_RATE,
 } from "../core/exchange";
 import { gilBalance } from "../core/gilApi";
 import type { GilDirection } from "../core/gilApi";
@@ -42,8 +42,8 @@ export const exchangeCommand = new SlashCommandBuilder()
       .addIntegerOption((o) => o.setName("額").setDescription(`投入する ${C1} の額`).setRequired(true).setMinValue(1)),
   )
   .addSubcommand((sc) =>
-    sc.setName("出庫").setDescription(`${C2} → ${C1}（換金・還光${Math.round(RYUKO_RATE * 100)}%）`)
-      .addIntegerOption((o) => o.setName("額").setDescription(`投入する ${C2} の額（${Math.round(RYUKO_RATE * 100)}%は還光で消滅）`).setRequired(true).setMinValue(1)),
+    sc.setName("出庫").setDescription(`${C2} → ${C1}（換金・還光あり）`)
+      .addIntegerOption((o) => o.setName("額").setDescription(`投入する ${C2} の額（既定 ${Math.round(DEFAULT_RYUKO_RATE * 100)}% が還光で消滅）`).setRequired(true).setMinValue(1)),
   )
   .addSubcommand((sc) => sc.setName("履歴").setDescription("自分の両替履歴（直近10件）"));
 
@@ -78,7 +78,7 @@ async function showBalance(interaction: ChatInputCommandInteraction, guildId: st
       { name: `✦ ${C1}`, value: gilText, inline: true },
       { name: `${WORLD.CURRENCY_2_SYMBOL} ${C2}`, value: formatEther(ether), inline: true },
     )
-    .setFooter({ text: `入庫=${C1}→${C2}（無料） / 出庫=${C2}→${C1}（還光${Math.round(RYUKO_RATE * 100)}%）` });
+    .setFooter({ text: `入庫=${C1}→${C2}（無料） / 出庫=${C2}→${C1}（還光${Math.round((getServerConfig(guildId).ryuko_rate ?? DEFAULT_RYUKO_RATE) * 100)}%）` });
   await interaction.editReply({ embeds: [embed] });
 }
 
@@ -182,7 +182,7 @@ function successEmbed(
     embed.setDescription(
       [
         `${formatEther(amount)} を換金したよ。`,
-        `🔥 還光バーン: **${formatEther(burn)}**（${Math.round(RYUKO_RATE * 100)}%・消滅）`,
+        `🔥 還光バーン: **${formatEther(burn)}**（${Math.round((getServerConfig(guildId).ryuko_rate ?? DEFAULT_RYUKO_RATE) * 100)}%・消滅）`,
         `✧ 受け取り: **${fmtGil(gotLux)}**`,
       ].join("\n"),
     );

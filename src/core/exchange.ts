@@ -12,7 +12,7 @@
  * 整合性: ローカルのエテル増減と status='done'/'pending_commit' を **同一 runTransaction** で更新し、
  *   「付与したのに未記録」を防ぐ。再起動時の resume は方向別に分岐（出庫は再徴収しない）。
  */
-import { db, runTransaction } from "./db";
+import { db, runTransaction, getServerConfig } from "./db";
 import { adjustBalance } from "./bank";
 import { WORLD } from "../world.config";
 import {
@@ -23,12 +23,21 @@ import {
 export { isExchangeApiAvailable } from "./gilApi";
 
 /**
- * 還光率: 出庫（エテル→ルクス）時に徴収エテルのこの割合を **バーン（消滅）** し、
+ * 還光率のデフォルト。実際の値は server_config.ryuko_rate（/管理 設定 で変更可）。
+ * 出庫（エテル→ルクス）時に徴収エテルのこの割合を **バーン（消滅）** し、
  * 残りだけをルクス化する。入庫（ルクス→エテル）は無料。
- *   例: 1000 エテル出庫 → 500 バーン消滅 / 500 をルクスに換金。
+ *   例: rate=0.5 で 1000 エテル出庫 → 500 バーン消滅 / 500 をルクスに換金。
  * ※ JP/救済プールには回さず純粋に消す方針（運営決定 2026-06）。
  */
-export const RYUKO_RATE = 0.5;
+export const DEFAULT_RYUKO_RATE = 0.5;
+
+/** server_config から還光率を取得（0〜1 にクランプ・不正値はデフォルト）。 */
+function getRyukoRate(guildId: string): number {
+  const cfg = getServerConfig(guildId);
+  const r = typeof cfg.ryuko_rate === "number" ? cfg.ryuko_rate : DEFAULT_RYUKO_RATE;
+  if (!Number.isFinite(r) || r < 0) return DEFAULT_RYUKO_RATE;
+  return Math.min(1, r);
+}
 
 export type ApiExchangeRow = {
   id: number;
@@ -117,12 +126,20 @@ async function runInflow(row: ApiExchangeRow): Promise<ExecResult> {
 }
 
 // ─── 出庫: エテル → ルクス（還光バーンあり） ───────────
-//   徴収エテルのうち burn = floor(amount × RYUKO_RATE) を消滅させ、
+//   徴収エテルのうち burn = floor(amount × 還光率) を消滅させ、
 //   net = amount − burn だけをルクス化する（Gil-bot commit の amount = net）。
-//   burn/net は amount から決定論的に再計算できるので resume 時も安全。
+//   resume（再起動後の再開）時は、徴収時に確定して保存した net(external_amount) を
+//   使う。徴収後に管理者が還光率を変えても、徴収済みの取引はブレない。
 async function runOutflow(row: ApiExchangeRow, alreadyDebited: boolean): Promise<ExecResult> {
-  const burn = Math.floor(row.amount * RYUKO_RATE);
-  const net = row.amount - burn;
+  let net: number;
+  let burn: number;
+  if (alreadyDebited && typeof row.external_amount === "number" && row.external_amount > 0) {
+    net = row.external_amount;
+    burn = row.amount - net;
+  } else {
+    burn = Math.floor(row.amount * getRyukoRate(row.guild_id));
+    net = row.amount - burn;
+  }
   if (net <= 0) {
     setStatus(row.id, "failed");
     return { ok: false, code: "AMOUNT_TOO_SMALL", message: "額が小さすぎて、還光すると残らないよ。" };

@@ -96,6 +96,8 @@ export type ServerConfig = {
   exchange_threshold: number;
   /** v2 為替: 承認ボタンを流すチャンネル（未設定なら実行チャンネル） */
   exchange_approval_channel_id: string | null;
+  /** v2 為替: 出庫（エテル→ルクス）時の還光率（バーン割合）。0.5 = 50% 消滅。 */
+  ryuko_rate: number;
   /** v2 VIP: 入場権購入で付与するVIPロールのID（未設定ならロール付与スキップ） */
   vip_role_id: string | null;
   /** 賭場運営ロール: 異議・トラブル通知でメンションするロール。/管理 本体はオーナーのみ。 */
@@ -246,7 +248,7 @@ export function initializeDatabase(): void {
       daily_base INTEGER NOT NULL DEFAULT 300,
       daily_rich INTEGER NOT NULL DEFAULT 100,
       bankruptcy_aid INTEGER NOT NULL DEFAULT 500,
-      balance_cap INTEGER NOT NULL DEFAULT 300000,
+      balance_cap INTEGER NOT NULL DEFAULT 5000000,
       house_edge_offset REAL NOT NULL DEFAULT 0,
       min_bet INTEGER NOT NULL DEFAULT 50,
       jackpot_pool INTEGER NOT NULL DEFAULT 0,
@@ -624,6 +626,8 @@ export function initializeDatabase(): void {
     "ALTER TABLE server_config ADD COLUMN race_channel_id TEXT",
     // 紐付きVCの雑談化防止: 最終勝負成立時刻を保持して N分経ったら sweep で片付ける
     "ALTER TABLE temp_voice_channels ADD COLUMN last_settled_at TEXT",
+    // 為替: 還光率（出庫=エテル→ルクス時のバーン割合）。0.5 = 50% 消滅。
+    "ALTER TABLE server_config ADD COLUMN ryuko_rate REAL NOT NULL DEFAULT 0.5",
   ];
 
   // ─── 5枚交換ポーカー ───
@@ -776,7 +780,7 @@ export function updateServerConfig(guildId: string, updates: Partial<Omit<Server
     "casino_channel_id", "jackpot_channel_id", "stock_channel_id",
     "games_enabled", "lucky_game", "lucky_game_date",
     "exchange_rate_offset", "board_fee",
-    "exchange_threshold", "exchange_approval_channel_id",
+    "exchange_threshold", "exchange_approval_channel_id", "ryuko_rate",
     "vip_role_id", "admin_role_id", "tx_feed_channel_id",
     "race_channel_id",
   ] as const;
