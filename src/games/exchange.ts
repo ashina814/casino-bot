@@ -16,8 +16,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   PermissionFlagsBits,
-  ChannelType,
-  type TextChannel,
 } from "discord.js";
 import { ensureUser, getBalance } from "../core/bank";
 import { getServerConfig, db } from "../core/db";
@@ -131,14 +129,31 @@ async function startExchange(interaction: ChatInputCommandInteraction, guildId: 
     new ButtonBuilder().setCustomId(`exapprove:reject:${id}`).setLabel("却下").setStyle(ButtonStyle.Danger),
   );
 
+  // 承認パネルを投下。テキスト送信できるチャンネルなら種別問わず対応
+  // （旧実装は GuildText 限定で、スレッド/VCチャット/アナウンスだと黙って出ず申請が宙ぶらりんになっていた）。
+  let posted = false;
   try {
-    const ch = await interaction.client.channels.fetch(approvalChannelId);
-    if (ch && ch.type === ChannelType.GuildText) {
-      await (ch as TextChannel).send({ embeds: [embed], components: [row] });
+    const ch = await interaction.client.channels.fetch(approvalChannelId).catch(() => null);
+    if (ch && ch.isTextBased() && "send" in ch) {
+      await (ch as any).send({ embeds: [embed], components: [row] });
+      posted = true;
     }
-  } catch { /* チャンネル取得失敗 */ }
+  } catch (e) {
+    console.warn("[exchange] approval panel post failed:", e);
+  }
 
-  await interaction.reply({ content: `この額（${amount.toLocaleString()}）は承認が必要だよ。申請 #${id} を出したから、承認を待ってね。`, ephemeral: true });
+  if (!posted) {
+    // パネルを出せなかった → 申請を失敗扱いにして案内（宙ぶらりん防止・エスクロー前なので残高影響なし）
+    db.prepare("UPDATE api_exchanges SET status='failed', updated_at=datetime('now') WHERE id=?").run(id);
+    await interaction.reply({
+      embeds: [errorEmbed("承認パネルを出せなかったよ。承認用チャンネルの設定を管理者に確認してね。（申請は取り消したよ）")],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const where = cfg.exchange_approval_channel_id ? `<#${cfg.exchange_approval_channel_id}>` : "このチャンネル";
+  await interaction.reply({ content: `この額（${amount.toLocaleString()}）は承認が必要だよ。申請 #${id} を ${where} に出したから、管理者の承認を待ってね。`, ephemeral: true });
 }
 
 function successEmbed(
