@@ -22,7 +22,7 @@ import {
 import { ensureUser, getBalance } from "../core/bank";
 import { getServerConfig, db } from "../core/db";
 import {
-  createExchange, executeExchange, getExchangeRow, isExchangeApiAvailable,
+  createExchange, executeExchange, getExchangeRow, isExchangeApiAvailable, RYUKO_RATE,
 } from "../core/exchange";
 import { gilBalance } from "../core/gilApi";
 import type { GilDirection } from "../core/gilApi";
@@ -44,8 +44,8 @@ export const exchangeCommand = new SlashCommandBuilder()
       .addIntegerOption((o) => o.setName("額").setDescription(`投入する ${C1} の額`).setRequired(true).setMinValue(1)),
   )
   .addSubcommand((sc) =>
-    sc.setName("出庫").setDescription(`${C2} → ${C1}（換金する）`)
-      .addIntegerOption((o) => o.setName("額").setDescription(`投入する ${C2} の額`).setRequired(true).setMinValue(1)),
+    sc.setName("出庫").setDescription(`${C2} → ${C1}（換金・還光${Math.round(RYUKO_RATE * 100)}%）`)
+      .addIntegerOption((o) => o.setName("額").setDescription(`投入する ${C2} の額（${Math.round(RYUKO_RATE * 100)}%は還光で消滅）`).setRequired(true).setMinValue(1)),
   )
   .addSubcommand((sc) => sc.setName("履歴").setDescription("自分の両替履歴（直近10件）"));
 
@@ -80,7 +80,7 @@ async function showBalance(interaction: ChatInputCommandInteraction, guildId: st
       { name: `✦ ${C1}`, value: gilText, inline: true },
       { name: `${WORLD.CURRENCY_2_SYMBOL} ${C2}`, value: formatEther(ether), inline: true },
     )
-    .setFooter({ text: `入庫=${C1}→${C2} / 出庫=${C2}→${C1}。レートや手数料は ${C1} 側で決まるよ。` });
+    .setFooter({ text: `入庫=${C1}→${C2}（無料） / 出庫=${C2}→${C1}（還光${Math.round(RYUKO_RATE * 100)}%）` });
   await interaction.editReply({ embeds: [embed] });
 }
 
@@ -113,7 +113,7 @@ async function startExchange(interaction: ChatInputCommandInteraction, guildId: 
       await interaction.editReply({ embeds: [errorEmbed(`両替できなかったよ。\n理由: ${res.message}`)] });
       return;
     }
-    await interaction.editReply({ embeds: [successEmbed(interaction, guildId, direction, amount, res.etherDelta)] });
+    await interaction.editReply({ embeds: [successEmbed(interaction, guildId, direction, amount, res.etherDelta, res.op)] });
     return;
   }
 
@@ -141,17 +141,39 @@ async function startExchange(interaction: ChatInputCommandInteraction, guildId: 
   await interaction.reply({ content: `この額（${amount.toLocaleString()}）は承認が必要だよ。申請 #${id} を出したから、承認を待ってね。`, ephemeral: true });
 }
 
-function successEmbed(interaction: ChatInputCommandInteraction | ButtonInteraction, guildId: string, direction: GilDirection, amount: number, etherDelta: number) {
+function successEmbed(
+  interaction: ChatInputCommandInteraction | ButtonInteraction,
+  guildId: string,
+  direction: GilDirection,
+  amount: number,
+  etherDelta: number,
+  op?: { internalAmount?: number; externalPayout?: number },
+) {
   const isInflow = direction === "internal_to_external";
   const userId = interaction.user.id;
   const etherAfter = getBalance(userId, guildId);
   const deltaText = `${etherDelta >= 0 ? "+" : "−"}${formatEther(Math.abs(etherDelta))}`;
-  return baseEmbed(`✅ 両替完了 — ${isInflow ? `${C1}→${C2}` : `${C2}→${C1}`}`, isInflow ? PALETTE.JADE : PALETTE.STARGOLD)
-    .setDescription(
-      isInflow
-        ? `${fmtGil(amount)} を ${C2} に両替したよ。`
-        : `${formatEther(amount)} を ${C1} に両替したよ。`,
-    )
+
+  const embed = baseEmbed(`✅ 両替完了 — ${isInflow ? `${C1}→${C2}` : `${C2}→${C1}`}`, isInflow ? PALETTE.JADE : PALETTE.STARGOLD);
+
+  if (isInflow) {
+    // ルクス → エテル（無料）。op.externalPayout = 受け取りエテル。
+    const gotEther = op?.externalPayout ?? amount;
+    embed.setDescription(`${fmtGil(amount)} を ${formatEther(gotEther)} に両替したよ。`);
+  } else {
+    // エテル → ルクス（還光バーンあり）。op.internalAmount = 受け取りルクス（=net）。
+    const gotLux = op?.internalAmount ?? amount;
+    const burn = amount - gotLux;
+    embed.setDescription(
+      [
+        `${formatEther(amount)} を換金したよ。`,
+        `🔥 還光バーン: **${formatEther(burn)}**（${Math.round(RYUKO_RATE * 100)}%・消滅）`,
+        `✧ 受け取り: **${fmtGil(gotLux)}**`,
+      ].join("\n"),
+    );
+  }
+
+  return embed
     .addFields(
       { name: `${C2} の増減`, value: deltaText, inline: true },
       { name: `${WORLD.CURRENCY_2_SYMBOL} ${C2} 残高`, value: formatEther(etherAfter), inline: true },

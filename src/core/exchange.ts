@@ -22,6 +22,14 @@ import {
 
 export { isExchangeApiAvailable } from "./gilApi";
 
+/**
+ * 還光率: 出庫（エテル→ルクス）時に徴収エテルのこの割合を **バーン（消滅）** し、
+ * 残りだけをルクス化する。入庫（ルクス→エテル）は無料。
+ *   例: 1000 エテル出庫 → 500 バーン消滅 / 500 をルクスに換金。
+ * ※ JP/救済プールには回さず純粋に消す方針（運営決定 2026-06）。
+ */
+export const RYUKO_RATE = 0.5;
+
 export type ApiExchangeRow = {
   id: number;
   guild_id: string;
@@ -108,14 +116,32 @@ async function runInflow(row: ApiExchangeRow): Promise<ExecResult> {
   return { ok: true, etherDelta: ether, op };
 }
 
-// ─── 出庫: エテル → Gil ───────────────────────────────
+// ─── 出庫: エテル → ルクス（還光バーンあり） ───────────
+//   徴収エテルのうち burn = floor(amount × RYUKO_RATE) を消滅させ、
+//   net = amount − burn だけをルクス化する（Gil-bot commit の amount = net）。
+//   burn/net は amount から決定論的に再計算できるので resume 時も安全。
 async function runOutflow(row: ApiExchangeRow, alreadyDebited: boolean): Promise<ExecResult> {
+  const burn = Math.floor(row.amount * RYUKO_RATE);
+  const net = row.amount - burn;
+  if (net <= 0) {
+    setStatus(row.id, "failed");
+    return { ok: false, code: "AMOUNT_TOO_SMALL", message: "額が小さすぎて、還光すると残らないよ。" };
+  }
+
   if (!alreadyDebited) {
-    // ①エテル徴収 ＋ pending_commit を原子的に
+    // ①エテル徴収（net=ルクス化 / burn=消滅）＋ pending_commit を原子的に
     const debit = runTransaction<{ ok: boolean }>(() => {
-      const r = adjustBalance(row.user_id, -row.amount, "両替: 出庫(エテル→Gil)", "exchange", row.guild_id);
-      if (!r.ok) return { ok: false };
-      db.prepare("UPDATE api_exchanges SET status='pending_commit', external_amount=?, updated_at=datetime('now') WHERE id=?").run(row.amount, row.id);
+      const r1 = adjustBalance(row.user_id, -net, "両替: 出庫(エテル→ルクス)", "exchange", row.guild_id);
+      if (!r1.ok) return { ok: false };
+      if (burn > 0) {
+        const r2 = adjustBalance(row.user_id, -burn, "両替: 還光バーン", "exchange", row.guild_id);
+        if (!r2.ok) {
+          // net は引けたが burn が引けない（残高ちょうど）→ net を巻き戻して失敗
+          adjustBalance(row.user_id, net, "両替: 出庫ロールバック", "exchange", row.guild_id);
+          return { ok: false };
+        }
+      }
+      db.prepare("UPDATE api_exchanges SET status='pending_commit', external_amount=?, fee_internal=?, updated_at=datetime('now') WHERE id=?").run(net, burn, row.id);
       return { ok: true };
     });
     if (!debit.ok) {
@@ -124,22 +150,23 @@ async function runOutflow(row: ApiExchangeRow, alreadyDebited: boolean): Promise
     }
   }
 
-  // ②commit → Gil 付与
+  // ②commit → ルクス付与（net 分のみ）
   const commit = await gilCommit({
     guildId: row.guild_id, userId: row.user_id, direction: "external_to_internal",
-    amount: row.amount, requestId: row.request_id, memo: row.memo ?? "casino出庫(エテル→Gil)",
+    amount: net, requestId: row.request_id, memo: row.memo ?? "casino出庫(エテル→ルクス・還光後)",
   });
   if (!commit.ok) {
-    // ③commit 失敗 → エテル返金
+    // ③commit 失敗 → エテル全額（net+burn）返金
     runTransaction(() => {
-      adjustBalance(row.user_id, row.amount, "両替: 出庫失敗の返金", "exchange", row.guild_id);
+      adjustBalance(row.user_id, net, "両替: 出庫失敗の返金", "exchange", row.guild_id);
+      if (burn > 0) adjustBalance(row.user_id, burn, "両替: 還光バーン取消・返金", "exchange", row.guild_id);
       db.prepare("UPDATE api_exchanges SET status='failed', ether_delta=0, updated_at=datetime('now') WHERE id=?").run(row.id);
     });
     return { ok: false, code: commit.code, message: commit.message };
   }
   const op = commit.data.operation;
   db.prepare("UPDATE api_exchanges SET status='done', internal_amount=?, fee_internal=?, ether_delta=?, updated_at=datetime('now') WHERE id=?")
-    .run(op.internalAmount ?? null, op.feeInternal ?? null, -row.amount, row.id);
+    .run(op.internalAmount ?? net, burn, -row.amount, row.id);
   return { ok: true, etherDelta: -row.amount, op };
 }
 
