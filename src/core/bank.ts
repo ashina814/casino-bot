@@ -150,6 +150,14 @@ export function recordWin(userId: string, winAmount: number): void {
     console.warn(`[recordWin] rejected unsafe winAmount: ${winAmount} (user=${userId})`);
     return;
   }
+
+  // カムバック勝利判定: 更新前の連敗数を読む（UPDATE で 0 にリセットされる前に取る）
+  let preLoseStreak = 0;
+  try {
+    const row = db.prepare("SELECT current_lose_streak FROM users WHERE user_id = ?").get(userId) as { current_lose_streak: number } | undefined;
+    preLoseStreak = row?.current_lose_streak ?? 0;
+  } catch { /* silent */ }
+
   db.prepare(`
     UPDATE users SET
       total_wins = total_wins + 1,
@@ -166,6 +174,16 @@ export function recordWin(userId: string, winAmount: number): void {
     const { checkWinMilestones } = require("./milestoneTitles");
     checkWinMilestones(userId);
   } catch { /* silent */ }
+
+  // カムバック勝利: 連敗5+からの復帰勝利で好感度 +3。
+  // 連敗 0 リセット後の次の勝利では preLoseStreak が 0 なので、1連勝につき1回しか発火しない。
+  if (preLoseStreak >= 5) {
+    try {
+      const { addAffection } = require("./db");
+      const { AFFECTION_GAINS } = require("./zashikiStage");
+      addAffection(userId, AFFECTION_GAINS.comebackWin);
+    } catch { /* silent */ }
+  }
 }
 
 export function recordLoss(userId: string): void {
