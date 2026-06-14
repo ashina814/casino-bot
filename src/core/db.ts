@@ -628,6 +628,8 @@ export function initializeDatabase(): void {
     "ALTER TABLE temp_voice_channels ADD COLUMN last_settled_at TEXT",
     // 為替: 還光率（出庫=エテル→ルクス時のバーン割合）。0.5 = 50% 消滅。
     "ALTER TABLE server_config ADD COLUMN ryuko_rate REAL NOT NULL DEFAULT 0.5",
+    // 板: 結果報告時刻（異議受付残り時間の表示・自動精算起点）
+    "ALTER TABLE betting_markets ADD COLUMN reported_at TEXT",
   ];
 
   // ─── 5枚交換ポーカー ───

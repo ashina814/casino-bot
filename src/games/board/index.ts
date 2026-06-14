@@ -60,6 +60,8 @@ type MarketRow = {
   thread_id: string | null;
   fee: number;
   created_at: string;
+  /** 結果報告時刻（reported になった瞬間）。異議残り時間の表示に使う */
+  reported_at: string | null;
 };
 
 type BetRow = { user_id: string; option_index: number; amount: number };
@@ -240,11 +242,41 @@ function renderPanel(marketId: number): { embeds: EmbedBuilder[]; components: Ac
     }
   }
 
-  const modeLabel = m.payout_mode === "parimutuel" ? "パリミュ（比例配分）" : "総取り（均等頭割り）";
+  const modeLabel = m.payout_mode === "parimutuel"
+    ? "パリミュ（賭けた額に比例して山分け）"
+    : "総取り（的中者で均等に山分け）";
   const statusLabel: Record<string, string> = {
     open: "🟢 受付中", closed: "🔒 締切", reported: "📣 結果報告 — 承認待ち",
     disputed: "⚖️ 異議あり — 裁定待ち", settled: "✅ 精算済み", void: "♻️ 無効・返金済み",
   };
+
+  // 「いま何が起きてるか + 次にやること」を状態別に書く（初見でもフローが分かるように）
+  const creatorMention = `<@${m.creator_id}>`;
+  const nowLines: string[] = [];
+  if (m.status === "open") {
+    nowLines.push("📌 **下のボタンから賭ける**（賭け直し＝上書きでOK）");
+    nowLines.push(`　→ 賭け切ったら 🔒 締切る で締める（立て主・管理者）`);
+    if (m.deadline) {
+      nowLines.push(`　→ 自動締切: <t:${Math.floor(new Date(m.deadline).getTime() / 1000)}:R>`);
+    }
+  } else if (m.status === "closed") {
+    nowLines.push(`📌 **${creatorMention} が結果を報告する番**`);
+    nowLines.push("　→ 報告後、5分の異議受付 → 異議無しなら自動精算");
+  } else if (m.status === "reported") {
+    let remainLine = "5分以内に異議が無ければ自動精算";
+    if (m.reported_at) {
+      const endTs = Math.floor((new Date(m.reported_at + "Z").getTime() + DISPUTE_WINDOW_MS) / 1000);
+      remainLine = `自動精算: <t:${endTs}:R>（異議が無ければ）`;
+    }
+    nowLines.push(`📌 **結果に異議があれば「⚠️ 異議あり」を押す**`);
+    nowLines.push(`　→ ${remainLine}`);
+  } else if (m.status === "disputed") {
+    nowLines.push("📌 **管理者の裁定待ち**（下のメニューで勝ち選択肢を確定 or 全額返金）");
+  } else if (m.status === "settled") {
+    nowLines.push("✅ 精算済み。配当は各自の残高へ反映済み");
+  } else if (m.status === "void") {
+    nowLines.push("♻️ 無効。賭けたエテルは全額返金済み");
+  }
 
   const optLines = options.map((opt, i) => {
     const mark = OPTION_MARKS[i];
@@ -263,12 +295,13 @@ function renderPanel(marketId: number): { embeds: EmbedBuilder[]; components: Ac
   const embed = baseEmbed(`📋 #${m.id}　${m.title}`, m.status === "settled" ? PALETTE.JADE : m.status === "void" ? PALETTE.CRIMSON : PALETTE.STARGOLD)
     .setDescription([
       statusLabel[m.status] ?? m.status,
-      `方式: ${modeLabel}　|　総額: ${formatEther(total)}`,
-      m.deadline && m.status === "open" ? `締切: <t:${Math.floor(new Date(m.deadline).getTime() / 1000)}:R>` : "",
+      `方式: ${modeLabel}　|　立て主: ${creatorMention}　|　総額: ${formatEther(total)}`,
+      "",
+      ...nowLines,
       "",
       ...optLines,
     ].filter(Boolean).join("\n"))
-    .setFooter({ text: `立てた人: 結果報告は作成者か管理者　|　1人1口（賭け直しは上書き）` });
+    .setFooter({ text: `1人1口（賭け直し＝上書き）　|　結果報告は立て主か管理者` });
 
   const rows: ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] = [];
 
@@ -504,7 +537,7 @@ async function openReportSelect(interaction: ButtonInteraction, m: MarketRow): P
 async function applyReport(interaction: StringSelectMenuInteraction, m: MarketRow, opt: number): Promise<void> {
   if (!canManage(interaction, m)) { await interaction.reply({ content: "報告できるのは議題を立てた人か管理者だけだよ。", ephemeral: true }); return; }
   if (m.status !== "closed") { await interaction.update({ content: "もう報告は受け付けられないよ。", components: [] }); return; }
-  db.prepare("UPDATE betting_markets SET status = 'reported', result_option = ? WHERE id = ?").run(opt, m.id);
+  db.prepare("UPDATE betting_markets SET status = 'reported', result_option = ?, reported_at = datetime('now') WHERE id = ?").run(opt, m.id);
   const options = getOptions(m);
   await interaction.update({ content: `結果を【${options[opt]}】で報告したよ。参加者の承認を待つね。`, components: [] });
   await refreshPanel(interaction.client, m.id);
