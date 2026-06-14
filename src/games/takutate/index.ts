@@ -227,6 +227,31 @@ export async function createLinkedTable(interaction: ButtonInteraction, opts: Li
     return null;
   }
 
+  // 既存の紐付きVCチャットから「卓を立てる」ボタンが押された場合、新規VCを作らず
+  // 既存VCを今回の勝負へ付け替えて再利用する。これで「VC内で /勝負 を打ち直す→
+  // 同じVCで人/ゲームだけ差し替わる」ができるようになり、毎回VCが乱立しない。
+  // 条件: 呼び出されたチャンネル自体が temp_voice_channels に登録された VC（=テキストチャット可能なVC）
+  //       であること。誰が押しても良い（VCに入ってる相手なら誰でも再利用できる）。
+  const calledChannelId = interaction.channelId;
+  if (calledChannelId) {
+    const reusableRow = db.prepare(
+      "SELECT channel_id, deposit_amount FROM temp_voice_channels WHERE channel_id = ?",
+    ).get(calledChannelId) as { channel_id: string; deposit_amount: number } | undefined;
+    if (reusableRow) {
+      // 既存 deposit はそのまま据え置き、link を新しい勝負へ付け替え
+      db.prepare(
+        "UPDATE temp_voice_channels SET link_type = ?, link_id = ?, settle_count = 0, last_settled_at = NULL WHERE channel_id = ?",
+      ).run(opts.linkType, opts.linkId, calledChannelId);
+      await interaction.reply({
+        embeds: [baseEmbed("🎴 同じ卓で続けるよ", PALETTE.JADE).setDescription(
+          `<#${calledChannelId}> をこの勝負の卓に付け替えたよ。人を変えるたびに立て直さなくてOK。`,
+        )],
+        ephemeral: true,
+      });
+      return null;
+    }
+  }
+
   // デポジット事前チェック
   const userId = interaction.user.id;
   if (getBalance(userId, guild.id) < VC_DEPOSIT) {
