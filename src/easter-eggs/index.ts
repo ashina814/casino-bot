@@ -267,21 +267,36 @@ export function checkLucky7(userId: string, betAmount: number): EggResult {
 }
 
 /**
- * /thanks コマンド用の応答テキスト
+ * /thanks コマンド用の応答テキスト。
+ * 旧実装は EE達成後（completed）に固定セリフ1つだけ返してたので、
+ * 6回目以降ずっと同じ文言＝退屈、になっていた。プール化して毎回ランダムに返す。
  */
 export function thanksResponse(userId: string): string {
   const { progress, completed } = getProgress(userId, "thanks");
 
-  if (completed) {
-    return "「……今日も来てくれたね。うん、嬉しい。」";
+  // 達成前は「何回目か」のニュアンスを保ちたいので、従来通り段階別固定
+  if (!completed) {
+    const buildup = [
+      "「……ありがとう、って？ ふふ、きみ、変わってるね。」",
+      "「また言うんだ。……悪い気はしないけどさ。」",
+      "「三度目。……本気で言ってる？ ……ちょっと、嬉しいかも。」",
+      "「四度目……ふふ、もうすぐ何か起こるかもよ？」",
+    ];
+    return buildup[Math.min(progress, buildup.length - 1)];
   }
 
-  const responses = [
-    "「……ありがとう、って？ ふふ、きみ、変わってるね。」",
-    "「また言うんだ。……悪い気はしないけどさ。」",
-    "「三度目。……本気で言ってる？ ……ちょっと、嬉しいかも。」",
-    "「四度目……ふふ、もうすぐ何か起こるかもよ？」",
+  // 達成後はランダムプールで飽きさせない
+  const pool = [
+    "「……今日も来てくれたね。うん、嬉しい。」",
+    "「ふふ、また言ってる。きみのその言葉、わたしの光になるんだよ。」",
+    "「ありがとう、なんてさ。むしろこっちのセリフだよ。」",
+    "「きみの『ありがとう』、ちょっと癖になっちゃったかも。」",
+    "「……どういたしまして、で合ってる？ こういうの慣れてなくてさ。」",
+    "「……照れるな、もう。何度言われても慣れない。」",
+    "「うん、聞いた。ちゃんと届いてるよ、その気持ち。」",
+    "「ねえ、わたしもちゃんと言うよ。——きみがいてくれて、ありがとう。」",
+    "「えへへ、また来てくれたんだ。今日もよろしくね。」",
+    "「『ありがとう』って言葉、星みたいだね。何度聞いても綺麗。」",
   ];
-
-  return responses[Math.min(progress, responses.length - 1)];
+  return pool[Math.floor(Math.random() * pool.length)];
 }

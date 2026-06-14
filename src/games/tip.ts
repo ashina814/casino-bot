@@ -5,12 +5,13 @@ import { infoEmbed, errorEmbed, successEmbed, COLORS } from "../ui/embeds";
 import { memberName, memberNameOfCached } from "../core/names";
 
 // 折衷化: 賭けの精算には使わない "気持ち程度のチップ"。
-// RMT・経済横流しの温床にならないよう、1日1回・1回◈500 までに絞る。
+// RMT・経済横流しの温床にならないよう、1日3回・1回◈500 までに絞る。
 const TIP_MAX_AMOUNT = 500;
+const TIP_DAILY_CAP = 3;
 
 export const tipCommand = new SlashCommandBuilder()
   .setName("心付け")
-  .setDescription("💸 気持ちを贈る（1日1回・◈500 まで）")
+  .setDescription(`💸 気持ちを贈る（1日${TIP_DAILY_CAP}回まで・1回◈${TIP_MAX_AMOUNT}）`)
   .addUserOption((o) => o.setName("user").setDescription("贈る相手").setRequired(true))
   .addIntegerOption((o) =>
     // setMaxValue を付けると Discord 側で先に弾かれて素っ気ないエラーが出るので、
@@ -49,12 +50,19 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
     return;
   }
 
-  // 1日1回 CD（既存 last_daily の流儀に合わせ UTC 日付で判定）
+  // 1日3回 CD（affection.daily_tip_count を共通カウンタとして使う）
   ensureUser(senderId, guildId);
   const today = new Date().toISOString().slice(0, 10);
-  const row = db.prepare("SELECT last_tip_date FROM users WHERE user_id = ?").get(senderId) as { last_tip_date: string | null } | undefined;
-  if (row?.last_tip_date === today) {
-    await interaction.reply({ embeds: [errorEmbed("今日はもう渡してるよ。気持ちは明日また。")], ephemeral: true });
+  const tipCountRow = db.prepare(
+    "SELECT daily_tip_count, daily_counter_date FROM affection WHERE user_id = ?",
+  ).get(senderId) as { daily_tip_count: number; daily_counter_date: string | null } | undefined;
+  const tipsUsedToday = (tipCountRow && tipCountRow.daily_counter_date === today)
+    ? tipCountRow.daily_tip_count : 0;
+  if (tipsUsedToday >= TIP_DAILY_CAP) {
+    await interaction.reply({
+      embeds: [errorEmbed(`今日はもう ${TIP_DAILY_CAP} 回渡したよ。気持ちは明日また。`)],
+      ephemeral: true,
+    });
     return;
   }
 
@@ -73,8 +81,8 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
         throw new Error("Failed to add tip to receiver.");
       }
 
-      // CD 記録（同一トランザクション内）
-      db.prepare("UPDATE users SET last_tip_date = ? WHERE user_id = ?").run(today, senderId);
+      // CD は affection.daily_tip_count（addTipAffection が +1 する）に集約。
+      // 旧 users.last_tip_date は使わない（カラム自体は残置）。
       return true;
     });
 
@@ -85,17 +93,22 @@ export async function handleTipCommand(interaction: ChatInputCommandInteraction)
 
     const msgDesc = message ? `\n\n📝 **メッセージ:**\n「${message}」` : "";
 
-    // 座敷童の好感度: tipの心遣いに座敷童が喜ぶ
+    // 座敷童の好感度: tipの心遣いに座敷童が喜ぶ（同時に daily_tip_count を +1）
     let affectionNote = "";
+    let usedAfter = tipsUsedToday + 1; // 失敗しても画面上の残数表示には使う
     try {
       const { addTipAffection } = require("../core/db");
       if (addTipAffection(senderId)) {
         affectionNote = "\n\n*（アステルがこちらを見て微笑んでいる…💖）*";
       }
     } catch {}
+    const remaining = Math.max(0, TIP_DAILY_CAP - usedAfter);
+    const remainNote = remaining > 0
+      ? `\n*（今日はあと ${remaining} 回まで贈れるよ）*`
+      : `\n*（今日の心付けはこれで打ち止め。また明日ね）*`;
 
     const embed = successEmbed(
-      `💸 **${memberName(interaction)}** が **${memberNameOfCached(interaction.guild, targetUser)}** に ◈${amount.toLocaleString()} エテルを贈りました！${msgDesc}${affectionNote}`
+      `💸 **${memberName(interaction)}** が **${memberNameOfCached(interaction.guild, targetUser)}** に ◈${amount.toLocaleString()} エテルを贈りました！${msgDesc}${affectionNote}${remainNote}`
     );
 
     await interaction.reply({ content: `<@${targetUser.id}>`, embeds: [embed] });
