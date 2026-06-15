@@ -19,6 +19,7 @@ import {
   ButtonStyle,
   ButtonInteraction,
   ModalBuilder,
+  ModalSubmitInteraction,
   TextInputBuilder,
   TextInputStyle,
   ComponentType,
@@ -26,6 +27,27 @@ import {
   StringSelectMenuBuilder,
   Client,
 } from "discord.js";
+
+// ─── ユーザーID 解析 ───────────────────────────────────
+/** モーダル入力（"<@123>" / "<@!123>" / 数字18桁等）から userId を抽出。失敗時 null。 */
+function parseUserIdInput(raw: string): string | null {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return null;
+  const m = trimmed.match(/^<@!?(\d{15,21})>$|^(\d{15,21})$/);
+  return m ? (m[1] ?? m[2] ?? null) : null;
+}
+
+/** 表示用に member.displayName を取得（失敗時はそのままIDを返す）。 */
+async function resolveDisplayName(interaction: ButtonInteraction | ChatInputCommandInteraction | ModalSubmitInteraction, userId: string): Promise<string> {
+  try {
+    const member = await interaction.guild?.members.fetch(userId);
+    if (member) return member.displayName;
+  } catch { /* not in guild */ }
+  return userId;
+}
+
+// 共通の型: 管理者操作の起点となる interaction
+type AdminInteraction = ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction;
 import { db, getServerConfig, updateServerConfig, runTransaction } from "../core/db";
 import { adjustBalance, ensureUser } from "../core/bank";
 import { getEconomyState } from "../core/economy";
@@ -34,138 +56,11 @@ import { config } from "../config";
 
 // ─── Command Definition ────────────────────────────────
 
+// すべての機能はパネル経由（モーダル + ボタン）に統一。サブコマンドは持たない。
 export const adminCommand = new SlashCommandBuilder()
   .setName("管理")
-  .setDescription("管理者パネル")
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-  .addSubcommand((sub) =>
-    sub
-      .setName("監視")
-      .setDescription("📊 経済監視ダッシュボード（オーナー除く）")
-      .addStringOption((o) =>
-        o.setName("区分").setDescription("見たいセクションだけに絞る（既定: 全て）").setRequired(false)
-          .addChoices(
-            { name: "全て", value: "all" },
-            { name: "流通（量・プール・lifetime動量）", value: "flow" },
-            { name: "動き（24hプレイ・大型取引）", value: "activity" },
-            { name: "ランキング（残高TOP・流入/流出TOP）", value: "ranking" },
-            { name: "分布（資産分布）", value: "dist" },
-          ),
-      )
-  )
-  .addSubcommand((sub) =>
-    sub.setName("設定").setDescription("⚙️ サーバー設定パネル")
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("発行")
-      .setDescription("💰 エテルを発行する")
-      .addUserOption((opt) =>
-        opt.setName("user").setDescription("対象ユーザー").setRequired(true)
-      )
-      .addIntegerOption((opt) =>
-        opt.setName("amount").setDescription("発行額").setRequired(true).setMinValue(1)
-      )
-      .addStringOption((opt) =>
-        opt.setName("memo").setDescription("メモ（任意）")
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("焼却")
-      .setDescription("🔥 エテルを焼却する")
-      .addUserOption((opt) =>
-        opt.setName("user").setDescription("対象ユーザー").setRequired(true)
-      )
-      .addIntegerOption((opt) =>
-        opt.setName("amount").setDescription("焼却額").setRequired(true).setMinValue(1)
-      )
-      .addStringOption((opt) =>
-        opt.setName("memo").setDescription("メモ（任意）")
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("返金")
-      .setDescription("♻️ ユーザーに返金する（理由を記録）")
-      .addUserOption((opt) =>
-        opt.setName("user").setDescription("対象ユーザー").setRequired(true)
-      )
-      .addIntegerOption((opt) =>
-        opt.setName("amount").setDescription("返金額").setRequired(true).setMinValue(1)
-      )
-      .addStringOption((opt) =>
-        opt.setName("reason").setDescription("返金理由").setRequired(true)
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("調査")
-      .setDescription("🔍 ユーザーの取引履歴を調べる")
-      .addUserOption((opt) =>
-        opt.setName("user").setDescription("対象ユーザー").setRequired(true)
-      )
-      .addIntegerOption((opt) =>
-        opt.setName("limit").setDescription("表示件数（既定 20、最大 50）").setMinValue(1).setMaxValue(50)
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("通知")
-      .setDescription("📢 アステルの口調でアナウンスを送信")
-      .addStringOption((opt) =>
-        opt.setName("message").setDescription("通知内容").setRequired(true)
-      )
-      .addRoleOption((opt) =>
-        opt.setName("role").setDescription("メンションするロール（任意）")
-      )
-      .addRoleOption((opt) =>
-        opt.setName("role2").setDescription("追加メンション 2")
-      )
-      .addRoleOption((opt) =>
-        opt.setName("role3").setDescription("追加メンション 3")
-      )
-      .addRoleOption((opt) =>
-        opt.setName("role4").setDescription("追加メンション 4")
-      )
-      .addRoleOption((opt) =>
-        opt.setName("role5").setDescription("追加メンション 5")
-      )
-  )
-  .addSubcommand((sub) =>
-    sub.setName("株速報").setDescription("📈 株価速報を今すぐ株式市場チャンネルに投稿（テスト用）")
-  )
-  .addSubcommand((sub) =>
-    sub.setName("案内設置").setDescription("📌 このチャンネルに常設の案内パネルを置く")
-  )
-  .addSubcommand((sub) =>
-    sub.setName("商店設置").setDescription("📌 このチャンネルに常設の商店パネルを置く")
-  )
-  .addSubcommand((sub) =>
-    sub.setName("板一覧").setDescription("📋 進行中の議題を一覧（選択で取消可）")
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("板掃除")
-      .setDescription("🧹 長期放置された進行中議題をまとめて無効化＋全員返金")
-      .addIntegerOption((opt) =>
-        opt.setName("古さ").setDescription("これより古い議題を対象（日数・既定 7）").setRequired(false).setMinValue(1).setMaxValue(180)
-      )
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("通貨ログ")
-      .setDescription("📒 エテル取引ログを出力（直近N日・任意ユーザー/絞り込み）")
-      .addIntegerOption((opt) =>
-        opt.setName("日数").setDescription("対象期間（既定 1日・最大 30）").setRequired(false).setMinValue(1).setMaxValue(30)
-      )
-      .addUserOption((opt) =>
-        opt.setName("user").setDescription("特定ユーザーで絞り込み（任意）").setRequired(false)
-      )
-      .addStringOption((opt) =>
-        opt.setName("絞り込み").setDescription("reason に含まれる文字列で絞り込み（任意・例: 心付け）").setRequired(false).setMaxLength(60)
-      )
-  );
+  .setDescription("管理者パネル（全機能をここから呼べる）")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
 // ─── Admin Role Mention Helper ─────────────────────────
 /**
@@ -189,42 +84,266 @@ function ownerExclusion(): { clause: string; params: string[] } {
   return { clause: "user_id != ?", params: [config.ownerId] };
 }
 
-// ─── Command Router ────────────────────────────────────
+// ─── 権限チェック ──────────────────────────────────────
+const ADMIN_USER_ID = "1436392582635847691";
+function isAdmin(userId: string): boolean { return userId === ADMIN_USER_ID; }
 
+// ─── Command Router: /管理 単体で常にパネルを出す ──────
 export async function handleAdminCommand(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (interaction.user.id !== "1436392582635847691") {
+  if (!isAdmin(interaction.user.id)) {
     await interaction.reply({ embeds: [errorEmbed("このコマンドを実行する権限がありません。")], ephemeral: true });
     return;
   }
+  await showAdminPanel(interaction);
+}
 
-  const sub = interaction.options.getSubcommand();
-  const guildId = interaction.guildId!;
+// ─── 管理パネル本体 ────────────────────────────────────
+async function showAdminPanel(interaction: ChatInputCommandInteraction | ButtonInteraction): Promise<void> {
+  const embed = baseEmbed("⚙️ 管理パネル", COLORS.MAIN).setDescription([
+    "やりたい操作のボタンを押してね。",
+    "",
+    "**📊 情報**: 監視 / 調査 / 板一覧 / 通貨ログ",
+    "**💰 経済操作**: 発行 / 焼却 / 返金 / 設定",
+    "**📢 運営**: 通知 / 株速報 / 板掃除",
+    "**📌 設置**: 案内 / 商店",
+  ].join("\n"));
 
-  switch (sub) {
-    case "監視":  return handleMonitor(interaction, guildId);
-    case "設定":  return handleConfig(interaction, guildId);
-    case "発行":  return handleMint(interaction, guildId);
-    case "焼却":  return handleBurn(interaction, guildId);
-    case "返金":  return handleRefund(interaction, guildId);
-    case "調査":  return handleInspect(interaction, guildId);
-    case "通知":  return handleAnnounce(interaction, guildId);
-    case "株速報": return handleStockBroadcast(interaction, guildId);
-    case "板一覧": return handleBoardList(interaction, guildId);
-    case "板掃除": return handleBoardSweep(interaction, guildId);
-    case "通貨ログ": return handleTxLog(interaction, guildId);
-    case "案内設置": {
-      const { postHomePanel } = require("../ui/home");
-      return postHomePanel(interaction);
-    }
-    case "商店設置": {
-      const { postShopPanel } = require("../games/shouten");
-      return postShopPanel(interaction);
-    }
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("adm:monitor").setLabel("📊 監視").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("adm:inspect").setLabel("🔍 調査").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("adm:board_list").setLabel("📋 板一覧").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("adm:txlog").setLabel("📒 通貨ログ").setStyle(ButtonStyle.Primary),
+  );
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("adm:mint").setLabel("💰 発行").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("adm:burn").setLabel("🔥 焼却").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId("adm:refund").setLabel("♻️ 返金").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("adm:config").setLabel("⚙️ 設定").setStyle(ButtonStyle.Secondary),
+  );
+  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("adm:announce").setLabel("📢 通知").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("adm:stock_bc").setLabel("📈 株速報").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("adm:board_sweep").setLabel("🧹 板掃除").setStyle(ButtonStyle.Secondary),
+  );
+  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId("adm:home").setLabel("📌 案内設置").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("adm:shop_post").setLabel("📌 商店設置").setStyle(ButtonStyle.Secondary),
+  );
+
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp({ embeds: [embed], components: [row1, row2, row3, row4], ephemeral: true });
+  } else {
+    await interaction.reply({ embeds: [embed], components: [row1, row2, row3, row4], ephemeral: true });
   }
 }
 
+// ─── パネルのボタン処理（index.ts ルータから呼ぶ） ─────
+export async function handleAdminPanelButton(interaction: ButtonInteraction): Promise<void> {
+  if (!isAdmin(interaction.user.id)) {
+    await interaction.reply({ embeds: [errorEmbed("管理者専用パネルです。")], ephemeral: true });
+    return;
+  }
+  const guildId = interaction.guildId!;
+  const feature = interaction.customId.split(":")[1];
+  switch (feature) {
+    case "monitor":     return handleMonitor(interaction, guildId, "all");
+    case "config":      return handleConfig(interaction, guildId);
+    case "board_list":  return handleBoardList(interaction, guildId);
+    case "stock_bc":    return handleStockBroadcast(interaction, guildId);
+    case "home": {
+      const { postHomePanel } = require("../ui/home");
+      return postHomePanel(interaction);
+    }
+    case "shop_post": {
+      const { postShopPanel } = require("../games/shouten");
+      return postShopPanel(interaction);
+    }
+    case "mint":         return promptMint(interaction);
+    case "burn":         return promptBurn(interaction);
+    case "refund":       return promptRefund(interaction);
+    case "inspect":      return promptInspect(interaction);
+    case "announce":     return promptAnnounce(interaction);
+    case "board_sweep":  return promptBoardSweep(interaction);
+    case "txlog":        return promptTxLog(interaction);
+  }
+}
+
+// ─── パネルのモーダル提出処理（index.ts ルータから呼ぶ） ─
+export async function handleAdminPanelModal(interaction: ModalSubmitInteraction): Promise<void> {
+  if (!isAdmin(interaction.user.id)) {
+    await interaction.reply({ embeds: [errorEmbed("管理者専用パネルです。")], ephemeral: true });
+    return;
+  }
+  const guildId = interaction.guildId!;
+  const feature = interaction.customId.split(":")[1];
+  switch (feature) {
+    case "mint":  return submitMint(interaction, guildId);
+    case "burn":  return submitBurn(interaction, guildId);
+    case "refund": return submitRefund(interaction, guildId);
+    case "inspect": return submitInspect(interaction, guildId);
+    case "announce": return submitAnnounce(interaction, guildId);
+    case "board_sweep": return submitBoardSweep(interaction, guildId);
+    case "txlog":  return submitTxLog(interaction, guildId);
+  }
+}
+
+// ─── 各機能のモーダル表示（prompt系） ──────────────────
+async function promptMint(interaction: ButtonInteraction): Promise<void> {
+  const modal = new ModalBuilder().setCustomId("adm_modal:mint").setTitle("💰 エテル発行").addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("target").setLabel("対象 ユーザーID または @メンション").setStyle(TextInputStyle.Short).setRequired(true),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("amount").setLabel("発行額（◈）").setStyle(TextInputStyle.Short).setRequired(true),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("memo").setLabel("メモ（任意）").setStyle(TextInputStyle.Short).setRequired(false),
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+async function promptBurn(interaction: ButtonInteraction): Promise<void> {
+  const modal = new ModalBuilder().setCustomId("adm_modal:burn").setTitle("🔥 エテル焼却").addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("target").setLabel("対象 ユーザーID または @メンション").setStyle(TextInputStyle.Short).setRequired(true),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("amount").setLabel("焼却額（◈）").setStyle(TextInputStyle.Short).setRequired(true),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("memo").setLabel("メモ（任意）").setStyle(TextInputStyle.Short).setRequired(false),
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+async function promptRefund(interaction: ButtonInteraction): Promise<void> {
+  const modal = new ModalBuilder().setCustomId("adm_modal:refund").setTitle("♻️ ユーザー返金").addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("target").setLabel("対象 ユーザーID または @メンション").setStyle(TextInputStyle.Short).setRequired(true),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("amount").setLabel("返金額（◈）").setStyle(TextInputStyle.Short).setRequired(true),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("reason").setLabel("返金理由").setStyle(TextInputStyle.Paragraph).setRequired(true),
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+async function promptInspect(interaction: ButtonInteraction): Promise<void> {
+  const modal = new ModalBuilder().setCustomId("adm_modal:inspect").setTitle("🔍 ユーザー調査").addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("target").setLabel("対象 ユーザーID または @メンション").setStyle(TextInputStyle.Short).setRequired(true),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("limit").setLabel("表示件数（既定 20・最大 50）").setStyle(TextInputStyle.Short).setRequired(false),
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+async function promptAnnounce(interaction: ButtonInteraction): Promise<void> {
+  const modal = new ModalBuilder().setCustomId("adm_modal:announce").setTitle("📢 アナウンス送信").addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("message").setLabel("通知内容").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1500),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("roles").setLabel("メンションするロールID（カンマ区切り・任意・最大5）").setStyle(TextInputStyle.Short).setRequired(false),
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+async function promptBoardSweep(interaction: ButtonInteraction): Promise<void> {
+  const modal = new ModalBuilder().setCustomId("adm_modal:board_sweep").setTitle("🧹 板掃除").addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("days").setLabel("対象とする古さ（日数・既定 7）").setStyle(TextInputStyle.Short).setRequired(false),
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+async function promptTxLog(interaction: ButtonInteraction): Promise<void> {
+  const modal = new ModalBuilder().setCustomId("adm_modal:txlog").setTitle("📒 通貨ログ").addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("days").setLabel("対象期間（日数・既定 1・最大 30）").setStyle(TextInputStyle.Short).setRequired(false),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("user").setLabel("ユーザーID で絞り込み（任意）").setStyle(TextInputStyle.Short).setRequired(false),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId("filter").setLabel("reason に含まれる文字列（任意）").setStyle(TextInputStyle.Short).setRequired(false),
+    ),
+  );
+  await interaction.showModal(modal);
+}
+
+// ─── モーダル提出処理（submit系: 入力をパースして既存ハンドラに委譲） ─
+async function submitMint(interaction: ModalSubmitInteraction, guildId: string): Promise<void> {
+  const targetId = parseUserIdInput(interaction.fields.getTextInputValue("target"));
+  const amount = parseInt(interaction.fields.getTextInputValue("amount"));
+  const memo = interaction.fields.getTextInputValue("memo")?.trim() || null;
+  if (!targetId) { await interaction.reply({ embeds: [errorEmbed("ユーザーID が読み取れなかったよ。")], ephemeral: true }); return; }
+  if (!Number.isFinite(amount) || amount < 1) { await interaction.reply({ embeds: [errorEmbed("金額が不正だよ。1以上の整数を入れて。")], ephemeral: true }); return; }
+  await handleMint(interaction, guildId, { targetId, amount, memo });
+}
+
+async function submitBurn(interaction: ModalSubmitInteraction, guildId: string): Promise<void> {
+  const targetId = parseUserIdInput(interaction.fields.getTextInputValue("target"));
+  const amount = parseInt(interaction.fields.getTextInputValue("amount"));
+  const memo = interaction.fields.getTextInputValue("memo")?.trim() || null;
+  if (!targetId) { await interaction.reply({ embeds: [errorEmbed("ユーザーID が読み取れなかったよ。")], ephemeral: true }); return; }
+  if (!Number.isFinite(amount) || amount < 1) { await interaction.reply({ embeds: [errorEmbed("金額が不正だよ。1以上の整数を入れて。")], ephemeral: true }); return; }
+  await handleBurn(interaction, guildId, { targetId, amount, memo });
+}
+
+async function submitRefund(interaction: ModalSubmitInteraction, guildId: string): Promise<void> {
+  const targetId = parseUserIdInput(interaction.fields.getTextInputValue("target"));
+  const amount = parseInt(interaction.fields.getTextInputValue("amount"));
+  const reason = interaction.fields.getTextInputValue("reason")?.trim() || "";
+  if (!targetId) { await interaction.reply({ embeds: [errorEmbed("ユーザーID が読み取れなかったよ。")], ephemeral: true }); return; }
+  if (!Number.isFinite(amount) || amount < 1) { await interaction.reply({ embeds: [errorEmbed("金額が不正だよ。1以上の整数を入れて。")], ephemeral: true }); return; }
+  if (!reason) { await interaction.reply({ embeds: [errorEmbed("理由は必須だよ。")], ephemeral: true }); return; }
+  await handleRefund(interaction, guildId, { targetId, amount, reason });
+}
+
+async function submitInspect(interaction: ModalSubmitInteraction, guildId: string): Promise<void> {
+  const targetId = parseUserIdInput(interaction.fields.getTextInputValue("target"));
+  const limitRaw = parseInt(interaction.fields.getTextInputValue("limit"));
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 20;
+  if (!targetId) { await interaction.reply({ embeds: [errorEmbed("ユーザーID が読み取れなかったよ。")], ephemeral: true }); return; }
+  await handleInspect(interaction, guildId, { targetId, limit });
+}
+
+async function submitAnnounce(interaction: ModalSubmitInteraction, guildId: string): Promise<void> {
+  const message = interaction.fields.getTextInputValue("message")?.trim() || "";
+  if (!message) { await interaction.reply({ embeds: [errorEmbed("通知内容が空だよ。")], ephemeral: true }); return; }
+  const rolesRaw = interaction.fields.getTextInputValue("roles") ?? "";
+  const roleIds = Array.from(new Set(
+    rolesRaw.split(/[,、，\s]+/).map((s) => s.trim()).filter((s) => /^\d{15,21}$/.test(s)),
+  )).slice(0, 5);
+  await handleAnnounce(interaction, guildId, { message, roleIds });
+}
+
+async function submitBoardSweep(interaction: ModalSubmitInteraction, guildId: string): Promise<void> {
+  const daysRaw = parseInt(interaction.fields.getTextInputValue("days"));
+  const days = Number.isFinite(daysRaw) && daysRaw > 0 ? Math.min(daysRaw, 180) : 7;
+  await handleBoardSweep(interaction, guildId, { days });
+}
+
+async function submitTxLog(interaction: ModalSubmitInteraction, guildId: string): Promise<void> {
+  const daysRaw = parseInt(interaction.fields.getTextInputValue("days"));
+  const days = Number.isFinite(daysRaw) && daysRaw > 0 ? Math.min(daysRaw, 30) : 1;
+  const userId = parseUserIdInput(interaction.fields.getTextInputValue("user") ?? "");
+  const filter = (interaction.fields.getTextInputValue("filter") ?? "").trim();
+  await handleTxLog(interaction, guildId, { days, userId, filter });
+}
+
 // ─── 📈 株速報（手動投稿・テスト用） ──────────────────────
-async function handleStockBroadcast(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+async function handleStockBroadcast(interaction: AdminInteraction, guildId: string): Promise<void> {
   const cfg = getServerConfig(guildId);
   if (!cfg.stock_channel_id) {
     await interaction.reply({ embeds: [errorEmbed("株 速報チャンネルが未設定だよ。`/管理 設定` → 📢 チャンネルを編集 で設定してね。")], ephemeral: true });
@@ -247,7 +366,7 @@ async function handleStockBroadcast(interaction: ChatInputCommandInteraction, gu
 
 // ─── 📊 監視（経済ダッシュボード、オーナー除外） ─────────
 
-async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+async function handleMonitor(interaction: AdminInteraction, guildId: string, sectionOverride?: "all" | "flow" | "activity" | "ranking" | "dist"): Promise<void> {
   const cfg = getServerConfig(guildId);
   const owner = ownerExclusion();
   const where = owner.clause ? `WHERE ${owner.clause}` : "";
@@ -370,8 +489,11 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
     ? `*<@${config.ownerId}> をオーナーとして集計から除外*`
     : "*オーナーID 未設定（全ユーザーを集計）*";
 
-  // 区分フィルタ
-  const section = (interaction.options.getString("区分") as "all" | "flow" | "activity" | "ranking" | "dist" | null) ?? "all";
+  // 区分フィルタ（ボタン経由は sectionOverride、サブコマンド経由は options から）
+  const sectionFromOptions = (interaction.isChatInputCommand()
+    ? (interaction.options.getString("区分") as "all" | "flow" | "activity" | "ranking" | "dist" | null)
+    : null);
+  const section = sectionOverride ?? sectionFromOptions ?? "all";
   const show = {
     flow: section === "all" || section === "flow",
     dist: section === "all" || section === "dist",
@@ -440,7 +562,7 @@ async function handleMonitor(interaction: ChatInputCommandInteraction, guildId: 
 
 // ─── ⚙️ 設定 ─────────────────────────────────────────
 
-async function handleConfig(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+async function handleConfig(interaction: AdminInteraction, guildId: string): Promise<void> {
   const cfg = getServerConfig(guildId);
 
   const embed = baseEmbed("⚙️ サーバー設定", COLORS.MAIN).addFields(
@@ -634,82 +756,71 @@ async function handleConfig(interaction: ChatInputCommandInteraction, guildId: s
 
 // ─── 💰 発行（mint） ──────────────────────────────────
 
-async function handleMint(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const target = interaction.options.getUser("user", true);
-  const amount = interaction.options.getInteger("amount", true);
-  const memo = interaction.options.getString("memo") ?? null;
+type MintBurnParams = { targetId: string; amount: number; memo: string | null };
 
-  ensureUser(target.id, guildId);
-  const result = adjustBalance(target.id, amount, "mint", "admin");
-
+async function handleMint(interaction: AdminInteraction, guildId: string, params: MintBurnParams): Promise<void> {
+  ensureUser(params.targetId, guildId);
+  const result = adjustBalance(params.targetId, params.amount, "mint", "admin");
   if (!result.ok) {
     await interaction.reply({ embeds: [errorEmbed("発行に失敗しました。")], ephemeral: true });
     return;
   }
-
   db.prepare("INSERT INTO exchange_logs (admin_id, target_user_id, action, amount, memo) VALUES (?, ?, 'mint', ?, ?)")
-    .run(interaction.user.id, target.id, amount, memo);
+    .run(interaction.user.id, params.targetId, params.amount, params.memo);
 
+  const displayName = await resolveDisplayName(interaction, params.targetId);
   await interaction.reply({
-    embeds: [successEmbed(`**${target.displayName}** に ◈${amount.toLocaleString()} を発行しました。${memo ? `\nメモ: ${memo}` : ""}`)],
+    embeds: [successEmbed(`**${displayName}** に ◈${params.amount.toLocaleString()} を発行しました。${params.memo ? `\nメモ: ${params.memo}` : ""}`)],
     ephemeral: true,
   });
 }
 
 // ─── 🔥 焼却（burn） ──────────────────────────────────
 
-async function handleBurn(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const target = interaction.options.getUser("user", true);
-  const amount = interaction.options.getInteger("amount", true);
-  const memo = interaction.options.getString("memo") ?? null;
-
-  ensureUser(target.id, guildId);
-  const result = adjustBalance(target.id, -amount, "burn", "admin");
-
+async function handleBurn(interaction: AdminInteraction, guildId: string, params: MintBurnParams): Promise<void> {
+  ensureUser(params.targetId, guildId);
+  const result = adjustBalance(params.targetId, -params.amount, "burn", "admin");
   if (!result.ok) {
     await interaction.reply({ embeds: [errorEmbed("焼却に失敗しました。残高不足の可能性があります。")], ephemeral: true });
     return;
   }
-
   db.prepare("INSERT INTO exchange_logs (admin_id, target_user_id, action, amount, memo) VALUES (?, ?, 'burn', ?, ?)")
-    .run(interaction.user.id, target.id, amount, memo);
+    .run(interaction.user.id, params.targetId, params.amount, params.memo);
 
+  const displayName = await resolveDisplayName(interaction, params.targetId);
   await interaction.reply({
-    embeds: [successEmbed(`**${target.displayName}** から ◈${amount.toLocaleString()} を焼却しました。${memo ? `\nメモ: ${memo}` : ""}`)],
+    embeds: [successEmbed(`**${displayName}** から ◈${params.amount.toLocaleString()} を焼却しました。${params.memo ? `\nメモ: ${params.memo}` : ""}`)],
     ephemeral: true,
   });
 }
 
 // ─── ♻️ 返金 ────────────────────────────────────────
 
-async function handleRefund(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const target = interaction.options.getUser("user", true);
-  const amount = interaction.options.getInteger("amount", true);
-  const reason = interaction.options.getString("reason", true);
+type RefundParams = { targetId: string; amount: number; reason: string };
 
-  ensureUser(target.id, guildId);
-  const result = adjustBalance(target.id, amount, `返金: ${reason}`, "admin", guildId);
+async function handleRefund(interaction: AdminInteraction, guildId: string, params: RefundParams): Promise<void> {
+  ensureUser(params.targetId, guildId);
+  const result = adjustBalance(params.targetId, params.amount, `返金: ${params.reason}`, "admin", guildId);
   if (!result.ok) {
     await interaction.reply({ embeds: [errorEmbed("返金に失敗しました。")], ephemeral: true });
     return;
   }
-
   db.prepare("INSERT INTO exchange_logs (admin_id, target_user_id, action, amount, memo) VALUES (?, ?, 'refund', ?, ?)")
-    .run(interaction.user.id, target.id, amount, reason);
+    .run(interaction.user.id, params.targetId, params.amount, params.reason);
 
+  const displayName = await resolveDisplayName(interaction, params.targetId);
   await interaction.reply({
-    embeds: [successEmbed(`**${target.displayName}** に ◈${amount.toLocaleString()} を返金しました。\n理由: ${reason}`)],
+    embeds: [successEmbed(`**${displayName}** に ◈${params.amount.toLocaleString()} を返金しました。\n理由: ${params.reason}`)],
     ephemeral: true,
   });
 }
 
 // ─── 🔍 調査（ユーザー履歴） ────────────────────────
 
-async function handleInspect(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const target = interaction.options.getUser("user", true);
-  const limit = interaction.options.getInteger("limit") ?? 20;
+type InspectParams = { targetId: string; limit: number };
 
-  const profile = ensureUser(target.id, guildId);
+async function handleInspect(interaction: AdminInteraction, guildId: string, params: InspectParams): Promise<void> {
+  const profile = ensureUser(params.targetId, guildId);
 
   const rows = db.prepare(`
     SELECT amount, reason, game, created_at
@@ -717,7 +828,7 @@ async function handleInspect(interaction: ChatInputCommandInteraction, guildId: 
     WHERE user_id = ?
     ORDER BY id DESC
     LIMIT ?
-  `).all(target.id, limit) as Array<{ amount: number; reason: string; game: string | null; created_at: string }>;
+  `).all(params.targetId, params.limit) as Array<{ amount: number; reason: string; game: string | null; created_at: string }>;
 
   const lines = rows.length === 0
     ? "*取引履歴なし*"
@@ -728,10 +839,11 @@ async function handleInspect(interaction: ChatInputCommandInteraction, guildId: 
         return `\`${ts}\` ${sign}◈${r.amount.toLocaleString()}　${r.reason}${game}`;
       }).join("\n");
 
+  const displayName = await resolveDisplayName(interaction, params.targetId);
   await interaction.reply({
     embeds: [
       infoEmbed(
-        `🔍 ${target.displayName} の調査`,
+        `🔍 ${displayName} の調査`,
         [
           `💰 残高: ◈${profile.balance.toLocaleString()}`,
           `📈 ${profile.total_wins.toLocaleString()}勝 / ${profile.total_losses.toLocaleString()}敗 ・ 累計賭け ◈${profile.total_wagered.toLocaleString()}`,
@@ -748,16 +860,18 @@ async function handleInspect(interaction: ChatInputCommandInteraction, guildId: 
 
 // ─── 📢 通知（announce） ─────────────────────────────
 
-async function handleAnnounce(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const message = interaction.options.getString("message", true);
-  // 最大5ロールまでメンション可能。重複は除去。
-  const roles = ["role", "role2", "role3", "role4", "role5"]
-    .map((k) => interaction.options.getRole(k))
-    .filter((r): r is NonNullable<typeof r> => r != null);
-  const uniqueRoleIds = Array.from(new Set(roles.map((r) => r.id)));
+type AnnounceParams = { message: string; roleIds: string[] };
+
+async function handleAnnounce(interaction: AdminInteraction, guildId: string, params: AnnounceParams): Promise<void> {
+  const message = params.message;
+  const uniqueRoleIds = Array.from(new Set(params.roleIds));
 
   const cfg = getServerConfig(guildId);
   const channelId = cfg.casino_channel_id ?? interaction.channelId;
+  if (!channelId) {
+    await interaction.reply({ embeds: [errorEmbed("チャンネルが取れなかったよ。")], ephemeral: true });
+    return;
+  }
 
   const channel = await interaction.client.channels.fetch(channelId);
   if (!channel || !channel.isTextBased()) {
@@ -803,7 +917,7 @@ type BoardAdminRow = {
 
 type BoardBetAdminRow = { user_id: string; amount: number };
 
-async function handleBoardList(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+async function handleBoardList(interaction: AdminInteraction, guildId: string): Promise<void> {
   const rows = db.prepare(
     `SELECT id, creator_id, title, status, created_at
      FROM betting_markets
@@ -910,8 +1024,10 @@ async function executeBoardCancel(client: Client, guildId: string, marketId: num
 
 // ─── 🧹 板掃除（長期放置議題の一括 void） ─────────────
 
-async function handleBoardSweep(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
-  const days = interaction.options.getInteger("古さ") ?? 7;
+type BoardSweepParams = { days: number };
+
+async function handleBoardSweep(interaction: AdminInteraction, guildId: string, params: BoardSweepParams): Promise<void> {
+  const days = params.days;
   await interaction.deferReply({ ephemeral: true });
 
   // 対象 = 進行中（open/closed/reported/disputed）かつ created_at が days日より古い
@@ -973,19 +1089,20 @@ async function handleBoardSweep(interaction: ChatInputCommandInteraction, guildI
 
 // ─── 📒 通貨ログ ─────────────────────────────────────
 
-async function handleTxLog(interaction: ChatInputCommandInteraction, _guildId: string): Promise<void> {
-  const days = interaction.options.getInteger("日数") ?? 1;
-  const targetUser = interaction.options.getUser("user");
-  const filter = (interaction.options.getString("絞り込み") ?? "").trim();
+type TxLogParams = { days: number; userId: string | null; filter: string };
+
+async function handleTxLog(interaction: AdminInteraction, _guildId: string, p: TxLogParams): Promise<void> {
+  const days = p.days;
+  const filter = p.filter;
 
   await interaction.deferReply({ ephemeral: true });
 
   // 条件構築
   const where: string[] = [`created_at >= datetime('now', '-${days} days')`];
   const params: any[] = [];
-  if (targetUser) {
+  if (p.userId) {
     where.push("user_id = ?");
-    params.push(targetUser.id);
+    params.push(p.userId);
   }
   if (filter) {
     where.push("reason LIKE ?");
@@ -1013,7 +1130,7 @@ async function handleTxLog(interaction: ChatInputCommandInteraction, _guildId: s
   }
   const net = totalIn - totalOut;
 
-  const targetLabel = targetUser ? `<@${targetUser.id}>` : "全ユーザー";
+  const targetLabel = p.userId ? `<@${p.userId}>` : "全ユーザー";
   const filterLabel = filter ? `\nフィルタ: \`${filter}\`` : "";
   const summary = [
     `**対象**: ${targetLabel}　|　**期間**: 直近 ${days}日　|　**件数**: ${rows.length}`,

@@ -421,6 +421,18 @@ async function bootstrap(): Promise<void> {
         return;
       }
 
+      // ── 管理パネル (adm:) Interactions ──
+      if (interaction.isButton() && interaction.customId.startsWith("adm:")) {
+        const { handleAdminPanelButton } = require("./admin/commands");
+        await handleAdminPanelButton(interaction);
+        return;
+      }
+      if (interaction.isModalSubmit() && interaction.customId.startsWith("adm_modal:")) {
+        const { handleAdminPanelModal } = require("./admin/commands");
+        await handleAdminPanelModal(interaction);
+        return;
+      }
+
       // ── ブラックジャック もう一回 / 配当表 / 退席（時間制限なし global） ──
       if (interaction.isButton() && (
         interaction.customId.startsWith("bj_retry_") ||
