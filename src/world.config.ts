@@ -92,7 +92,7 @@ export const WORLD = {
   TIERS: {
     human: "漂着者",
     half: "星拾い",
-    yokai: "星約者",
+    yokai: "星渡り",
     daiyokai: "星詠み",
     kami: "北極星",
   } as Record<string, string>,

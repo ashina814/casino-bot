@@ -187,7 +187,7 @@ export type TierInfo = {
 const TIERS: TierInfo[] = [
   { key: "human",    name: "漂着者", emoji: "✦", betCap: 1_000 },
   { key: "half",     name: "星拾い", emoji: "✧", betCap: 3_000 },
-  { key: "yokai",    name: "星約者", emoji: "✶", betCap: 10_000 },
+  { key: "yokai",    name: "星渡り", emoji: "✶", betCap: 10_000 },
   { key: "daiyokai", name: "星詠み", emoji: "✷", betCap: 50_000 },
   { key: "kami",     name: "北極星", emoji: "✹", betCap: 100_000 },
 ];

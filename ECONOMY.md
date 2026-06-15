@@ -59,7 +59,7 @@ Gil純流入  ≒  権利系シンク  ＋  カジノ純吸収
 | 福分け base | 300(≤1万)→225(≤5万)→150(≤20万)→100(>20万) | `economy.calculateDailyBonus` |
 | 福分け 段階倍率 / 連続 | ×1.0〜1.25 / +0〜200 | `zashikiStage` / `daily.ts` |
 | 救済(巡りの光)還元 | 残高≤1,000に最大◈500/日（プールから） | `economy.drawFromReliefPool` / `daily.ts` |
-| 賭け上限(betCap) | 漂着者1,000 / 星拾い2,000 / 星約者1万 / 星詠み5万 / 北極星10万 | `economy.ts` TIERS |
+| 賭け上限(betCap) | 漂着者1,000 / 星拾い3,000 / 星渡り1万 / 星詠み5万 / 北極星10万 | `economy.ts` TIERS |
 | 昇格(exp) | `75 * Lv^1.3` | `economy.expForNextLevel` |
 | 累進奉納(福の重み) | ≤1万:0% / ≤5万:5% / ≤10万:10% / ≤30万:20% / >30万:30% | `economy.getFukuWeight` |
 | ハウス吸収の行先 | 50%消滅 / 30%→救済 / 20%→JP | `economy.distributeHouseEarnings` |

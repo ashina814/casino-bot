@@ -16,7 +16,7 @@
  *   YAMI     = 蝕   : 余裕が執着に反転。低く断定的・独占。怖さはギャップで
  *   ZENSE    = 前世（座敷童）: 旧座敷童の古風口調（わし／〜じゃ／客人・お主）。前世を思い出した姿
  *
- * tier(星位): human=漂着者 / half=星拾い / yokai=星約者 / daiyokai=星詠み / kami=北極星
+ * tier(星位): human=漂着者 / half=星拾い / yokai=星渡り / daiyokai=星詠み / kami=北極星
  * 構造（バケット選択）は dialogue.ts 側で確定済み。
  */
 export type TierKey = "human" | "half" | "yokai" | "daiyokai" | "kami";

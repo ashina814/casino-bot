@@ -10,7 +10,7 @@ import type { UserProfile } from "../core/db";
 const TIER_THRESHOLDS: Array<{ level: number; key: string; name: string; emoji: string }> = [
   { level: 0,   key: "human",    name: "漂着者", emoji: "✦" },
   { level: 10,  key: "half",     name: "星拾い", emoji: "✧" },
-  { level: 25,  key: "yokai",    name: "星約者", emoji: "✶" },
+  { level: 25,  key: "yokai",    name: "星渡り", emoji: "✶" },
   { level: 50,  key: "daiyokai", name: "星詠み", emoji: "✷" },
   { level: 100, key: "kami",     name: "北極星", emoji: "✹" },
 ];
