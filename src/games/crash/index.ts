@@ -36,14 +36,20 @@ import { WORLD } from "../../world.config";
 
 /**
  * クラッシュポイントを生成。ハウスエッジを組み込んだ分布。
- * E[payout] = 1 - houseEdge を満たすように設計。
+ * E[payout] ≈ (1 - INSTANT_CRASH_RATE) × (1 - houseEdge) を満たす設計。
+ *
+ * 旧設定（即崩壊1% / houseEdge=0.04）は数学RTP 95%だが、MIN_CASHOUT=1.5xの
+ * 仕様と組み合わさり「1.5xで確実に降りる戦略」の勝率が約63%になり、
+ * プレイヤー体感が「勝ちやすすぎる」状態だった。即崩壊率を 1%→3% に引き上げて
+ * 心理的恐怖と勝率を同時に少しだけ下げる。
  */
+const INSTANT_CRASH_RATE = 0.03;
+
 function generateCrashPoint(houseEdge: number): number {
   const e = 1 - houseEdge;
-  // Inverse CDF: crash = e / (1 - uniform)
-  // This gives a geometric-like distribution where the house always has edge
   const r = Math.random();
-  if (r < 0.01) return 1.0; // 1% instant crash
+  if (r < INSTANT_CRASH_RATE) return 1.0;
+  // Inverse CDF: crash = e / (1 - uniform)（Pareto-like distribution）
   const crash = e / (1 - r);
   return Math.max(1.0, Math.round(crash * 100) / 100);
 }
@@ -123,7 +129,9 @@ export async function playCrash(
   recordWager(userId, bet);
   try { require("../../core/db").addGamePlayAffection(userId); } catch {}
 
-  const houseEdge = getEffectiveHouseEdge(guildId, 0.04);
+  // クラッシュは MIN_CASHOUT=1.5x で勝率が高めに出る性質があるので、
+  // 他ゲーム（4%基準）より少し厚めの 6% を既定にする。
+  const houseEdge = getEffectiveHouseEdge(guildId, 0.06);
   const crashPoint = generateCrashPoint(houseEdge);
 
   // 最低降車ライン: ここに届くまで降りられない（即降り無リスク払戻しの抑制）
