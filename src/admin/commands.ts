@@ -609,7 +609,10 @@ async function handleConfig(interaction: AdminInteraction, guildId: string): Pro
     new ButtonBuilder().setCustomId("admin_logs").setLabel("📒 ログ設定").setStyle(ButtonStyle.Secondary),
   );
 
-  const reply = await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  // ButtonInteraction 経由でも確実に Message を取り、コレクターを作れるよう
+  // 明示的に fetchReply で取得（InteractionResponse の挙動差異を回避）。
+  const reply = await interaction.fetchReply();
 
   const collector = reply.createMessageComponentCollector({
     componentType: ComponentType.Button,
@@ -948,11 +951,13 @@ async function handleBoardList(interaction: AdminInteraction, guildId: string): 
       })),
     );
 
-  const reply = await interaction.reply({
+  await interaction.reply({
     embeds: [baseEmbed(`📋 板 — 進行中 ${rows.length}件`, COLORS.GOLD).setDescription(lines.join("\n"))],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(sel)],
     ephemeral: true,
   });
+  // ButtonInteraction 経由でも確実に Message を取得（コレクター用）
+  const reply = await interaction.fetchReply();
 
   try {
     const picked = await reply.awaitMessageComponent({ componentType: ComponentType.StringSelect, time: 120_000 });
